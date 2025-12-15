@@ -46,10 +46,10 @@ pub struct SyncState {
 
 /// File pending upload
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct PendingFile {
     path: PathBuf,
     folder_id: String,
-    #[allow(dead_code)]
     added_at: DateTime<Utc>,
 }
 
@@ -96,7 +96,8 @@ impl SyncService {
         }
     }
 
-    /// Set API port for uploads
+    /// Set API port for uploads (for config updates)
+    #[allow(dead_code)]
     pub fn set_api_port(&mut self, port: u16) {
         self.api_client.set_port(port);
     }

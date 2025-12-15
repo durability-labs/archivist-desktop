@@ -9,6 +9,13 @@ use state::AppState;
 use services::node::NodeManager;
 use services::sync::SyncManager;
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use tauri::Manager;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use tauri::menu::{Menu, MenuItem};
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Create shared app state
@@ -26,12 +33,23 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init());
 
-    // Single instance plugin (desktop only)
+    // Desktop-only plugins
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
-            log::info!("Another instance attempted to start");
-        }));
+        builder = builder
+            .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                log::info!("Another instance attempted to start, focusing window");
+                // Focus the main window when another instance tries to start
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }))
+            .plugin(tauri_plugin_autostart::init(
+                tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+                Some(vec!["--minimized"]),
+            ))
+            .plugin(tauri_plugin_updater::Builder::new().build());
     }
 
     builder
@@ -83,6 +101,12 @@ pub fn run() {
             log::info!("Features: marketplace={}, zk_proofs={}",
                 features.marketplace, features.zk_proofs);
 
+            // Set up system tray (desktop only)
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            {
+                setup_system_tray(app)?;
+            }
+
             // Start the node health monitor
             let node_manager = NodeManager::new(node_service.clone(), app.handle().clone());
             tauri::async_runtime::spawn(async move {
@@ -111,6 +135,63 @@ pub fn run() {
 
             Ok(())
         })
+        .on_window_event(|window, event| {
+            // Handle window close to minimize to tray instead
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Hide the window instead of closing
+                let _ = window.hide();
+                api.prevent_close();
+                log::info!("Window hidden to tray");
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running Archivist");
+}
+
+/// Set up the system tray icon and menu
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let show = MenuItem::with_id(app, "show", "Show Archivist", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+
+    let _tray = TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
+        .menu(&menu)
+        .tooltip("Archivist - Decentralized Storage")
+        .on_menu_event(|app, event| {
+            match event.id.as_ref() {
+                "show" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+                "quit" => {
+                    log::info!("Quit requested from tray");
+                    app.exit(0);
+                }
+                _ => {}
+            }
+        })
+        .on_tray_icon_event(|tray, event| {
+            // Show window on double-click or left-click (platform dependent)
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+        })
+        .build(app)?;
+
+    log::info!("System tray initialized");
+    Ok(())
 }

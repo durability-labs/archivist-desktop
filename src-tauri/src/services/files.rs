@@ -42,7 +42,8 @@ pub struct FileService {
     files: HashMap<String, FileInfo>,
     /// API client for node communication
     api_client: NodeApiClient,
-    /// Port the node API is running on
+    /// Port the node API is running on (for config updates)
+    #[allow(dead_code)]
     api_port: u16,
 }
 
@@ -56,6 +57,7 @@ impl FileService {
     }
 
     /// Set the API port (called when node config changes)
+    #[allow(dead_code)]
     pub fn set_api_port(&mut self, port: u16) {
         self.api_port = port;
         self.api_client.set_port(port);

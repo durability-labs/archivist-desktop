@@ -92,9 +92,10 @@ impl Default for NodeConfig {
     }
 }
 
-/// Events emitted by the node manager
+/// Events emitted by the node manager (for future use with Tauri events)
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
+#[allow(dead_code)]
 pub enum NodeEvent {
     StateChanged { state: NodeState },
     StatusUpdate { status: NodeStatus },
@@ -103,6 +104,7 @@ pub enum NodeEvent {
 }
 
 /// Internal state for managing the node process
+#[allow(dead_code)]
 struct NodeProcessState {
     child: Option<CommandChild>,
     start_time: Option<Instant>,

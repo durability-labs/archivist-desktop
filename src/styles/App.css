@@ -799,3 +799,106 @@ tr:hover td {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* Settings page additional styles */
+button.secondary {
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+button.secondary:hover:not(:disabled) {
+  background-color: var(--color-bg-secondary);
+}
+
+.input-with-button {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.input-with-button input {
+  flex: 1;
+}
+
+.setting-row {
+  display: flex;
+  gap: var(--spacing-lg);
+}
+
+.setting-row .setting-item {
+  flex: 1;
+}
+
+.setting-row .setting-item input[type="number"] {
+  max-width: 150px;
+}
+
+.pattern-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-sm);
+}
+
+.pattern-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+.pattern-remove {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+  margin: 0;
+  width: auto;
+}
+
+.pattern-remove:hover {
+  color: var(--color-error);
+  background: none;
+}
+
+.about-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.about-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.about-row:last-child {
+  border-bottom: none;
+}
+
+.about-label {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.about-value {
+  font-family: monospace;
+}
+
+.about-link {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.about-link:hover {
+  text-decoration: underline;
+}

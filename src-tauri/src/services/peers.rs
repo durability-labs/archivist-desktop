@@ -64,7 +64,8 @@ impl PeerService {
         }
     }
 
-    /// Set the API port
+    /// Set the API port (for config updates)
+    #[allow(dead_code)]
     pub fn set_api_port(&mut self, port: u16) {
         self.api_client.set_port(port);
     }
@@ -200,6 +201,7 @@ impl PeerService {
     }
 
     /// Check if node API is reachable
+    #[allow(dead_code)]
     pub async fn check_connection(&self) -> bool {
         self.api_client.health_check().await.unwrap_or(false)
     }

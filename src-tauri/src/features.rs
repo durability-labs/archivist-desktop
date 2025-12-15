@@ -29,6 +29,7 @@ impl Features {
     }
 
     /// Check if any V2 features are enabled
+    #[allow(dead_code)]
     pub fn has_v2_features(&self) -> bool {
         self.marketplace || self.zk_proofs
     }
