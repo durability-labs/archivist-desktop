@@ -1,6 +1,7 @@
 mod commands;
 mod error;
 mod features;
+pub mod node_api;
 mod services;
 mod state;
 
@@ -50,6 +51,8 @@ pub fn run() {
             commands::download_file,
             commands::delete_file,
             commands::pin_file,
+            commands::get_file,
+            commands::check_node_connection,
             // Sync commands
             commands::get_sync_status,
             commands::add_watch_folder,

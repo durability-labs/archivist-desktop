@@ -48,7 +48,8 @@ dirs = "5.0"
 mime_guess = "2.0"
 
 # Networking
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
+urlencoding = "2.1"
 
 # Error handling
 thiserror = "1.0"

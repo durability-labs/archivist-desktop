@@ -1,130 +1,216 @@
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
+use std::path::Path;
+use std::collections::HashMap;
 use crate::error::{ArchivistError, Result};
+use crate::node_api::NodeApiClient;
 
+/// File information stored locally and synced with node
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileInfo {
-    pub id: String,
+    pub cid: String,
     pub name: String,
     pub size_bytes: u64,
-    pub content_hash: String,
     pub mime_type: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub modified_at: DateTime<Utc>,
+    pub uploaded_at: DateTime<Utc>,
     pub is_pinned: bool,
-    pub peer_count: u32,
+    pub is_local: bool,
 }
 
+/// Response for file list
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UploadProgress {
-    pub file_id: String,
-    pub bytes_uploaded: u64,
-    pub total_bytes: u64,
-    pub status: UploadStatus,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum UploadStatus {
-    Pending,
-    Uploading,
-    Processing,
-    Complete,
-    Failed,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileList {
     pub files: Vec<FileInfo>,
     pub total_count: u64,
     pub total_size_bytes: u64,
 }
 
+/// Upload result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadResult {
+    pub cid: String,
+    pub name: String,
+    pub size_bytes: u64,
+}
+
+/// File service that manages files through the node API
 pub struct FileService {
-    files: Vec<FileInfo>,
+    /// Local cache of file metadata (CID -> FileInfo)
+    files: HashMap<String, FileInfo>,
+    /// API client for node communication
+    api_client: NodeApiClient,
+    /// Port the node API is running on
+    api_port: u16,
 }
 
 impl FileService {
     pub fn new() -> Self {
         Self {
-            files: Vec::new(),
+            files: HashMap::new(),
+            api_client: NodeApiClient::new(5001),
+            api_port: 5001,
         }
     }
 
-    pub async fn list_files(&self) -> Result<FileList> {
-        let total_size: u64 = self.files.iter().map(|f| f.size_bytes).sum();
+    /// Set the API port (called when node config changes)
+    pub fn set_api_port(&mut self, port: u16) {
+        self.api_port = port;
+        self.api_client.set_port(port);
+    }
+
+    /// Refresh file list from node
+    pub async fn refresh_from_node(&mut self) -> Result<()> {
+        match self.api_client.list_data().await {
+            Ok(response) => {
+                // Update local cache with data from node
+                for item in response.content {
+                    if !self.files.contains_key(&item.cid) {
+                        let file_info = FileInfo {
+                            cid: item.cid.clone(),
+                            name: item.manifest
+                                .as_ref()
+                                .and_then(|m| m.filename.clone())
+                                .unwrap_or_else(|| format!("file-{}", &item.cid[..8])),
+                            size_bytes: item.manifest
+                                .as_ref()
+                                .and_then(|m| m.upload_bytes)
+                                .unwrap_or(0),
+                            mime_type: item.manifest
+                                .as_ref()
+                                .and_then(|m| m.mimetype.clone()),
+                            uploaded_at: Utc::now(),
+                            is_pinned: item.manifest
+                                .as_ref()
+                                .and_then(|m| m.protected)
+                                .unwrap_or(false),
+                            is_local: true,
+                        };
+                        self.files.insert(item.cid, file_info);
+                    }
+                }
+                Ok(())
+            }
+            Err(e) => {
+                log::warn!("Failed to refresh files from node: {}", e);
+                // Don't fail - just use cached data
+                Ok(())
+            }
+        }
+    }
+
+    /// List all files (from cache, optionally refreshing from node)
+    pub async fn list_files(&mut self) -> Result<FileList> {
+        // Try to refresh from node
+        let _ = self.refresh_from_node().await;
+
+        let files: Vec<FileInfo> = self.files.values().cloned().collect();
+        let total_size: u64 = files.iter().map(|f| f.size_bytes).sum();
 
         Ok(FileList {
-            files: self.files.clone(),
-            total_count: self.files.len() as u64,
+            total_count: files.len() as u64,
             total_size_bytes: total_size,
+            files,
         })
     }
 
-    pub async fn upload_file(&mut self, path: &str) -> Result<FileInfo> {
-        let path = std::path::Path::new(path);
+    /// Upload a file to the node
+    pub async fn upload_file(&mut self, path: &str) -> Result<UploadResult> {
+        let path = Path::new(path);
 
         if !path.exists() {
             return Err(ArchivistError::FileNotFound(path.to_string_lossy().to_string()));
         }
 
         let metadata = std::fs::metadata(path)
-            .map_err(|e| ArchivistError::FileOperationFailed(e.to_string()))?;
+            .map_err(|e| ArchivistError::FileOperationFailed(format!("Failed to read file metadata: {}", e)))?;
 
+        let filename = path.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        log::info!("Uploading file: {} ({} bytes)", filename, metadata.len());
+
+        // Upload to node
+        let response = self.api_client.upload_file(path).await?;
+
+        // Store in local cache
         let file_info = FileInfo {
-            id: Uuid::new_v4().to_string(),
-            name: path.file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| "unknown".to_string()),
+            cid: response.cid.clone(),
+            name: filename.clone(),
             size_bytes: metadata.len(),
-            content_hash: String::new(), // TODO: Calculate hash
             mime_type: mime_guess::from_path(path)
                 .first()
                 .map(|m| m.to_string()),
-            created_at: Utc::now(),
-            modified_at: Utc::now(),
+            uploaded_at: Utc::now(),
             is_pinned: true,
-            peer_count: 0,
+            is_local: true,
         };
 
-        self.files.push(file_info.clone());
+        self.files.insert(response.cid.clone(), file_info);
 
-        log::info!("Uploaded file: {}", file_info.name);
-        Ok(file_info)
+        log::info!("File uploaded successfully: {} -> {}", filename, response.cid);
+
+        Ok(UploadResult {
+            cid: response.cid,
+            name: filename,
+            size_bytes: metadata.len(),
+        })
     }
 
-    pub async fn download_file(&self, file_id: &str, destination: &str) -> Result<()> {
-        let file = self.files.iter()
-            .find(|f| f.id == file_id)
-            .ok_or_else(|| ArchivistError::FileNotFound(file_id.to_string()))?;
+    /// Download a file by CID to a destination path
+    pub async fn download_file(&self, cid: &str, destination: &str) -> Result<()> {
+        log::info!("Downloading file {} to {}", cid, destination);
 
-        // TODO: Actually download from network
-        log::info!("Downloading file {} to {}", file.name, destination);
+        // Try local first, then network
+        let data = match self.api_client.download_file(cid).await {
+            Ok(data) => data,
+            Err(_) => {
+                log::info!("File not found locally, fetching from network...");
+                self.api_client.download_file_network(cid).await?
+            }
+        };
 
+        // Write to destination
+        tokio::fs::write(destination, &data)
+            .await
+            .map_err(|e| ArchivistError::FileOperationFailed(format!("Failed to write file: {}", e)))?;
+
+        log::info!("Downloaded {} bytes to {}", data.len(), destination);
         Ok(())
     }
 
-    pub async fn delete_file(&mut self, file_id: &str) -> Result<()> {
-        let pos = self.files.iter()
-            .position(|f| f.id == file_id)
-            .ok_or_else(|| ArchivistError::FileNotFound(file_id.to_string()))?;
-
-        let file = self.files.remove(pos);
-        log::info!("Deleted file: {}", file.name);
-
-        Ok(())
+    /// Delete a file from local cache (note: CIDs can't be deleted from network)
+    pub async fn delete_file(&mut self, cid: &str) -> Result<()> {
+        if self.files.remove(cid).is_some() {
+            log::info!("Removed file from local cache: {}", cid);
+            Ok(())
+        } else {
+            Err(ArchivistError::FileNotFound(cid.to_string()))
+        }
     }
 
-    pub async fn pin_file(&mut self, file_id: &str, pinned: bool) -> Result<()> {
-        let file = self.files.iter_mut()
-            .find(|f| f.id == file_id)
-            .ok_or_else(|| ArchivistError::FileNotFound(file_id.to_string()))?;
+    /// Pin/unpin a file (marks as protected in local cache)
+    pub async fn pin_file(&mut self, cid: &str, pinned: bool) -> Result<()> {
+        if let Some(file) = self.files.get_mut(cid) {
+            file.is_pinned = pinned;
+            log::info!("File {} pinned: {}", cid, pinned);
+            Ok(())
+        } else {
+            Err(ArchivistError::FileNotFound(cid.to_string()))
+        }
+    }
 
-        file.is_pinned = pinned;
-        log::info!("File {} pinned: {}", file.name, pinned);
+    /// Get a specific file by CID
+    pub fn get_file(&self, cid: &str) -> Option<&FileInfo> {
+        self.files.get(cid)
+    }
 
-        Ok(())
+    /// Check if node API is reachable
+    pub async fn check_node_connection(&self) -> bool {
+        self.api_client.health_check().await.unwrap_or(false)
     }
 }
 

@@ -540,3 +540,37 @@ tr:hover td {
   font-size: 0.75rem;
   color: var(--color-text-muted);
 }
+
+/* Files page */
+.file-stats {
+  display: flex;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.file-name {
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.pin-badge {
+  margin-left: var(--spacing-xs);
+  font-size: 0.875rem;
+}
+
+.mime-type {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.actions-cell {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.actions-cell button {
+  white-space: nowrap;
+}
