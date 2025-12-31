@@ -57,14 +57,20 @@ get_tauri_target() {
 download_binary() {
     local platform="$1"
     local target="$2"
-    local archive_name="archivist-${ARCHIVIST_VERSION}-${platform}.tar.gz"
-    local download_url="${RELEASE_BASE_URL}/${archive_name}"
     local output_name="archivist-${target}"
+    local archive_name
+    local archive_ext
 
-    # Windows uses .exe extension
+    # Windows uses .zip format, others use .tar.gz
     if [[ "$platform" == *"windows"* ]]; then
+        archive_ext="zip"
         output_name="${output_name}.exe"
+    else
+        archive_ext="tar.gz"
     fi
+
+    archive_name="archivist-${ARCHIVIST_VERSION}-${platform}.${archive_ext}"
+    local download_url="${RELEASE_BASE_URL}/${archive_name}"
 
     echo "Downloading archivist-node ${ARCHIVIST_VERSION} for ${platform}..."
     echo "URL: ${download_url}"
@@ -76,17 +82,21 @@ download_binary() {
     local temp_dir=$(mktemp -d)
     trap "rm -rf ${temp_dir}" EXIT
 
-    curl -L -o "${temp_dir}/archivist.tar.gz" "${download_url}"
+    curl -L -o "${temp_dir}/archivist.${archive_ext}" "${download_url}"
 
     echo "Extracting binary..."
-    tar -xzf "${temp_dir}/archivist.tar.gz" -C "${temp_dir}"
+    if [[ "$archive_ext" == "zip" ]]; then
+        unzip -q "${temp_dir}/archivist.zip" -d "${temp_dir}"
+    else
+        tar -xzf "${temp_dir}/archivist.tar.gz" -C "${temp_dir}"
+    fi
 
     # Find the binary (might be in a subdirectory or have version in name)
     local binary_path
     if [[ "$platform" == *"windows"* ]]; then
         binary_path=$(find "${temp_dir}" -name "archivist*.exe" -type f | head -1)
     else
-        binary_path=$(find "${temp_dir}" -name "archivist*" -type f ! -name "*.tar.gz" ! -name "*.sha256" | head -1)
+        binary_path=$(find "${temp_dir}" -name "archivist*" -type f ! -name "*.tar.gz" ! -name "*.sha256" ! -name "*.zip" | head -1)
     fi
 
     if [[ -z "$binary_path" ]]; then
