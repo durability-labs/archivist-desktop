@@ -13,8 +13,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_async_functionality() {
-        // Test async operations
+        // Test async operations - verify sleep completes without panic
+        let start = std::time::Instant::now();
         tokio::time::sleep(Duration::from_millis(10)).await;
-        assert!(true);
+        assert!(start.elapsed() >= Duration::from_millis(10));
     }
 }
