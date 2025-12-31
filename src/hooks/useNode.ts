@@ -119,7 +119,7 @@ export function useNode() {
   const healthCheck = useCallback(async (): Promise<boolean> => {
     try {
       return await invoke<boolean>('health_check_node');
-    } catch (e) {
+    } catch {
       return false;
     }
   }, []);

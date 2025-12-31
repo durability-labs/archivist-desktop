@@ -1,0 +1,27 @@
+echo "🔍 Running pre-commit checks..."
+
+# Run TypeScript type checking
+echo "📝 Type checking TypeScript..."
+pnpm tsc --noEmit || exit 1
+
+# Run linter
+echo "🔧 Linting code..."
+pnpm lint || exit 1
+
+# Run frontend tests
+echo "🧪 Running frontend tests..."
+pnpm test --run || exit 1
+
+# Run Rust formatting check
+echo "🦀 Checking Rust formatting..."
+(cd src-tauri && cargo fmt --check) || exit 1
+
+# Run Rust clippy
+echo "📎 Running clippy..."
+(cd src-tauri && cargo clippy --all-features -- -D warnings) || exit 1
+
+# Run Rust tests
+echo "🧪 Running Rust tests..."
+(cd src-tauri && cargo test) || exit 1
+
+echo "✅ All pre-commit checks passed!"

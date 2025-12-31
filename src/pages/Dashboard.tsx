@@ -42,7 +42,7 @@ function Dashboard() {
   const handleStart = async () => {
     try {
       await startNode();
-    } catch (e) {
+    } catch {
       // Error is already handled by the hook
     }
   };
@@ -50,7 +50,7 @@ function Dashboard() {
   const handleStop = async () => {
     try {
       await stopNode();
-    } catch (e) {
+    } catch {
       // Error is already handled by the hook
     }
   };
@@ -58,7 +58,7 @@ function Dashboard() {
   const handleRestart = async () => {
     try {
       await restartNode();
-    } catch (e) {
+    } catch {
       // Error is already handled by the hook
     }
   };
