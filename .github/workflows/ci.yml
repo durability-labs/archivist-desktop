@@ -78,6 +78,24 @@ jobs:
             librsvg2-dev \
             libgtk-3-dev
 
+      - name: Create sidecar placeholder
+        shell: bash
+        run: |
+          # Create placeholder sidecar to satisfy Tauri build script
+          # The actual sidecar is only needed for runtime, not for clippy/tests
+          mkdir -p src-tauri/sidecars
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            touch src-tauri/sidecars/archivist-x86_64-pc-windows-msvc.exe
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            if [[ "$(uname -m)" == "arm64" ]]; then
+              touch src-tauri/sidecars/archivist-aarch64-apple-darwin
+            else
+              touch src-tauri/sidecars/archivist-x86_64-apple-darwin
+            fi
+          else
+            touch src-tauri/sidecars/archivist-x86_64-unknown-linux-gnu
+          fi
+
       - name: Check formatting
         working-directory: src-tauri
         run: cargo fmt --all -- --check
@@ -191,6 +209,11 @@ jobs:
             libwebkit2gtk-4.1-dev \
             build-essential \
             libgtk-3-dev
+
+      - name: Create sidecar placeholder
+        run: |
+          mkdir -p src-tauri/sidecars
+          touch src-tauri/sidecars/archivist-x86_64-unknown-linux-gnu
 
       - name: Generate coverage
         working-directory: src-tauri
