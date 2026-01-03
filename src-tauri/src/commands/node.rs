@@ -26,7 +26,9 @@ pub async fn restart_node(app_handle: AppHandle, state: State<'_, AppState>) -> 
 
 #[tauri::command]
 pub async fn get_node_status(state: State<'_, AppState>) -> Result<NodeStatus> {
-    let node = state.node.read().await;
+    // Try to refresh peer info if node is running
+    let mut node = state.node.write().await;
+    let _ = node.health_check().await;
     Ok(node.get_status())
 }
 

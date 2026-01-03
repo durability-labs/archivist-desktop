@@ -14,6 +14,9 @@ export interface NodeStatus {
   lastError?: string;
   restartCount: number;
   apiUrl?: string;
+  peerId?: string;
+  spr?: string;
+  addresses: string[];
 }
 
 export interface NodeConfig {
@@ -33,6 +36,7 @@ const defaultStatus: NodeStatus = {
   storageUsedBytes: 0,
   storageAvailableBytes: 100 * 1024 * 1024 * 1024, // 100 GB
   restartCount: 0,
+  addresses: [],
 };
 
 export function useNode() {

@@ -33,6 +33,9 @@ pub struct NodeStatus {
     pub last_error: Option<String>,
     pub restart_count: u32,
     pub api_url: Option<String>,
+    pub peer_id: Option<String>,
+    pub spr: Option<String>,
+    pub addresses: Vec<String>,
 }
 
 impl Default for NodeStatus {
@@ -48,6 +51,9 @@ impl Default for NodeStatus {
             last_error: None,
             restart_count: 0,
             api_url: None,
+            peer_id: None,
+            spr: None,
+            addresses: Vec::new(),
         }
     }
 }
@@ -96,6 +102,16 @@ pub enum NodeEvent {
     StatusUpdate { status: NodeStatus },
     Log { level: String, message: String },
     Error { message: String },
+}
+
+/// Response from the node's debug/info API endpoint
+#[derive(Debug, Clone, Deserialize)]
+pub struct NodeInfoResponse {
+    pub id: String,
+    pub addrs: Vec<String>,
+    pub spr: String,
+    #[serde(rename = "announceAddresses")]
+    pub announce_addresses: Option<Vec<String>>,
 }
 
 /// Internal state for managing the node process
@@ -237,6 +253,9 @@ impl NodeService {
         self.status.pid = None;
         self.status.uptime_seconds = None;
         self.status.api_url = None;
+        self.status.peer_id = None;
+        self.status.spr = None;
+        self.status.addresses = Vec::new();
 
         log::info!("Archivist node stopped");
         Ok(())
@@ -287,7 +306,7 @@ impl NodeService {
             return Ok(false);
         }
 
-        // Use the debug/info endpoint to check node health
+        // Use the debug/info endpoint to check node health and get peer info
         let api_url = format!(
             "http://127.0.0.1:{}/api/archivist/v1/debug/info",
             self.config.api_port
@@ -301,6 +320,12 @@ impl NodeService {
         {
             Ok(response) if response.status().is_success() => {
                 log::debug!("Node health check passed");
+                // Try to parse the response to get peer info
+                if let Ok(info) = response.json::<NodeInfoResponse>().await {
+                    self.status.peer_id = Some(info.id);
+                    self.status.spr = Some(info.spr);
+                    self.status.addresses = info.announce_addresses.unwrap_or(info.addrs);
+                }
                 Ok(true)
             }
             Ok(response) => {
@@ -336,6 +361,9 @@ impl NodeService {
         self.status.pid = None;
         self.status.uptime_seconds = None;
         self.status.api_url = None;
+        self.status.peer_id = None;
+        self.status.spr = None;
+        self.status.addresses = Vec::new();
         if let Some(msg) = error_msg {
             self.status.last_error = Some(msg);
         }
