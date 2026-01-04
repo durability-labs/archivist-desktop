@@ -93,7 +93,7 @@ function Peers() {
         <div className="input-group">
           <input
             type="text"
-            placeholder="Enter multiaddr (e.g., /ip4/1.2.3.4/tcp/9000/p2p/...)"
+            placeholder="Enter Peer ID, SPR, or multiaddr"
             value={connectInput}
             onChange={(e) => setConnectInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleConnect()}

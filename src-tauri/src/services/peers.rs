@@ -59,7 +59,7 @@ struct SavedPeer {
 impl PeerService {
     pub fn new() -> Self {
         Self {
-            api_client: NodeApiClient::new(5001),
+            api_client: NodeApiClient::new(8080), // Default archivist-node API port
             saved_peers: Vec::new(),
         }
     }
@@ -225,8 +225,12 @@ impl PeerService {
             return Ok(address.to_string());
         }
 
-        // If it's just a peer ID by itself
-        if address.starts_with("Qm") || address.starts_with("12D3") {
+        // If it's just a peer ID by itself (various libp2p formats)
+        // - Qm... (legacy base58 CIDv0)
+        // - 12D3... (base58 Ed25519)
+        // - 16Uiu2HAm... (base58 secp256k1, used by archivist-node)
+        if address.starts_with("Qm") || address.starts_with("12D3") || address.starts_with("16Uiu")
+        {
             return Ok(address.to_string());
         }
 
