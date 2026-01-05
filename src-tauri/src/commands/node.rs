@@ -7,6 +7,16 @@ use tauri::{AppHandle, State};
 pub async fn start_node(app_handle: AppHandle, state: State<'_, AppState>) -> Result<NodeStatus> {
     let mut node = state.node.write().await;
     node.start(&app_handle).await?;
+
+    // Wait for the node's REST API to be ready (up to 30 seconds)
+    // The node takes several seconds to initialize (NAT detection, etc.)
+    for _ in 0..30 {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        if node.health_check().await.unwrap_or(false) {
+            break;
+        }
+    }
+
     Ok(node.get_status())
 }
 
