@@ -51,8 +51,8 @@ impl FileService {
     pub fn new() -> Self {
         Self {
             files: HashMap::new(),
-            api_client: NodeApiClient::new(5001),
-            api_port: 5001,
+            api_client: NodeApiClient::new(8080),
+            api_port: 8080,
         }
     }
 

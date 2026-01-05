@@ -91,7 +91,7 @@ impl SyncService {
             is_syncing: false,
             watcher: None,
             event_tx: None,
-            api_client: NodeApiClient::new(5001),
+            api_client: NodeApiClient::new(8080),
             synced_files: HashSet::new(),
         }
     }

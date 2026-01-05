@@ -11,7 +11,7 @@ use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
-/// Response from /api/v1/debug/info
+/// Response from /api/archivist/v1/debug/info
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeInfo {
@@ -45,13 +45,13 @@ pub struct StorageInfo {
     pub available_bytes: u64,
 }
 
-/// Response from POST /api/v1/data (upload)
+/// Response from POST /api/archivist/v1/data (upload)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UploadResponse {
     pub cid: String,
 }
 
-/// Response from GET /api/v1/data (list local data)
+/// Response from GET /api/archivist/v1/data (list local data)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataListResponse {
     pub content: Vec<DataItem>,
@@ -78,7 +78,7 @@ pub struct ManifestInfo {
     pub protected: Option<bool>,
 }
 
-/// Peer information from /api/v1/peers
+/// Peer information from /api/archivist/v1/peers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PeerInfo {
@@ -114,7 +114,7 @@ impl NodeApiClient {
 
     /// Get node debug info
     pub async fn get_info(&self) -> Result<NodeInfo> {
-        let url = format!("{}/api/v1/debug/info", self.base_url);
+        let url = format!("{}/api/archivist/v1/debug/info", self.base_url);
 
         let response =
             self.client.get(&url).send().await.map_err(|e| {
@@ -136,7 +136,7 @@ impl NodeApiClient {
 
     /// Check if node is healthy (simple ping)
     pub async fn health_check(&self) -> Result<bool> {
-        let url = format!("{}/api/v1/debug/info", self.base_url);
+        let url = format!("{}/api/archivist/v1/debug/info", self.base_url);
 
         match self
             .client
@@ -152,7 +152,7 @@ impl NodeApiClient {
 
     /// List local data (CIDs stored on this node)
     pub async fn list_data(&self) -> Result<DataListResponse> {
-        let url = format!("{}/api/v1/data", self.base_url);
+        let url = format!("{}/api/archivist/v1/data", self.base_url);
 
         let response = self
             .client
@@ -176,7 +176,7 @@ impl NodeApiClient {
 
     /// Upload a file to the node
     pub async fn upload_file(&self, file_path: &Path) -> Result<UploadResponse> {
-        let url = format!("{}/api/v1/data", self.base_url);
+        let url = format!("{}/api/archivist/v1/data", self.base_url);
 
         // Read file contents
         let mut file = File::open(file_path).await.map_err(|e| {
@@ -234,7 +234,7 @@ impl NodeApiClient {
 
     /// Download a file by CID (from local storage)
     pub async fn download_file(&self, cid: &str) -> Result<Vec<u8>> {
-        let url = format!("{}/api/v1/data/{}", self.base_url, cid);
+        let url = format!("{}/api/archivist/v1/data/{}", self.base_url, cid);
 
         let response = self
             .client
@@ -260,7 +260,7 @@ impl NodeApiClient {
 
     /// Download a file by CID from the network (if not available locally)
     pub async fn download_file_network(&self, cid: &str) -> Result<Vec<u8>> {
-        let url = format!("{}/api/v1/data/{}/network", self.base_url, cid);
+        let url = format!("{}/api/archivist/v1/data/{}/network", self.base_url, cid);
 
         let response = self
             .client
@@ -286,7 +286,7 @@ impl NodeApiClient {
 
     /// Get the Signed Peer Record for this node
     pub async fn get_spr(&self) -> Result<String> {
-        let url = format!("{}/api/v1/spr", self.base_url);
+        let url = format!("{}/api/archivist/v1/spr", self.base_url);
 
         let response = self
             .client
@@ -310,7 +310,7 @@ impl NodeApiClient {
 
     /// List connected peers
     pub async fn list_peers(&self) -> Result<Vec<PeerInfo>> {
-        let url = format!("{}/api/v1/peers", self.base_url);
+        let url = format!("{}/api/archivist/v1/peers", self.base_url);
 
         let response = self
             .client
@@ -335,7 +335,7 @@ impl NodeApiClient {
     /// Connect to a peer by multiaddr
     pub async fn connect_peer(&self, peer_id: &str, multiaddr: &str) -> Result<()> {
         let url = format!(
-            "{}/api/v1/connect/{}?addrs={}",
+            "{}/api/archivist/v1/connect/{}?addrs={}",
             self.base_url,
             peer_id,
             urlencoding::encode(multiaddr)
@@ -359,6 +359,6 @@ impl NodeApiClient {
 
 impl Default for NodeApiClient {
     fn default() -> Self {
-        Self::new(5001)
+        Self::new(8080)
     }
 }
