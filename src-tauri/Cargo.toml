@@ -67,7 +67,7 @@ toml = "0.8"
 
 # V2 Marketplace dependencies (optional)
 ethers = { version = "2.0", optional = true }
-alloy = { version = "0.1", optional = true }
+alloy = { version = "1.3", optional = true }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
