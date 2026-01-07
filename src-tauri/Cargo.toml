@@ -52,7 +52,7 @@ reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
 urlencoding = "2.1"
 
 # Error handling
-thiserror = "1.0"
+thiserror = "2.0"
 anyhow = "1.0"
 
 # UUID generation
