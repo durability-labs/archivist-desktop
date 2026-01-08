@@ -13,13 +13,18 @@ SIDECARS_DIR="${SCRIPT_DIR}/../src-tauri/sidecars"
 
 # SHA256 checksums for archivist-node v0.1.0 binaries
 # These should be updated when upgrading ARCHIVIST_VERSION
-declare -A CHECKSUMS=(
-    ["linux-amd64"]="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    ["linux-arm64"]="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    ["darwin-amd64"]="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    ["darwin-arm64"]="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    ["windows-amd64"]="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-)
+# Note: Using function instead of associative array for bash 3.x compatibility (macOS)
+get_checksum() {
+    local platform="$1"
+    case "$platform" in
+        linux-amd64)   echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ;;
+        linux-arm64)   echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ;;
+        darwin-amd64)  echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ;;
+        darwin-arm64)  echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ;;
+        windows-amd64) echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ;;
+        *) echo "" ;;
+    esac
+}
 
 # Set to "true" to skip checksum verification (NOT RECOMMENDED for production)
 SKIP_CHECKSUM_VERIFY="${SKIP_CHECKSUM_VERIFY:-false}"
@@ -150,7 +155,8 @@ download_binary() {
     curl -L -o "${temp_dir}/archivist.${archive_ext}" "${download_url}"
 
     # Verify checksum before extraction
-    local expected_checksum="${CHECKSUMS[$platform]}"
+    local expected_checksum
+    expected_checksum=$(get_checksum "$platform")
     verify_checksum "${temp_dir}/archivist.${archive_ext}" "$expected_checksum"
 
     echo "Extracting binary..."
