@@ -155,6 +155,9 @@ impl NodeService {
         self.status.last_error = None;
         log::info!("Starting Archivist node...");
 
+        // Check if ports are available and clean up orphaned processes
+        self.cleanup_orphaned_processes().await;
+
         // Ensure data directory exists
         let data_dir = std::path::Path::new(&self.config.data_dir);
         if !data_dir.exists() {
@@ -214,6 +217,10 @@ impl NodeService {
                         if line_str.contains("Should create discovery datastore!") {
                             let _ = error_tx.send("discovery_datastore_error".to_string()).await;
                         }
+                        // Check for port conflict errors
+                        if line_str.contains("Address already in use") {
+                            let _ = error_tx.send("port_conflict".to_string()).await;
+                        }
                     }
                     CommandEvent::Stderr(line) => {
                         let line_str = String::from_utf8_lossy(&line);
@@ -221,6 +228,10 @@ impl NodeService {
                         // Check for recoverable errors in stderr too
                         if line_str.contains("Should create discovery datastore!") {
                             let _ = error_tx.send("discovery_datastore_error".to_string()).await;
+                        }
+                        // Check for port conflict errors
+                        if line_str.contains("Address already in use") {
+                            let _ = error_tx.send("port_conflict".to_string()).await;
                         }
                     }
                     CommandEvent::Error(e) => {
@@ -242,25 +253,35 @@ impl NodeService {
         // If this is not already a retry, check for recoverable errors in the first few seconds
         if !is_retry {
             let data_dir_for_recovery = data_dir_clone;
+            let api_port = self.config.api_port;
 
             tokio::spawn(async move {
                 // Wait a short time for potential errors
                 tokio::select! {
                     Some(error_type) = error_rx.recv() => {
-                        if error_type == "discovery_datastore_error" {
-                            log::warn!("Detected corrupted discovery datastore, attempting auto-recovery...");
+                        match error_type.as_str() {
+                            "discovery_datastore_error" => {
+                                log::warn!("Detected corrupted discovery datastore, attempting auto-recovery...");
 
-                            // Clear the data directory
-                            let data_path = std::path::Path::new(&data_dir_for_recovery);
-                            if data_path.exists() {
-                                if let Err(e) = std::fs::remove_dir_all(data_path) {
-                                    log::error!("Failed to clear data directory for recovery: {}", e);
-                                    return;
+                                // Clear the data directory
+                                let data_path = std::path::Path::new(&data_dir_for_recovery);
+                                if data_path.exists() {
+                                    if let Err(e) = std::fs::remove_dir_all(data_path) {
+                                        log::error!("Failed to clear data directory for recovery: {}", e);
+                                        return;
+                                    }
+                                    log::info!("Cleared corrupted data directory: {}", data_dir_for_recovery);
                                 }
-                                log::info!("Cleared corrupted data directory: {}", data_dir_for_recovery);
-                            }
 
-                            log::info!("Data directory cleared. Node will auto-restart via health monitor.");
+                                log::info!("Data directory cleared. Node will auto-restart via health monitor.");
+                            }
+                            "port_conflict" => {
+                                log::error!(
+                                    "Port {} is in use by another application. Please change the port in Settings or close the conflicting application.",
+                                    api_port
+                                );
+                            }
+                            _ => {}
                         }
                     }
                     _ = tokio::time::sleep(Duration::from_secs(5)) => {
@@ -284,6 +305,86 @@ impl NodeService {
             log::info!("Cleared node data directory: {}", self.config.data_dir);
         }
         Ok(())
+    }
+
+    /// Clean up any orphaned archivist processes using our configured ports
+    async fn cleanup_orphaned_processes(&self) {
+        let api_port = self.config.api_port;
+        let p2p_port = self.config.p2p_port;
+
+        log::info!(
+            "Checking for orphaned processes on ports {} and {}",
+            api_port,
+            p2p_port
+        );
+
+        #[cfg(unix)]
+        {
+            // Check and kill orphaned archivist processes on the API port
+            if let Some(pid) = Self::find_archivist_process_on_port(api_port) {
+                log::warn!(
+                    "Found orphaned archivist process (PID {}) on port {}, killing it",
+                    pid,
+                    api_port
+                );
+                unsafe {
+                    libc::kill(pid as i32, libc::SIGTERM);
+                }
+                // Give it a moment to terminate
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+
+            // Check and kill orphaned archivist processes on the P2P port
+            if let Some(pid) = Self::find_archivist_process_on_port(p2p_port) {
+                log::warn!(
+                    "Found orphaned archivist process (PID {}) on port {}, killing it",
+                    pid,
+                    p2p_port
+                );
+                unsafe {
+                    libc::kill(pid as i32, libc::SIGTERM);
+                }
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+        }
+
+        #[cfg(not(unix))]
+        {
+            // On Windows, we can't easily check process names, so just log
+            log::debug!("Orphaned process cleanup not implemented on this platform");
+        }
+    }
+
+    /// Find an archivist process using a specific port (Unix only)
+    #[cfg(unix)]
+    fn find_archivist_process_on_port(port: u16) -> Option<u32> {
+        use std::process::Command;
+
+        // Use ss to find the process using the port
+        let output = Command::new("ss")
+            .args(["-tlnp", &format!("sport = :{}", port)])
+            .output()
+            .ok()?;
+
+        let output_str = String::from_utf8_lossy(&output.stdout);
+
+        // Parse the output to find PID of archivist process
+        // Format: LISTEN 0 4096 127.0.0.1:8080 0.0.0.0:* users:(("archivist",pid=12345,fd=11))
+        for line in output_str.lines() {
+            if line.contains("archivist") {
+                // Extract PID from users:(("archivist",pid=XXXXX,fd=YY))
+                if let Some(pid_start) = line.find("pid=") {
+                    let pid_str = &line[pid_start + 4..];
+                    if let Some(pid_end) = pid_str.find(',') {
+                        if let Ok(pid) = pid_str[..pid_end].parse::<u32>() {
+                            return Some(pid);
+                        }
+                    }
+                }
+            }
+        }
+
+        None
     }
 
     /// Stop the archivist-node sidecar
