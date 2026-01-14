@@ -191,8 +191,7 @@ impl NodeService {
         let pid = child.pid();
         log::info!("Archivist node started with PID: {}", pid);
 
-        // Update status
-        self.status.state = NodeState::Running;
+        // Update status - still in Starting state until API is ready
         self.status.pid = Some(pid);
         self.status.api_url = Some(format!("http://127.0.0.1:{}", self.config.api_port));
 
@@ -206,6 +205,45 @@ impl NodeService {
         // Create shutdown channel for the monitor task
         let (shutdown_tx, _) = broadcast::channel(1);
         self.shutdown_tx = Some(shutdown_tx);
+
+        // Wait for the API to become ready (UPnP probing can take ~10 seconds)
+        let api_url = format!(
+            "http://127.0.0.1:{}/api/archivist/v1/debug/info",
+            self.config.api_port
+        );
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()
+            .unwrap();
+
+        let max_wait = Duration::from_secs(15);
+        let start = Instant::now();
+        let mut ready = false;
+
+        log::info!("Waiting for node API to become ready...");
+        while start.elapsed() < max_wait {
+            match client.get(&api_url).send().await {
+                Ok(response) if response.status().is_success() => {
+                    ready = true;
+                    log::info!("Node API is ready (took {:?})", start.elapsed());
+                    break;
+                }
+                _ => {
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+            }
+        }
+
+        if ready {
+            self.status.state = NodeState::Running;
+        } else {
+            log::warn!(
+                "Node API not ready after {:?}, may still be starting",
+                max_wait
+            );
+            // Still set to Running - the health check will handle it if it's truly failed
+            self.status.state = NodeState::Running;
+        }
 
         // Create channel to detect recoverable errors
         let (error_tx, mut error_rx) = mpsc::channel::<String>(10);
