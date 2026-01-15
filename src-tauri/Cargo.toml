@@ -66,7 +66,7 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # Configuration
-config = "0.14"
+config = "0.15"
 toml = "0.8"
 
 # V2 Marketplace dependencies (optional)
