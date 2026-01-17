@@ -6,22 +6,22 @@
 
 set -e
 
-ARCHIVIST_VERSION="v0.1.0"
+ARCHIVIST_VERSION="v0.2.0"
 RELEASE_BASE_URL="https://github.com/durability-labs/archivist-node/releases/download/${ARCHIVIST_VERSION}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SIDECARS_DIR="${SCRIPT_DIR}/../src-tauri/sidecars"
 
-# SHA256 checksums for archivist-node v0.1.0 binaries
+# SHA256 checksums for archivist-node v0.2.0 binaries
 # These should be updated when upgrading ARCHIVIST_VERSION
 # Note: Using function instead of associative array for bash 3.x compatibility (macOS)
 get_checksum() {
     local platform="$1"
     case "$platform" in
-        linux-amd64)   echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ;;
-        linux-arm64)   echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ;;
-        darwin-amd64)  echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ;;
-        darwin-arm64)  echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ;;
-        windows-amd64) echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ;;
+        linux-amd64)   echo "b5df0f0252f42dfee7e26b0ec525354e92a90d1afde3d138f6deb35073de05e5" ;;
+        linux-arm64)   echo "97c4fe9d4fe8974a26fdce52a6c72cba6d007ad9b5bfb408b3573416299c4b8a" ;;
+        darwin-amd64)  echo "b2787f0ebd7b82f39505874e1126e0aeabc910f2dec8fb44d63027453180ebe4" ;;
+        darwin-arm64)  echo "6c74fcd35d3b7ecae613023181f613a915f20daa1447b054ee607deed6cc38d0" ;;
+        windows-amd64) echo "4034cc3c03518352200948bc2c6cf8260264d34aae6e3862bf1f6e5a64eb781b" ;;
         *) echo "" ;;
     esac
 }
@@ -140,6 +140,7 @@ download_binary() {
     fi
 
     archive_name="archivist-${ARCHIVIST_VERSION}-${platform}.${archive_ext}"
+    # Note: v0.2.0 uses format: archivist-v0.2.0-linux-amd64.tar.gz
     local download_url="${RELEASE_BASE_URL}/${archive_name}"
 
     echo "Downloading archivist-node ${ARCHIVIST_VERSION} for ${platform}..."

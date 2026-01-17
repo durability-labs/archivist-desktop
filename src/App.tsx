@@ -12,7 +12,7 @@ function App() {
   const { marketplaceEnabled } = useFeatures();
 
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <div className="app">
         <aside className="sidebar">
           <div className="logo">

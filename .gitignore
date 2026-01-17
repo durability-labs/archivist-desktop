@@ -32,6 +32,9 @@ src-tauri/sidecars/archivist-*
 !src-tauri/sidecars/README.md
 !src-tauri/sidecars/.gitkeep
 
+# Local cargo config (machine-specific paths)
+src-tauri/.cargo/
+
 # Lock files (optional - some prefer to commit these)
 # pnpm-lock.yaml
 # Cargo.lock
