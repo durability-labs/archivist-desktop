@@ -36,6 +36,7 @@ pub struct NodeStatus {
     pub peer_id: Option<String>,
     pub spr: Option<String>,
     pub addresses: Vec<String>,
+    pub public_ip: Option<String>,
 }
 
 impl Default for NodeStatus {
@@ -47,13 +48,14 @@ impl Default for NodeStatus {
             uptime_seconds: None,
             peer_count: 0,
             storage_used_bytes: 0,
-            storage_available_bytes: 100 * 1024 * 1024 * 1024, // 100 GB placeholder
+            storage_available_bytes: 0, // Will be populated from node API
             last_error: None,
             restart_count: 0,
             api_url: None,
             peer_id: None,
             spr: None,
             addresses: Vec::new(),
+            public_ip: None,
         }
     }
 }
@@ -128,6 +130,10 @@ pub struct NodeService {
     config: NodeConfig,
     process_state: Option<NodeProcessState>,
     shutdown_tx: Option<broadcast::Sender<()>>,
+    /// Cached public IP to avoid repeated API calls
+    public_ip_cache: Option<String>,
+    /// Last time public IP was fetched
+    public_ip_cache_time: Option<Instant>,
 }
 
 impl NodeService {
@@ -137,6 +143,8 @@ impl NodeService {
             config: NodeConfig::default(),
             process_state: None,
             shutdown_tx: None,
+            public_ip_cache: None,
+            public_ip_cache_time: None,
         }
     }
 
@@ -180,6 +188,7 @@ impl NodeService {
                 &format!("--api-port={}", self.config.api_port),
                 &format!("--disc-port={}", self.config.p2p_port),
                 &format!("--listen-addrs={}", listen_addr),
+                &format!("--storage-quota={}", self.config.max_storage_bytes),
                 "--nat=upnp",
             ]);
 
@@ -528,13 +537,15 @@ impl NodeService {
             return Ok(false);
         }
 
+        let client = reqwest::Client::new();
+
         // Use the debug/info endpoint to check node health and get peer info
         let api_url = format!(
             "http://127.0.0.1:{}/api/archivist/v1/debug/info",
             self.config.api_port
         );
 
-        match reqwest::Client::new()
+        match client
             .get(&api_url)
             .timeout(Duration::from_secs(5))
             .send()
@@ -550,6 +561,63 @@ impl NodeService {
                     self.status.spr = Some(info.spr);
                     self.status.addresses = info.announce_addresses.unwrap_or(info.addrs);
                 }
+
+                // Fetch storage space info from /space endpoint
+                let space_url = format!(
+                    "http://127.0.0.1:{}/api/archivist/v1/space",
+                    self.config.api_port
+                );
+                if let Ok(space_response) = client
+                    .get(&space_url)
+                    .timeout(Duration::from_secs(5))
+                    .send()
+                    .await
+                {
+                    if space_response.status().is_success() {
+                        #[derive(Deserialize)]
+                        #[serde(rename_all = "camelCase")]
+                        struct SpaceInfo {
+                            quota_max_bytes: u64,
+                            quota_used_bytes: u64,
+                        }
+                        if let Ok(space) = space_response.json::<SpaceInfo>().await {
+                            self.status.storage_available_bytes = space.quota_max_bytes;
+                            self.status.storage_used_bytes = space.quota_used_bytes;
+                            log::debug!(
+                                "Storage: {} / {} bytes",
+                                space.quota_used_bytes,
+                                space.quota_max_bytes
+                            );
+                        }
+                    }
+                }
+
+                // Fetch public IP (cache for 5 minutes to avoid rate limiting)
+                let should_fetch_ip = match self.public_ip_cache_time {
+                    Some(time) => time.elapsed() > Duration::from_secs(300),
+                    None => true,
+                };
+
+                if should_fetch_ip {
+                    if let Ok(ip_response) = client
+                        .get("https://api.ipify.org")
+                        .timeout(Duration::from_secs(5))
+                        .send()
+                        .await
+                    {
+                        if let Ok(ip) = ip_response.text().await {
+                            let ip = ip.trim().to_string();
+                            log::debug!("Fetched public IP: {}", ip);
+                            self.public_ip_cache = Some(ip.clone());
+                            self.public_ip_cache_time = Some(Instant::now());
+                            self.status.public_ip = Some(ip);
+                        }
+                    }
+                } else {
+                    // Use cached public IP
+                    self.status.public_ip = self.public_ip_cache.clone();
+                }
+
                 Ok(true)
             }
             Ok(response) => {

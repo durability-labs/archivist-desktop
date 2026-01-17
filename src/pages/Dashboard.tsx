@@ -88,10 +88,23 @@ function Dashboard() {
     }
   };
 
-  // Get the best address for sharing - prefer LAN IP over localhost
-  const getShareableAddress = (addresses: string[]): string | null => {
+  // Get the best address for sharing - prefer public IP, then LAN IP, then localhost
+  const getShareableAddress = (addresses: string[], publicIp?: string): string | null => {
     if (addresses.length === 0) return null;
-    // Find LAN address (192.168.x.x, 10.x.x.x, or 172.16-31.x.x)
+
+    // If we have a public IP, construct multiaddr with it using the P2P port from existing addresses
+    if (publicIp) {
+      // Extract port from an existing address (e.g., /ip4/192.168.0.1/tcp/8090 -> 8090)
+      const addrWithPort = addresses.find(addr => addr.includes('/tcp/'));
+      if (addrWithPort) {
+        const portMatch = addrWithPort.match(/\/tcp\/(\d+)/);
+        if (portMatch) {
+          return `/ip4/${publicIp}/tcp/${portMatch[1]}`;
+        }
+      }
+    }
+
+    // Fallback: Find LAN address (192.168.x.x, 10.x.x.x, or 172.16-31.x.x)
     const lanAddress = addresses.find(addr =>
       addr.includes('/ip4/192.168.') ||
       addr.includes('/ip4/10.') ||
@@ -221,14 +234,14 @@ function Dashboard() {
               </button>
             </div>
           </div>
-          {status.addresses.length > 0 && status.peerId && getShareableAddress(status.addresses) && (
+          {status.addresses.length > 0 && status.peerId && getShareableAddress(status.addresses, status.publicIp) && (
             <div className="peer-id-row">
               <label>Connect Multiaddr (share this):</label>
               <div className="copyable-field">
-                <code className="multiaddr">{getShareableAddress(status.addresses)}/p2p/{status.peerId}</code>
+                <code className="multiaddr">{getShareableAddress(status.addresses, status.publicIp)}/p2p/{status.peerId}</code>
                 <button
                   className="copy-button"
-                  onClick={() => copyToClipboard(`${getShareableAddress(status.addresses)}/p2p/${status.peerId}`, 'multiaddr')}
+                  onClick={() => copyToClipboard(`${getShareableAddress(status.addresses, status.publicIp)}/p2p/${status.peerId}`, 'multiaddr')}
                   title="Copy Multiaddr"
                 >
                   {copied === 'multiaddr' ? '✓' : 'Copy'}

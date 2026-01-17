@@ -17,6 +17,7 @@ export interface NodeStatus {
   peerId?: string;
   spr?: string;
   addresses: string[];
+  publicIp?: string;
 }
 
 export interface NodeConfig {
@@ -34,7 +35,7 @@ const defaultStatus: NodeStatus = {
   state: 'stopped',
   peerCount: 0,
   storageUsedBytes: 0,
-  storageAvailableBytes: 100 * 1024 * 1024 * 1024, // 100 GB
+  storageAvailableBytes: 0, // Will be populated from node API
   restartCount: 0,
   addresses: [],
 };

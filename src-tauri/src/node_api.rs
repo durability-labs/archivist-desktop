@@ -45,6 +45,16 @@ pub struct StorageInfo {
     pub available_bytes: u64,
 }
 
+/// Response from GET /api/archivist/v1/space
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpaceInfo {
+    pub total_blocks: u64,
+    pub quota_max_bytes: u64,
+    pub quota_used_bytes: u64,
+    pub quota_reserved_bytes: u64,
+}
+
 /// Response from POST /api/archivist/v1/data (upload)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UploadResponse {
@@ -353,6 +363,31 @@ impl NodeApiClient {
             .json::<Vec<PeerInfo>>()
             .await
             .map_err(|e| ArchivistError::ApiError(format!("Failed to parse peers: {}", e)))
+    }
+
+    /// Get storage space information
+    pub async fn get_space(&self) -> Result<SpaceInfo> {
+        let url = format!("{}/api/archivist/v1/space", self.base_url);
+
+        let response = self
+            .client
+            .get(&url)
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Failed to get space info: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(ArchivistError::ApiError(format!(
+                "Failed to get space info: HTTP {}",
+                response.status()
+            )));
+        }
+
+        response
+            .json::<SpaceInfo>()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Failed to parse space info: {}", e)))
     }
 
     /// Connect to a peer by multiaddr
