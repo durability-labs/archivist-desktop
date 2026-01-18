@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNode, NodeState } from '../hooks/useNode';
-import { useSync } from '../hooks/useSync';
+import { useNode, NodeState, NodeStatus } from '../hooks/useNode';
+import { useSync, SyncState } from '../hooks/useSync';
 import { invoke } from '@tauri-apps/api/core';
 
 interface DiagnosticInfo {
@@ -12,7 +12,41 @@ interface DiagnosticInfo {
   error?: string;
 }
 
+type ViewMode = 'basic' | 'advanced';
+
+interface BasicViewProps {
+  status: NodeStatus;
+  loading: boolean;
+  isRunning: boolean;
+  isStopped: boolean;
+  isError: boolean;
+  isTransitioning: boolean;
+  handleStart: () => Promise<void>;
+  handleStop: () => Promise<void>;
+  handleRestart: () => Promise<void>;
+  getStateLabel: (state: NodeState) => string;
+  getStateClass: (state: NodeState) => string;
+  formatUptime: (seconds: number) => string;
+  formatBytes: (bytes: number) => string;
+  syncState: SyncState;
+  copied: string | null;
+  copyToClipboard: (text: string, label: string) => Promise<void>;
+  getShareableAddress: (addresses: string[], publicIp?: string) => string | null;
+}
+
+interface AdvancedViewProps extends BasicViewProps {
+  showDiagnostics: boolean;
+  setShowDiagnostics: (show: boolean) => void;
+  diagnostics: DiagnosticInfo | null;
+  runningDiagnostics: boolean;
+  runDiagnostics: () => Promise<void>;
+}
+
 function Dashboard() {
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem('dashboardViewMode');
+    return (saved as ViewMode) || 'basic';
+  });
   const [copied, setCopied] = useState<string | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [diagnostics, setDiagnostics] = useState<DiagnosticInfo | null>(null);
@@ -32,6 +66,10 @@ function Dashboard() {
     isTransitioning,
   } = useNode();
   const { syncState } = useSync();
+
+  useEffect(() => {
+    localStorage.setItem('dashboardViewMode', viewMode);
+  }, [viewMode]);
 
   const getStateLabel = (state: NodeState): string => {
     switch (state) {
@@ -88,13 +126,10 @@ function Dashboard() {
     }
   };
 
-  // Get the best address for sharing - prefer public IP, then LAN IP, then localhost
   const getShareableAddress = (addresses: string[], publicIp?: string): string | null => {
     if (addresses.length === 0) return null;
 
-    // If we have a public IP, construct multiaddr with it using the P2P port from existing addresses
     if (publicIp) {
-      // Extract port from an existing address (e.g., /ip4/192.168.0.1/tcp/8090 -> 8090)
       const addrWithPort = addresses.find(addr => addr.includes('/tcp/'));
       if (addrWithPort) {
         const portMatch = addrWithPort.match(/\/tcp\/(\d+)/);
@@ -104,13 +139,11 @@ function Dashboard() {
       }
     }
 
-    // Fallback: Find LAN address (192.168.x.x, 10.x.x.x, or 172.16-31.x.x)
     const lanAddress = addresses.find(addr =>
       addr.includes('/ip4/192.168.') ||
       addr.includes('/ip4/10.') ||
       /\/ip4\/172\.(1[6-9]|2[0-9]|3[0-1])\./.test(addr)
     );
-    // Return LAN address if found, otherwise first non-localhost address, otherwise first address
     if (lanAddress) return lanAddress;
     const nonLocalhost = addresses.find(addr => !addr.includes('/ip4/127.'));
     return nonLocalhost || addresses[0];
@@ -142,10 +175,182 @@ function Dashboard() {
 
   return (
     <div className="page">
-      <h2>Dashboard</h2>
+      <div className="page-header">
+        <h2>Dashboard</h2>
+        <div className="view-mode-toggle">
+          <button
+            className={viewMode === 'basic' ? 'active' : 'secondary'}
+            onClick={() => setViewMode('basic')}
+          >
+            Basic
+          </button>
+          <button
+            className={viewMode === 'advanced' ? 'active' : 'secondary'}
+            onClick={() => setViewMode('advanced')}
+          >
+            Advanced
+          </button>
+        </div>
+      </div>
 
       {error && <div className="error-banner">{error}</div>}
 
+      {viewMode === 'basic' ? (
+        <BasicView
+          status={status}
+          loading={loading}
+          isRunning={isRunning}
+          isStopped={isStopped}
+          isError={isError}
+          isTransitioning={isTransitioning}
+          handleStart={handleStart}
+          handleStop={handleStop}
+          handleRestart={handleRestart}
+          getStateLabel={getStateLabel}
+          getStateClass={getStateClass}
+          formatUptime={formatUptime}
+          formatBytes={formatBytes}
+          syncState={syncState}
+          copied={copied}
+          copyToClipboard={copyToClipboard}
+          getShareableAddress={getShareableAddress}
+        />
+      ) : (
+        <AdvancedView
+          status={status}
+          loading={loading}
+          isRunning={isRunning}
+          isStopped={isStopped}
+          isError={isError}
+          isTransitioning={isTransitioning}
+          handleStart={handleStart}
+          handleStop={handleStop}
+          handleRestart={handleRestart}
+          getStateLabel={getStateLabel}
+          getStateClass={getStateClass}
+          formatUptime={formatUptime}
+          formatBytes={formatBytes}
+          syncState={syncState}
+          copied={copied}
+          copyToClipboard={copyToClipboard}
+          getShareableAddress={getShareableAddress}
+          showDiagnostics={showDiagnostics}
+          setShowDiagnostics={setShowDiagnostics}
+          diagnostics={diagnostics}
+          runningDiagnostics={runningDiagnostics}
+          runDiagnostics={runDiagnostics}
+        />
+      )}
+    </div>
+  );
+}
+
+// Basic View - Simple, focused on essential controls
+function BasicView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, copied, copyToClipboard, getShareableAddress }: BasicViewProps) {
+  return (
+    <div className="basic-view">
+      {/* Main Status Hero */}
+      <div className="status-hero">
+        <div className="status-hero-content">
+          <div className="status-badge-large">
+            <div className={`status-dot ${getStateClass(status.state)}`}></div>
+            <span className="status-text">{getStateLabel(status.state)}</span>
+          </div>
+          {isRunning && status.uptimeSeconds !== undefined && (
+            <p className="status-detail">Running for {formatUptime(status.uptimeSeconds)}</p>
+          )}
+          {status.version && <p className="status-detail">Node {status.version}</p>}
+        </div>
+        <div className="node-controls-large">
+          {isStopped || isError ? (
+            <button onClick={handleStart} disabled={loading || isTransitioning} className="btn-large">
+              {loading ? 'Starting...' : 'Start Node'}
+            </button>
+          ) : isRunning ? (
+            <>
+              <button onClick={handleStop} disabled={loading || isTransitioning} className="btn-large danger">
+                {loading ? 'Stopping...' : 'Stop Node'}
+              </button>
+              <button onClick={handleRestart} disabled={loading || isTransitioning} className="btn-large secondary">
+                Restart
+              </button>
+            </>
+          ) : (
+            <button disabled className="btn-large">
+              {getStateLabel(status.state)}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="quick-stats">
+        <div className="quick-stat-card">
+          <div className="quick-stat-icon">👥</div>
+          <div className="quick-stat-content">
+            <div className="quick-stat-value">{status.peerCount}</div>
+            <div className="quick-stat-label">Connected Peers</div>
+          </div>
+        </div>
+        <div className="quick-stat-card">
+          <div className="quick-stat-icon">💾</div>
+          <div className="quick-stat-content">
+            <div className="quick-stat-value">{formatBytes(status.storageUsedBytes)}</div>
+            <div className="quick-stat-label">Storage Used</div>
+          </div>
+        </div>
+        <div className="quick-stat-card">
+          <div className="quick-stat-icon">🔄</div>
+          <div className="quick-stat-content">
+            <div className="quick-stat-value">{syncState.queueSize}</div>
+            <div className="quick-stat-label">Files Queued</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Connection Info (when running) */}
+      {isRunning && status.peerId && status.addresses.length > 0 && (
+        <div className="connection-card">
+          <h3>📡 Share Your Connection</h3>
+          <p className="connection-hint">Copy this address to share with other nodes</p>
+          {getShareableAddress(status.addresses, status.publicIp) && (
+            <div className="connection-field">
+              <code className="connection-addr">
+                {getShareableAddress(status.addresses, status.publicIp)}/p2p/{status.peerId}
+              </code>
+              <button
+                className="btn-copy"
+                onClick={() => copyToClipboard(`${getShareableAddress(status.addresses, status.publicIp)}/p2p/${status.peerId}`, 'multiaddr')}
+              >
+                {copied === 'multiaddr' ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recent Activity (when available) */}
+      {syncState.recentUploads.length > 0 && (
+        <div className="recent-activity-card">
+          <h3>📁 Recent Uploads</h3>
+          <div className="recent-list">
+            {syncState.recentUploads.slice(0, 3).map((filename: string, i: number) => (
+              <div key={i} className="recent-item">
+                <span className="recent-icon">📄</span>
+                <span className="recent-name">{filename}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Advanced View - Full detailed information
+function AdvancedView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, copied, copyToClipboard, getShareableAddress, showDiagnostics, setShowDiagnostics, diagnostics, runningDiagnostics, runDiagnostics }: AdvancedViewProps) {
+  return (
+    <div className="advanced-view">
       <div className="stats-grid">
         <div className="stat-card">
           <h3>Node Status</h3>
@@ -268,7 +473,7 @@ function Dashboard() {
             <div className="peer-id-row">
               <label>Addresses:</label>
               <div className="addresses-list">
-                {status.addresses.slice(0, 3).map((addr, i) => (
+                {status.addresses.slice(0, 3).map((addr: string, i: number) => (
                   <code key={i} className="address">{addr}</code>
                 ))}
                 {status.addresses.length > 3 && (
@@ -317,7 +522,6 @@ function Dashboard() {
             <div className="diagnostics-content">
               <p className="diagnostics-description">
                 Use these diagnostics to troubleshoot P2P connectivity issues.
-                See <code>P2P-TESTING-GUIDE.md</code> for detailed testing instructions.
               </p>
 
               <button
@@ -386,12 +590,6 @@ function Dashboard() {
                         <li>✓ Everything looks good! You have {status.peerCount} connected peer{status.peerCount !== 1 ? 's' : ''}.</li>
                       )}
                     </ul>
-                    <p>
-                      For detailed testing instructions, see{' '}
-                      <a href="#" onClick={(e) => {e.preventDefault(); invoke('open_external', {url: 'https://github.com/durability-labs/archivist-desktop/blob/main/P2P-TESTING-GUIDE.md'});}}>
-                        P2P Testing Guide
-                      </a>
-                    </p>
                   </div>
                 </div>
               )}

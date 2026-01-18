@@ -1178,3 +1178,307 @@ button.secondary:hover:not(:disabled) {
 .diagnostic-tips a:hover {
   text-decoration: underline;
 }
+
+/* View Mode Toggle */
+.view-mode-toggle {
+  display: flex;
+  gap: var(--spacing-xs);
+  background-color: var(--color-bg-secondary);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.view-mode-toggle button {
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: 0.875rem;
+}
+
+.view-mode-toggle button.active {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+/* Basic View Styles */
+.basic-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+/* Status Hero Section */
+.status-hero {
+  background: linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-tertiary) 100%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.status-hero-content {
+  flex: 1;
+}
+
+.status-badge-large {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.status-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot.running {
+  background-color: var(--color-success);
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+}
+
+.status-dot.stopped {
+  background-color: var(--color-text-secondary);
+  animation: none;
+}
+
+.status-dot.error {
+  background-color: var(--color-error);
+  animation: pulse-error 1s ease-in-out infinite;
+}
+
+.status-dot.transitioning {
+  background-color: var(--color-warning);
+  animation: pulse-warning 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+  }
+}
+
+@keyframes pulse-error {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes pulse-warning {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(251, 191, 36, 0);
+  }
+}
+
+.status-text {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.status-detail {
+  font-size: 1rem;
+  color: var(--color-text-secondary);
+  margin: var(--spacing-xs) 0;
+}
+
+.node-controls-large {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.btn-large {
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: 1rem;
+  font-weight: 600;
+  min-width: 140px;
+}
+
+/* Quick Stats Grid */
+.quick-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.quick-stat-card {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  transition: all 0.2s ease;
+}
+
+.quick-stat-card:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.quick-stat-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.quick-stat-content {
+  flex: 1;
+}
+
+.quick-stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.2;
+}
+
+.quick-stat-label {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin-top: var(--spacing-xs);
+}
+
+/* Connection Card */
+.connection-card {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+}
+
+.connection-card h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-xs);
+}
+
+.connection-hint {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-md);
+}
+
+.connection-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background-color: var(--color-bg-tertiary);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+}
+
+.connection-addr {
+  flex: 1;
+  font-family: monospace;
+  font-size: 0.875rem;
+  word-break: break-all;
+  color: var(--color-text);
+}
+
+.btn-copy {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 0.875rem;
+  white-space: nowrap;
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 80px;
+}
+
+.btn-copy:hover:not(:disabled) {
+  background-color: var(--color-primary-dark);
+}
+
+.btn-copy:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+/* Recent Activity Card */
+.recent-activity-card {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+}
+
+.recent-activity-card h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background-color: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.recent-item:hover {
+  background-color: var(--color-bg-primary);
+}
+
+.recent-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.recent-name {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .status-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .node-controls-large {
+    width: 100%;
+  }
+
+  .btn-large {
+    flex: 1;
+    min-width: unset;
+  }
+
+  .quick-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .status-text {
+    font-size: 1.5rem;
+  }
+}
