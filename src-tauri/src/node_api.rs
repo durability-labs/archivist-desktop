@@ -419,6 +419,30 @@ impl NodeApiClient {
 
         Ok(())
     }
+
+    /// Delete a file by CID from the node's storage
+    pub async fn delete_file(&self, cid: &str) -> Result<()> {
+        let url = format!("{}/api/archivist/v1/data/{}", self.base_url, cid);
+
+        let response = self
+            .client
+            .delete(&url)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Delete failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(ArchivistError::ApiError(format!(
+                "Delete failed: HTTP {} - {}",
+                status, body
+            )));
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for NodeApiClient {

@@ -342,13 +342,23 @@ impl FileService {
         Ok(())
     }
 
-    /// Delete a file from local cache (note: CIDs can't be deleted from network)
+    /// Delete a file from node storage and local cache
     pub async fn delete_file(&mut self, cid: &str) -> Result<()> {
+        // First, delete from the archivist-node storage via API
+        self.api_client.delete_file(cid).await?;
+        log::info!("Deleted file from node storage: {}", cid);
+
+        // Then remove from local cache
         if self.files.remove(cid).is_some() {
             log::info!("Removed file from local cache: {}", cid);
             Ok(())
         } else {
-            Err(ArchivistError::FileNotFound(cid.to_string()))
+            // File was deleted from node but wasn't in cache - still success
+            log::warn!(
+                "File {} was not in local cache but was deleted from node",
+                cid
+            );
+            Ok(())
         }
     }
 

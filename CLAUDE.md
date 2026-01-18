@@ -912,7 +912,7 @@ Edit `.husky/pre-commit` to skip some checks during development:
 **Please do NOT report security vulnerabilities through public GitHub issues.**
 
 Report via:
-1. **Email**: security@basedmint.org (replace with actual contact)
+1. **Email**: devops@durability.dev
 2. **GitHub Security Advisories**: Use the Security tab
 
 **Include:**
