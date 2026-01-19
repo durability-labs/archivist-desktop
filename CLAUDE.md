@@ -18,9 +18,10 @@ Tauri v2 desktop application for decentralized file storage with P2P sync capabi
 12. [Build & Release](#build--release)
 13. [P2P Testing Guide](#p2p-testing-guide)
 14. [Windows Development](#windows-development)
-15. [Troubleshooting](#troubleshooting)
-16. [Security](#security)
-17. [Version History](#version-history)
+15. [User Experience Features](#user-experience-features)
+16. [Troubleshooting](#troubleshooting)
+17. [Security](#security)
+18. [Version History](#version-history)
 
 ---
 
@@ -1063,6 +1064,198 @@ Example log search workflow:
 4. Use browser's Find (Ctrl+F/Cmd+F) to search for error keywords
 5. Copy relevant logs for troubleshooting or bug reports
 
+## User Experience Features
+
+### Auto-Trigger Download on CID Paste
+
+**Location:** [src/pages/Files.tsx](src/pages/Files.tsx)
+
+The Files page includes an intelligent auto-download feature that streamlines the process of downloading files from the network by automatically triggering the save dialog when a valid CID is pasted.
+
+#### How It Works
+
+**Traditional Flow (2 steps):**
+1. User pastes CID into input field
+2. User clicks "Download" button
+3. Save dialog appears → User chooses location → File downloads
+
+**Improved Flow (1 step):**
+1. User pastes CID into input field
+2. **Auto-trigger:** Save dialog appears after brief validation (~300ms)
+3. User chooses location → File downloads
+
+#### Implementation Details
+
+**CID Validation Utility** ([src/lib/cidValidation.ts](src/lib/cidValidation.ts))
+
+The validation function checks CID format before triggering auto-download:
+
+```typescript
+const CID_PATTERN = /^[zQ][a-zA-Z0-9]{44,98}$/;
+
+export function validateCid(cid: string): CidValidationResult {
+  // Validates:
+  // - Non-empty string
+  // - Length between 46-100 characters
+  // - Starts with 'z' (CIDv1) or 'Q' (CIDv0)
+  // - Contains only base58 characters
+}
+```
+
+**Paste Detection** ([src/pages/Files.tsx](src/pages/Files.tsx))
+
+Uses `onPaste` event handler to clearly signal user intent:
+
+```typescript
+const handleCidPaste = useCallback(async (e: React.ClipboardEvent) => {
+  const pastedText = e.clipboardData.getData('text');
+  const validation = validateCid(pastedText);
+
+  if (!validation.valid || !nodeConnected) {
+    setCidValidation(validation);
+    return;
+  }
+
+  // Schedule auto-download after 300ms delay
+  setAutoDownloadPending(true);
+  autoDownloadTimerRef.current = window.setTimeout(async () => {
+    setAutoDownloadPending(false);
+    if (downloadCid.trim() === pastedText.trim()) {
+      await handleDownloadByCid();
+    }
+  }, 300);
+}, [downloadCid, nodeConnected, handleDownloadByCid]);
+```
+
+**Visual Feedback** ([src/styles/App.css](src/styles/App.css))
+
+Real-time validation provides immediate user feedback:
+- **Green border**: Valid CID format
+- **Red border**: Invalid CID format
+- **Error message**: Displays reason for validation failure
+
+#### Key Features
+
+✅ **Auto-trigger on paste** - Save dialog appears 300ms after valid CID pasted
+✅ **Visual validation** - Input border shows green (valid) or red (invalid)
+✅ **Manual fallback** - Download button still works as before
+✅ **Smart cancellation** - Edit the field to cancel pending auto-download
+✅ **Node state aware** - Disabled when node not connected
+✅ **Loading protection** - Prevents double-triggering during downloads
+
+#### Edge Cases Handled
+
+- **Invalid CID pasted** → Shows inline error, no auto-trigger
+- **User edits after paste** → Cancels pending auto-trigger
+- **Node disconnected** → Disables auto-trigger, shows warning
+- **Download dialog cancelled** → Clears input (existing behavior)
+- **Rapid paste + edit** → Debounce prevents issues
+- **Double-trigger prevention** → Loading state guards against race conditions
+
+#### Design Rationale
+
+**Why onPaste instead of useEffect?**
+- ✅ Clear user intent signal - distinguishes paste from manual typing
+- ✅ No keystroke noise - doesn't trigger on every character
+- ✅ More intuitive and predictable UX
+- ✅ Keeps manual button as safety fallback
+
+**Why 300ms debounce?**
+- Gives user time to see validation feedback
+- Prevents accidental triggers if user immediately edits
+- Feels responsive without being jarring
+
+**Why keep the manual button?**
+- Fallback if paste detection fails
+- Accessibility for users who type CIDs manually
+- Provides clear action for users unfamiliar with auto-trigger
+
+### Sound Notifications
+
+**Location:** [src/hooks/useSoundNotifications.ts](src/hooks/useSoundNotifications.ts)
+
+The application provides optional audio feedback for key node events to enhance user awareness without requiring constant visual monitoring.
+
+#### Supported Events
+
+1. **Node Startup** (`node-started`)
+   - Sound: C5-E5-G5 major chord (uplifting tone)
+   - Triggered when archivist-node becomes ready
+   - Indicates successful node initialization
+
+2. **Peer Connection** (`peer-connected`)
+   - Sound: A4-C#5 two-note sequence (notification tone)
+   - Triggered when new peer connects
+   - Helps monitor network growth
+
+3. **File Download** (`file-downloaded`)
+   - Sound: A5-B5 high two-note sequence (completion tone)
+   - Triggered when file download completes
+   - Confirms successful file retrieval
+
+#### Configuration
+
+Settings → Notifications section provides:
+- **Master toggle**: Enable/disable all sounds
+- **Per-event toggles**: Individual control for each event type
+- **Volume slider**: Adjust playback volume (0-100%)
+
+#### Technical Implementation
+
+**Web Audio API** - Cross-platform sound generation without external audio files:
+
+```typescript
+const playNotificationSound = (type: string, volume: number) => {
+  const audioContext = new AudioContext();
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+
+  // Different frequencies for different notification types
+  const frequencies = {
+    'startup': [523.25, 659.25, 783.99],      // C5, E5, G5
+    'peer-connect': [440, 554.37],             // A4, C#5
+    'download': [880, 987.77],                 // A5, B5
+  };
+
+  // Play notes in sequence with envelope shaping
+  notes.forEach((freq, index) => {
+    // ... oscillator setup with gain envelope
+  });
+};
+```
+
+**Event System** - Rust backend emits Tauri events when actions complete:
+
+```rust
+// In src-tauri/src/services/node.rs
+app_handle.emit("node-started", ())?;
+
+// In src-tauri/src/commands/peers.rs
+app_handle.emit("peer-connected", &peer_info.id)?;
+
+// In src-tauri/src/commands/files.rs
+app_handle.emit("file-downloaded", &cid)?;
+```
+
+**Settings Persistence** - Configuration stored in `AppConfig`:
+
+```rust
+// In src-tauri/src/services/config.rs
+pub struct NotificationSettings {
+    pub sound_enabled: bool,
+    pub sound_on_startup: bool,
+    pub sound_on_peer_connect: bool,
+    pub sound_on_download: bool,
+    pub sound_volume: f32,  // 0.0 to 1.0
+}
+```
+
+#### Browser Compatibility
+
+- Modern browsers: Uses `AudioContext`
+- Safari/Webkit: Falls back to `webkitAudioContext`
+- Test environment: Automatically disabled (checks for Tauri runtime)
+
 ## Troubleshooting
 
 ### Port 8080 in use
@@ -1243,24 +1436,62 @@ Sidecar binaries include SHA256 checksum verification in download script.
 - Updated node API client in `src-tauri/src/node_api.rs`
 
 ### v0.1.0
-- Initial release
-- Core file upload/download functionality
-- P2P peer connections
-- Folder watching and sync
-- System tray integration
-- Auto-update support
-- **Feature:** Sound notifications for node events (startup, peer connect, download)
-  - Configurable in Settings with volume control and per-event toggles
-  - Uses Web Audio API for cross-platform compatibility
-- **Feature:** Auto-trigger file download on CID paste
-  - Paste CID into download field to automatically prompt for save location
-  - Real-time CID validation with visual feedback (green/red border)
-  - Smart debouncing (300ms) to prevent accidental triggers
-  - Manual download button remains as fallback
-- **Fixed:** Windows file locking error (os error 32) when viewing logs
-  - Uses FILE_SHARE_READ | FILE_SHARE_WRITE on Windows for log file access
-- **Added:** Architecture diagram to README.md
-- **Added:** Comprehensive documentation in CLAUDE.md
+- **Initial release** with core decentralized storage functionality
+- **Core Features:**
+  - File upload/download with CID-based content addressing
+  - P2P peer connections via libp2p
+  - Folder watching and automatic sync
+  - System tray integration for background operation
+  - Auto-update support from GitHub releases
+
+#### New UX Features
+
+- **Sound Notifications** (see [User Experience Features](#sound-notifications))
+  - Audio feedback for three key events: node startup, peer connection, file download
+  - Configurable in Settings → Notifications with master toggle, per-event toggles, and volume control
+  - Uses Web Audio API for cross-platform compatibility (no external audio files needed)
+  - Different tonal patterns for each event type (major chord, two-note sequences)
+  - Emits Tauri events from Rust backend (`node-started`, `peer-connected`, `file-downloaded`)
+  - Frontend hook: [src/hooks/useSoundNotifications.ts](src/hooks/useSoundNotifications.ts)
+  - Backend events: [src-tauri/src/services/node.rs](src-tauri/src/services/node.rs#L89), [src-tauri/src/commands/peers.rs](src-tauri/src/commands/peers.rs), [src-tauri/src/commands/files.rs](src-tauri/src/commands/files.rs)
+
+- **Auto-Trigger Download on CID Paste** (see [User Experience Features](#auto-trigger-download-on-cid-paste))
+  - Streamlined download workflow: paste CID → auto-prompt for save location (300ms debounce)
+  - Eliminates traditional two-step process (paste, then click button)
+  - Real-time CID validation with visual feedback:
+    - Green border for valid CID format (CIDv0/v1, 46-100 chars, starts with z/Q)
+    - Red border for invalid format with inline error message
+  - Smart behavior:
+    - Uses `onPaste` event handler (not useEffect) for clear user intent
+    - Cancels auto-download if user edits the field
+    - Disabled when node not connected
+    - Manual download button remains as fallback
+  - New validation utility: [src/lib/cidValidation.ts](src/lib/cidValidation.ts)
+  - Implementation: [src/pages/Files.tsx](src/pages/Files.tsx) `handleCidPaste` callback
+  - Styling: [src/styles/App.css](src/styles/App.css) `.cid-input-valid`, `.cid-input-invalid`
+
+#### Bug Fixes
+
+- **Windows File Locking Fix**
+  - **Problem:** "IO error: The process cannot access the file because it is being used by another process. (os error 32)" when viewing logs
+  - **Cause:** Windows file locking prevents reading log file while archivist-node writes to it
+  - **Solution:** Uses `FILE_SHARE_READ | FILE_SHARE_WRITE` flags in `OpenOptions` on Windows
+  - **Fixed in:** [src-tauri/src/commands/node.rs](src-tauri/src/commands/node.rs) `get_node_logs` command
+  - **Platform-specific:** Only affects Windows, Linux/macOS use standard file opening
+
+#### Documentation
+
+- **Added:** Architecture diagram to [README.md](README.md) showing:
+  - React Frontend ↔ Tauri Backend (IPC communication)
+  - Tauri Backend ↔ archivist-node Sidecar (HTTP localhost:8080)
+  - archivist-node ↔ External Peers (P2P encrypted libp2p)
+- **Added:** Comprehensive developer documentation in [CLAUDE.md](CLAUDE.md):
+  - Complete API reference for archivist-node REST endpoints
+  - Tauri command reference with TypeScript examples
+  - P2P testing guide for multi-machine setups
+  - Windows development guide with known issues and solutions
+  - CI/CD pipeline documentation
+  - Logs and debugging guide
 
 ---
 
@@ -1273,14 +1504,19 @@ Sidecar binaries include SHA256 checksum verification in download script.
 | `src-tauri/src/services/node.rs` | Sidecar process management |
 | `src-tauri/src/services/config.rs` | Settings persistence and configuration |
 | `src-tauri/src/commands/node.rs` | Node control commands including diagnostics and logs |
+| `src-tauri/src/commands/files.rs` | File upload/download commands with event emissions |
+| `src-tauri/src/commands/peers.rs` | Peer connection commands with event emissions |
 | `src-tauri/src/state.rs` | AppState initialization and config sync |
 | `src/hooks/useNode.ts` | Node state management hook |
 | `src/hooks/useSync.ts` | Sync state management hook |
+| `src/hooks/useSoundNotifications.ts` | Sound notification event listener hook |
+| `src/lib/cidValidation.ts` | CID format validation utility |
 | `src/pages/Dashboard.tsx` | Main UI with diagnostics panel |
+| `src/pages/Files.tsx` | File management with auto-download on paste |
 | `src/pages/Logs.tsx` | Real-time node logs viewer |
-| `src/pages/Settings.tsx` | App configuration with port settings |
+| `src/pages/Settings.tsx` | App configuration with notification settings |
 | `src/styles/Logs.css` | Logs page styling |
-| `src/styles/App.css` | Global styles and dropdown contrast fixes |
+| `src/styles/App.css` | Global styles, dropdown contrast fixes, CID validation styling |
 | `scripts/download-sidecar.sh` | Sidecar binary downloader |
 | `src-tauri/tauri.conf.json` | Tauri app configuration |
 | `.github/workflows/ci.yml` | CI pipeline configuration |
