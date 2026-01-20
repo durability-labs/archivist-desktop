@@ -1,10 +1,12 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::node_api::NodeApiClient;
 use crate::services::node::NodeConfig;
 use crate::services::{
-    BackupDaemon, BackupService, ConfigService, FileService, NodeService, PeerService, SyncService,
+    BackupDaemon, BackupService, ConfigService, FileService, ManifestRegistry, ManifestServer,
+    ManifestServerConfig, NodeService, PeerService, SyncService,
 };
 
 /// Global application state managed by Tauri
@@ -16,6 +18,8 @@ pub struct AppState {
     pub config: Arc<RwLock<ConfigService>>,
     pub backup: Arc<RwLock<BackupService>>,
     pub backup_daemon: Arc<BackupDaemon>,
+    pub manifest_registry: Arc<RwLock<ManifestRegistry>>,
+    pub manifest_server: Arc<RwLock<ManifestServer>>,
 }
 
 impl AppState {
@@ -54,6 +58,44 @@ impl AppState {
             app_config.backup_server.auto_delete_tombstones,
         ));
 
+        // Configure source peers for the backup daemon
+        let source_peers = app_config.backup_server.source_peers.clone();
+        let backup_daemon_clone = backup_daemon.clone();
+        tokio::spawn(async move {
+            backup_daemon_clone.set_source_peers(source_peers).await;
+        });
+
+        // Create manifest registry (shared between sync service and manifest server)
+        let manifest_registry = Arc::new(RwLock::new(ManifestRegistry::new()));
+
+        // Create manifest server with config from settings
+        let mut allowed_ips = std::collections::HashSet::new();
+        for ip_str in &app_config.manifest_server.allowed_ips {
+            if let Ok(ip) = ip_str.parse::<IpAddr>() {
+                allowed_ips.insert(ip);
+            } else {
+                log::warn!("Invalid IP address in manifest_server.allowed_ips: {}", ip_str);
+            }
+        }
+
+        let manifest_server_config = ManifestServerConfig {
+            port: app_config.manifest_server.port,
+            enabled: app_config.manifest_server.enabled,
+            allowed_ips,
+        };
+
+        let manifest_server = ManifestServer::new(manifest_registry.clone());
+        // Config will be applied when server starts
+        let manifest_server = Arc::new(RwLock::new(manifest_server));
+
+        // Store config for later use when starting server
+        let manifest_server_clone = manifest_server.clone();
+        let config_clone = manifest_server_config.clone();
+        tokio::spawn(async move {
+            let server = manifest_server_clone.write().await;
+            server.update_config(config_clone).await;
+        });
+
         Self {
             node: Arc::new(RwLock::new(NodeService::with_config(node_config))),
             files: Arc::new(RwLock::new(FileService::new())),
@@ -62,6 +104,8 @@ impl AppState {
             config: Arc::new(RwLock::new(config_service)),
             backup: Arc::new(RwLock::new(backup_service)),
             backup_daemon,
+            manifest_registry,
+            manifest_server,
         }
     }
 }

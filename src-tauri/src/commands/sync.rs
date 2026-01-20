@@ -1,7 +1,9 @@
 use crate::error::{ArchivistError, Result};
 use crate::services::backup_daemon::DaemonState;
+use crate::services::manifest_server::ManifestInfo;
 use crate::services::sync::{SyncState, WatchedFolder};
 use crate::state::AppState;
+use chrono::Utc;
 use tauri::State;
 
 #[tauri::command]
@@ -51,6 +53,34 @@ pub async fn generate_folder_manifest(
 ) -> Result<String> {
     let mut sync = state.sync.write().await;
     let manifest_cid = sync.upload_manifest(&folder_id).await?;
+
+    // Get folder info for registry
+    let folder = sync
+        .get_folder(&folder_id)
+        .ok_or_else(|| ArchivistError::SyncError("Folder not found".into()))?;
+
+    let manifest_info = ManifestInfo {
+        folder_id: folder_id.clone(),
+        folder_path: folder.path.clone(),
+        manifest_cid: manifest_cid.clone(),
+        sequence_number: folder.manifest_sequence,
+        updated_at: Utc::now().to_rfc3339(),
+        file_count: folder.file_count,
+        total_size_bytes: folder.total_size_bytes,
+    };
+
+    drop(sync);
+
+    // Register manifest with the discovery server's registry
+    let mut registry = state.manifest_registry.write().await;
+    registry.register_manifest(manifest_info);
+
+    log::info!(
+        "Manifest {} registered for folder {}",
+        manifest_cid,
+        folder_id
+    );
+
     Ok(manifest_cid)
 }
 

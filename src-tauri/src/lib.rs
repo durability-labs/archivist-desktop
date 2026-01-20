@@ -23,8 +23,9 @@ pub fn run() {
     let node_service = app_state.node.clone();
     let sync_service = app_state.sync.clone();
     let backup_daemon = app_state.backup_daemon.clone();
-    let backup_service = app_state.backup.clone();
     let config_service = app_state.config.clone();
+    let manifest_registry = app_state.manifest_registry.clone();
+    let manifest_server = app_state.manifest_server.clone();
 
     let mut builder = tauri::Builder::default()
         .plugin(
@@ -154,70 +155,42 @@ pub fn run() {
 
             // Start the sync manager for file watching
             let sync_manager = SyncManager::new(sync_service.clone());
-            let sync_manager_clone = SyncManager::new(sync_service.clone());
             tauri::async_runtime::spawn(async move {
                 sync_manager.start_processing().await;
             });
 
-            // Start backup notification task
+            // Start the manifest discovery server (Machine A exposes this for Machine B to poll)
+            let manifest_server_clone = manifest_server.clone();
+            let manifest_registry_clone = manifest_registry.clone();
+            let config_for_manifest = config_service.clone();
             tauri::async_runtime::spawn(async move {
-                log::info!("Backup notification task started");
-                loop {
-                    // Check every 30 seconds for pending manifests
-                    tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                // Wait for node to start and get peer ID
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
-                    // Get config to check if backup is enabled
-                    let config = config_service.read().await;
-                    let app_config = config.get();
-                    let backup_enabled = app_config.sync.backup_enabled;
-                    let backup_auto_notify = app_config.sync.backup_auto_notify;
-                    let backup_peer_addr = app_config.sync.backup_peer_address.clone();
-                    drop(config);
-
-                    if !backup_enabled || !backup_auto_notify {
-                        continue;
+                // Try to get peer ID from node API
+                let api_client = crate::node_api::NodeApiClient::new(8080);
+                match api_client.get_info().await {
+                    Ok(info) => {
+                        let mut registry = manifest_registry_clone.write().await;
+                        registry.set_peer_id(info.id.clone());
+                        log::info!("Manifest registry peer ID set to: {}", info.id);
                     }
-
-                    let backup_peer = match backup_peer_addr {
-                        Some(addr) => addr,
-                        None => continue,
-                    };
-
-                    // Get pending manifests
-                    let pending = sync_manager_clone.get_pending_manifests().await;
-
-                    if pending.is_empty() {
-                        continue;
+                    Err(e) => {
+                        log::warn!("Could not get peer ID for manifest registry: {}", e);
                     }
+                }
 
-                    log::info!("Found {} pending manifests to notify backup peer", pending.len());
+                let config = config_for_manifest.read().await;
+                let app_config = config.get();
 
-                    // Notify backup peer for each pending manifest
-                    let backup = backup_service.read().await;
-                    for (folder_id, manifest_cid) in pending {
-                        match backup.notify_backup_peer(&manifest_cid, &backup_peer).await {
-                            Ok(_) => {
-                                log::info!(
-                                    "Successfully notified backup peer about manifest {} for folder {}",
-                                    manifest_cid,
-                                    folder_id
-                                );
-                                // Mark as notified
-                                if let Err(e) = sync_manager_clone.mark_manifest_notified(&folder_id).await {
-                                    log::error!("Failed to mark manifest as notified: {}", e);
-                                }
-                            }
-                            Err(e) => {
-                                log::error!(
-                                    "Failed to notify backup peer about manifest {} for folder {}: {}",
-                                    manifest_cid,
-                                    folder_id,
-                                    e
-                                );
-                                // Keep pending_retry = true for next attempt
-                            }
-                        }
+                if app_config.manifest_server.enabled {
+                    log::info!("Starting manifest discovery server on port {}", app_config.manifest_server.port);
+                    let mut server = manifest_server_clone.write().await;
+                    if let Err(e) = server.start().await {
+                        log::error!("Failed to start manifest server: {}", e);
                     }
+                } else {
+                    log::info!("Manifest discovery server is disabled");
                 }
             });
 

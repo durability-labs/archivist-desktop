@@ -18,8 +18,12 @@ pub struct AppConfig {
     // Notification settings
     pub notifications: NotificationSettings,
 
-    // Backup server settings
+    // Backup server settings (Machine B - receives backups)
     pub backup_server: BackupServerSettings,
+
+    // Manifest server settings (Machine A - exposes manifests)
+    #[serde(default)]
+    pub manifest_server: ManifestServerSettings,
 
     // V2 Marketplace settings (optional)
     #[cfg(feature = "marketplace")]
@@ -90,6 +94,48 @@ pub struct BackupServerSettings {
     pub max_concurrent_downloads: u32,
     pub max_retries: u32,
     pub auto_delete_tombstones: bool,
+    /// Source peers to poll for manifests (list of host:port pairs)
+    #[serde(default)]
+    pub source_peers: Vec<SourcePeerConfig>,
+}
+
+/// Configuration for a source peer to poll for manifests
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourcePeerConfig {
+    /// Human-friendly name for this peer
+    pub nickname: String,
+    /// Host/IP address of the peer's manifest server
+    pub host: String,
+    /// Port of the manifest server (default: 8085)
+    pub manifest_port: u16,
+    /// Peer ID for P2P connections (optional, for verification)
+    pub peer_id: Option<String>,
+    /// Multiaddr for P2P connections (for fetching actual data)
+    pub multiaddr: Option<String>,
+    /// Whether this source is enabled
+    pub enabled: bool,
+}
+
+/// Settings for the manifest discovery server (Machine A exposes this)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManifestServerSettings {
+    /// Whether the manifest server is enabled
+    pub enabled: bool,
+    /// Port to listen on (default: 8085)
+    pub port: u16,
+    /// Whitelisted IP addresses that can query this server
+    #[serde(default)]
+    pub allowed_ips: Vec<String>,
+}
+
+impl Default for ManifestServerSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            port: 8085,
+            allowed_ips: Vec::new(),
+        }
+    }
 }
 
 #[cfg(feature = "marketplace")]
@@ -165,7 +211,9 @@ impl Default for AppConfig {
                 max_concurrent_downloads: 3,
                 max_retries: 3,
                 auto_delete_tombstones: true,
+                source_peers: Vec::new(),
             },
+            manifest_server: ManifestServerSettings::default(),
             #[cfg(feature = "marketplace")]
             blockchain: None,
             #[cfg(feature = "marketplace")]

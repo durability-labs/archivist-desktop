@@ -50,6 +50,7 @@ mime_guess = "2.0"
 # Networking
 reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
 urlencoding = "2.1"
+warp = "0.3"
 
 # Encoding
 base64 = "0.22"

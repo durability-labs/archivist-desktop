@@ -1,7 +1,8 @@
 //! Backup server daemon for automatic manifest processing
 //!
 //! This daemon automatically:
-//! - Discovers new manifest files from source peers
+//! - Polls source peers for new manifest CIDs via HTTP
+//! - Downloads manifests from the P2P network
 //! - Parses manifests to extract file lists and deletions
 //! - Downloads missing files from the network
 //! - Enforces deletions based on tombstones
@@ -9,6 +10,8 @@
 
 use crate::error::{ArchivistError, Result};
 use crate::node_api::NodeApiClient;
+use crate::services::config::SourcePeerConfig;
+use crate::services::manifest_server::ManifestClient;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -128,12 +131,15 @@ struct ManifestStats {
     pub total_size_bytes: u64,
 }
 
-/// Manifest CID discovered from local storage
+/// Manifest CID discovered from source peer
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct ManifestCid {
+struct DiscoveredManifest {
     pub cid: String,
-    pub filename: String,
+    pub folder_id: String,
+    pub sequence_number: u64,
+    pub source_peer_id: String,
+    pub source_host: String,
+    pub multiaddr: Option<String>,
 }
 
 /// Result of file download operations
@@ -157,6 +163,7 @@ struct DeletionResult {
 /// Backup daemon for automatic manifest processing
 pub struct BackupDaemon {
     api_client: NodeApiClient,
+    manifest_client: ManifestClient,
     state: Arc<RwLock<DaemonState>>,
     state_file_path: PathBuf,
     enabled: Arc<AtomicBool>,
@@ -164,6 +171,8 @@ pub struct BackupDaemon {
     max_concurrent_downloads: u32,
     max_retries: u32,
     auto_delete_tombstones: bool,
+    /// Source peers to poll for manifests
+    source_peers: Arc<RwLock<Vec<SourcePeerConfig>>>,
 }
 
 impl BackupDaemon {
@@ -184,6 +193,7 @@ impl BackupDaemon {
 
         Self {
             api_client,
+            manifest_client: ManifestClient::new(),
             state: Arc::new(RwLock::new(state)),
             state_file_path: state_path,
             enabled: Arc::new(AtomicBool::new(enabled)),
@@ -191,7 +201,22 @@ impl BackupDaemon {
             max_concurrent_downloads,
             max_retries,
             auto_delete_tombstones,
+            source_peers: Arc::new(RwLock::new(Vec::new())),
         }
+    }
+
+    /// Update source peers configuration
+    pub async fn set_source_peers(&self, peers: Vec<SourcePeerConfig>) {
+        let mut source_peers = self.source_peers.write().await;
+        *source_peers = peers;
+        log::info!("Updated source peers: {} configured", source_peers.len());
+    }
+
+    /// Add a source peer
+    pub async fn add_source_peer(&self, peer: SourcePeerConfig) {
+        let mut source_peers = self.source_peers.write().await;
+        source_peers.push(peer);
+        log::info!("Added source peer, now {} configured", source_peers.len());
     }
 
     /// Load state from disk
@@ -264,35 +289,58 @@ impl BackupDaemon {
         self.enabled.load(Ordering::Relaxed)
     }
 
-    /// Discover new manifest files from local node
-    async fn discover_manifests(&self) -> Result<Vec<ManifestCid>> {
-        log::debug!("Discovering manifest files");
+    /// Discover new manifests by polling source peers
+    async fn discover_manifests(&self) -> Result<Vec<DiscoveredManifest>> {
+        log::debug!("Polling source peers for manifests");
 
-        // List all local data
-        let data_list = self.api_client.list_data().await?;
+        let source_peers = self.source_peers.read().await;
+        let mut discovered = Vec::new();
 
-        // Filter for manifest files by filename pattern
-        let mut manifests = Vec::new();
-        for item in data_list.content {
-            if let Some(manifest_info) = &item.manifest {
-                if let Some(filename) = &manifest_info.filename {
-                    // Check if filename matches .archivist-manifest-*.json
-                    if filename.starts_with(".archivist-manifest-") && filename.ends_with(".json") {
-                        manifests.push(ManifestCid {
-                            cid: item.cid,
-                            filename: filename.clone(),
+        for peer in source_peers.iter() {
+            if !peer.enabled {
+                continue;
+            }
+
+            log::debug!("Polling source peer: {} ({}:{})", peer.nickname, peer.host, peer.manifest_port);
+
+            match self.manifest_client.fetch_manifests(&peer.host, peer.manifest_port).await {
+                Ok(response) => {
+                    log::info!(
+                        "Received {} manifests from {} (peer {})",
+                        response.manifests.len(),
+                        peer.nickname,
+                        response.peer_id
+                    );
+
+                    for manifest in response.manifests {
+                        discovered.push(DiscoveredManifest {
+                            cid: manifest.manifest_cid,
+                            folder_id: manifest.folder_id,
+                            sequence_number: manifest.sequence_number,
+                            source_peer_id: response.peer_id.clone(),
+                            source_host: peer.host.clone(),
+                            multiaddr: peer.multiaddr.clone(),
                         });
                     }
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Failed to poll source peer {} ({}:{}): {}",
+                        peer.nickname,
+                        peer.host,
+                        peer.manifest_port,
+                        e
+                    );
                 }
             }
         }
 
-        log::debug!("Discovered {} manifest files", manifests.len());
-        Ok(manifests)
+        log::debug!("Discovered {} manifests from source peers", discovered.len());
+        Ok(discovered)
     }
 
     /// Filter manifests to only those not yet processed
-    async fn filter_unprocessed(&self, manifests: Vec<ManifestCid>) -> Vec<ManifestCid> {
+    async fn filter_unprocessed(&self, manifests: Vec<DiscoveredManifest>) -> Vec<DiscoveredManifest> {
         let state = self.state.read().await;
         manifests
             .into_iter()
@@ -301,12 +349,22 @@ impl BackupDaemon {
             .collect()
     }
 
-    /// Process a single manifest
+    /// Process a single manifest (download from network if needed)
     async fn process_manifest(&self, manifest_cid: &str) -> Result<()> {
         log::info!("Processing manifest: {}", manifest_cid);
 
-        // 1. Download manifest file
-        let manifest_bytes = self.api_client.download_file(manifest_cid).await?;
+        // 1. Try to download manifest from local storage first, then from network
+        let manifest_bytes = match self.api_client.download_file(manifest_cid).await {
+            Ok(bytes) => {
+                log::debug!("Manifest {} found in local storage", manifest_cid);
+                bytes
+            }
+            Err(_) => {
+                log::info!("Manifest {} not in local storage, fetching from network", manifest_cid);
+                self.api_client.download_file_network(manifest_cid).await?
+            }
+        };
+
         let manifest_json = String::from_utf8(manifest_bytes)
             .map_err(|e| ArchivistError::SyncError(format!("Invalid UTF-8 in manifest: {}", e)))?;
         let manifest: ManifestFile = serde_json::from_str(&manifest_json)?;
