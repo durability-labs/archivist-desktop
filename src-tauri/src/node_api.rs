@@ -12,37 +12,40 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
 /// Response from /api/archivist/v1/debug/info
+/// Matches archivist-node v0.2.0 API format
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeInfo {
-    pub version: String,
-    #[serde(default)]
-    pub local_node: Option<LocalNodeInfo>,
-    #[serde(default)]
-    pub codex: Option<CodexInfo>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalNodeInfo {
-    pub peer_id: String,
+    /// Peer ID (e.g., "16Uiu2HAmXYZ...")
+    pub id: String,
+    /// Network addresses
     #[serde(default)]
     pub addrs: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CodexInfo {
+    /// Repository path
     #[serde(default)]
-    pub storage: Option<StorageInfo>,
+    pub repo: Option<String>,
+    /// Signed Peer Record
+    #[serde(default)]
+    pub spr: Option<String>,
+    /// Announce addresses
+    #[serde(default, rename = "announceAddresses")]
+    pub announce_addresses: Vec<String>,
+    /// Ethereum address
+    #[serde(default, rename = "ethAddress")]
+    pub eth_address: Option<String>,
+    /// Archivist version info
+    #[serde(default)]
+    pub archivist: Option<ArchivistInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StorageInfo {
-    pub total_bytes: u64,
-    pub used_bytes: u64,
-    pub available_bytes: u64,
+pub struct ArchivistInfo {
+    pub version: String,
+    #[serde(default)]
+    pub revision: Option<String>,
+    #[serde(default)]
+    pub contracts: Option<String>,
 }
 
 /// Response from GET /api/archivist/v1/space

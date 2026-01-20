@@ -91,13 +91,14 @@ pub async fn run_node_diagnostics(state: State<'_, AppState>) -> Result<Diagnost
     // Try to get node info
     match client.get_info().await {
         Ok(info) => {
-            let peer_id = info.local_node.as_ref().map(|n| n.peer_id.clone());
-            let address_count = info.local_node.as_ref().map(|n| n.addrs.len()).unwrap_or(0);
+            let peer_id = Some(info.id.clone());
+            let address_count = info.addrs.len();
+            let node_version = info.archivist.as_ref().map(|a| a.version.clone());
 
             Ok(DiagnosticInfo {
                 api_reachable: true,
                 api_url,
-                node_version: Some(info.version),
+                node_version,
                 peer_id,
                 address_count,
                 error: None,

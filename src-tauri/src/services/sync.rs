@@ -687,11 +687,7 @@ impl SyncService {
 
         // 2. Get source peer ID from node API
         let node_info = self.api_client.get_info().await?;
-        let source_peer_id = node_info
-            .local_node
-            .as_ref()
-            .map(|n| n.peer_id.clone())
-            .ok_or_else(|| ArchivistError::ApiError("Failed to get peer ID from node".into()))?;
+        let source_peer_id = node_info.id.clone();
 
         // 3. Increment sequence number
         folder.manifest_sequence += 1;

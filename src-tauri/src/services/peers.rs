@@ -85,8 +85,8 @@ impl PeerService {
         // Get local node info
         let (local_peer_id, local_addresses) = match self.api_client.get_info().await {
             Ok(info) => {
-                let peer_id = info.local_node.as_ref().map(|n| n.peer_id.clone());
-                let addrs = info.local_node.map(|n| n.addrs).unwrap_or_default();
+                let peer_id = Some(info.id.clone());
+                let addrs = info.addrs;
                 (peer_id, addrs)
             }
             Err(_) => (None, Vec::new()),
