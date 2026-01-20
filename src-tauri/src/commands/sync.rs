@@ -110,14 +110,30 @@ pub async fn get_backup_daemon_state(state: State<'_, AppState>) -> Result<Daemo
 
 #[tauri::command]
 pub async fn enable_backup_daemon(state: State<'_, AppState>) -> Result<()> {
+    // Enable in-memory flag
     state.backup_daemon.enable();
+
+    // Persist to config file
+    let mut config_service = state.config.write().await;
+    let mut config = config_service.get();
+    config.backup_server.enabled = true;
+    config_service.update(config)?;
+
     log::info!("Backup daemon enabled");
     Ok(())
 }
 
 #[tauri::command]
 pub async fn disable_backup_daemon(state: State<'_, AppState>) -> Result<()> {
+    // Disable in-memory flag
     state.backup_daemon.disable();
+
+    // Persist to config file
+    let mut config_service = state.config.write().await;
+    let mut config = config_service.get();
+    config.backup_server.enabled = false;
+    config_service.update(config)?;
+
     log::info!("Backup daemon disabled");
     Ok(())
 }
