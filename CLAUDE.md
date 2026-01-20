@@ -17,11 +17,12 @@ Tauri v2 desktop application for decentralized file storage with P2P sync capabi
 11. [CI/CD Pipeline](#cicd-pipeline)
 12. [Build & Release](#build--release)
 13. [P2P Testing Guide](#p2p-testing-guide)
-14. [Windows Development](#windows-development)
-15. [User Experience Features](#user-experience-features)
-16. [Troubleshooting](#troubleshooting)
-17. [Security](#security)
-18. [Version History](#version-history)
+14. [Backup to Designated Peer with Continuous Sync](#backup-to-designated-peer-with-continuous-sync)
+15. [Windows Development](#windows-development)
+16. [User Experience Features](#user-experience-features)
+17. [Troubleshooting](#troubleshooting)
+18. [Security](#security)
+19. [Version History](#version-history)
 
 ---
 
@@ -846,6 +847,597 @@ netstat -ano | findstr "8090"  # Windows (discovery)
 - Configure port forwarding
 - ISP may block P2P traffic
 - Consider using VPN to create virtual LAN
+
+## Backup to Designated Peer with Continuous Sync
+
+### Overview
+
+The backup peer notification feature enables automatic backup of synced files to a designated trusted peer (such as a home server). This feature addresses the common use case where users want their desktop files automatically backed up to a specific server without manual intervention.
+
+**Key Capabilities:**
+- **Primary use case**: Backup from one desktop to ONE specific trusted peer (1:1 backup)
+- **Advanced use case**: Support n:1 fan-in (multiple source peers → single backup server)
+- **Event-driven**: Manifest generation triggered automatically after threshold of file changes
+- **Source of truth**: Manifest files track complete state with sequence numbers for ordering
+- **Content deduplication**: Same file content = same CID = stored once across all sources
+- **Deletion tracking**: Tombstones in manifests track removed files
+
+### Architecture
+
+#### Notification Flow
+
+```
+Primary Desktop (Source)
+  1. Watch folder detects file changes (create/modify/delete)
+  2. Upload files to local node → Generate CIDs
+  3. Track changes in counter (threshold: 10 changes by default)
+  4. When threshold reached:
+     a. Build manifest JSON with current files + deleted files
+     b. Increment sequence number
+     c. Upload manifest to local node → Get manifest CID
+     d. Create storage request for manifest CID
+     e. Backup peer downloads manifest from network
+  5. If notification fails:
+     a. Mark as pending_retry
+     b. Retry every 5 minutes (configurable)
+     c. Max 5 retry attempts (configurable)
+
+Backup Server (Remote)
+  1. Receives manifest file via P2P storage request
+  2. Downloads manifest from network
+  3. (Future) Parse manifest and download each CID
+  4. (Future) Enforce deletions based on tombstones
+  5. (Future) Send acknowledgment to source peer
+```
+
+#### Planes of Operation
+
+**Notification Plane** (Event-driven):
+- File watcher detects changes
+- Change counter increments
+- Threshold triggers manifest generation
+- Storage request sent to backup peer
+- Retry mechanism for failed deliveries
+
+**Source of Truth Plane** (What is authoritative):
+- Each manifest = complete state at sequence number N
+- Includes `files` array (current state) and `deleted_files` array (tombstones)
+- Sequence numbers enable ordering and gap detection
+- Eventually consistent model with idempotent operations
+
+### Manifest File Format
+
+**Location**: `.archivist-manifest-{peer_id}.json` in watched folder root
+
+**Filename Format**: Uses first 12 characters of source peer ID for uniqueness in n:1 scenarios
+
+**Complete JSON Schema**:
+
+```json
+{
+  "version": "1.0",
+  "folder_id": "uuid-of-watched-folder",
+  "folder_path": "/absolute/path/to/watched/folder",
+  "source_peer_id": "16Uiu2HAmXYZ123...",
+  "sequence_number": 42,
+  "last_updated": "2026-01-19T10:30:00Z",
+  "manifest_cid": "zdj7WaB3C...",
+  "files": [
+    {
+      "path": "documents/report.pdf",
+      "cid": "zdj7W1a2b3c...",
+      "size_bytes": 102400,
+      "mime_type": "application/pdf",
+      "uploaded_at": "2026-01-19T10:25:00Z"
+    },
+    {
+      "path": "images/photo.jpg",
+      "cid": "zdj7W4d5e6f...",
+      "size_bytes": 2048000,
+      "mime_type": "image/jpeg",
+      "uploaded_at": "2026-01-19T10:28:00Z"
+    }
+  ],
+  "deleted_files": [
+    {
+      "path": "old/file.txt",
+      "cid": "zdj7W7g8h9i...",
+      "deleted_at": "2026-01-19T10:27:00Z"
+    }
+  ],
+  "stats": {
+    "total_files": 2,
+    "total_size_bytes": 2150400
+  }
+}
+```
+
+**Field Descriptions**:
+- `version`: Manifest schema version (currently "1.0")
+- `folder_id`: UUID identifying the watched folder
+- `folder_path`: Absolute path on source peer
+- `source_peer_id`: Peer ID of source (for n:1 attribution)
+- `sequence_number`: Incremental counter (detects gaps/missed updates)
+- `last_updated`: Timestamp of manifest generation
+- `manifest_cid`: Self-referencing CID of this manifest file
+- `files`: Array of currently existing files (current state)
+- `deleted_files`: Tombstones for files removed since last manifest
+- `stats`: Aggregated statistics
+
+### Configuration
+
+**Settings → Sync → Backup to Peer**:
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| Enable automatic backup | Checkbox | false | Master switch for backup feature |
+| Backup Peer Address | Text | null | SPR or multiaddr of backup server |
+| Backup Peer Nickname | Text | null | Optional friendly name for backup peer |
+| Generate manifest files | Checkbox | true | Create .archivist-manifest-{peer_id}.json files |
+| Automatically notify backup peer | Checkbox | false | Auto-create storage requests after manifest generation |
+
+**Advanced Settings** (in config.toml):
+
+| Setting | Field | Default | Description |
+|---------|-------|---------|-------------|
+| Manifest Update Threshold | `manifest_update_threshold` | 10 | Generate manifest after N file changes |
+| Retry Interval | `manifest_retry_interval_secs` | 300 | Retry failed notifications every N seconds (5 min) |
+| Max Retries | `manifest_max_retries` | 5 | Give up after N retry attempts |
+
+### Setup Instructions
+
+#### Primary Desktop (Source Peer)
+
+1. **Enable Backup**
+   - Open Settings → Sync → Backup to Peer
+   - Check "Enable automatic backup to designated peer"
+
+2. **Configure Backup Server Address**
+   - Enter backup server's SPR or multiaddr in "Backup Peer Address"
+   - Format options:
+     - SPR: `spr:CiUIAhIBI...`
+     - Multiaddr: `/ip4/192.168.1.100/tcp/8070/p2p/16Uiu2HAm...`
+
+3. **Optional: Set Nickname**
+   - Enter friendly name like "Home Server" for identification
+
+4. **Configure Manifest Settings**
+   - Check "Generate manifest files" (recommended: enabled)
+   - Check "Automatically notify backup peer" to enable auto-backup
+
+5. **Configure Thresholds** (optional, edit config.toml):
+   ```toml
+   [sync]
+   manifest_update_threshold = 10  # Generate manifest after 10 file changes
+   manifest_retry_interval_secs = 300  # Retry every 5 minutes
+   manifest_max_retries = 5  # Max 5 retry attempts
+   ```
+
+6. **Add Watch Folder**
+   - Go to Sync page
+   - Click "Add Watch Folder"
+   - Select folder to backup
+
+7. **Automatic Operation**
+   - Files sync automatically
+   - After 10 file changes (default threshold), manifest generates
+   - Backup peer receives notification
+   - Files download to backup server
+
+#### Backup Server
+
+1. **Install Archivist Desktop**
+   - Install on remote server (Linux, macOS, or Windows)
+
+2. **Start Node**
+   - Launch Archivist Desktop
+   - Click "Start Node" on Dashboard
+
+3. **Get Server Address**
+   - Dashboard → Copy SPR
+   - Or via API: `curl http://127.0.0.1:8080/api/archivist/v1/spr`
+   - Or get multiaddr from Dashboard → Show Diagnostics → Network Addresses
+
+4. **Configure Firewall**
+   - Allow UDP port 8090 (discovery)
+   - Allow TCP port 8070 (P2P connections)
+   - Example (Linux UFW):
+     ```bash
+     sudo ufw allow 8090/udp
+     sudo ufw allow 8070/tcp
+     ```
+
+5. **Use Address in Primary Desktop**
+   - Copy SPR or multiaddr
+   - Enter in primary desktop's backup peer address setting
+
+6. **Automatic Reception**
+   - Manifests download automatically via P2P
+   - Files download automatically (future enhancement)
+   - Currently: Manual manifest inspection and file downloads
+
+### How It Works
+
+#### Event-Driven Manifest Generation
+
+1. **Change Tracking**
+   - File watcher detects create/modify/delete events
+   - Each change increments `changes_since_manifest` counter for the folder
+
+2. **Threshold Trigger**
+   - When counter reaches threshold (default: 10 changes)
+   - Manifest generation process starts automatically
+
+3. **Manifest Generation**
+   - Gather all current files with their CIDs
+   - Gather all deleted files since last manifest (tombstones)
+   - Increment sequence number
+   - Build ManifestFile JSON structure
+   - Write to `.archivist-manifest-{peer_id}.json` in folder root
+   - Upload manifest to local node → get manifest CID
+
+4. **Backup Notification**
+   - Create storage request: `POST /storage/request/{manifest_cid}`
+   - Backup server receives notification via P2P
+   - Backup server downloads manifest from network
+
+5. **Retry Mechanism**
+   - If notification fails, mark as `pending_retry`
+   - Background loop checks every 5 minutes for pending retries
+   - Re-attempt storage request
+   - After 5 failures, log warning and give up
+
+#### Deletion Tracking
+
+- When file deleted from watched folder:
+  - Retrieve CID from `file_cid_mappings`
+  - Add to `deleted_files` HashMap as tombstone
+  - Remove from `file_cid_mappings`
+  - Increment `changes_since_manifest` counter
+
+- Next manifest includes:
+  - `deleted_files` array with tombstone entries
+  - Each entry: `{path, cid, deleted_at}`
+
+- Backup server should (future):
+  - Process `deleted_files` array
+  - Remove CIDs from storage or mark for garbage collection
+  - **v0.1 Limitation**: Deletion enforcement not automatic
+
+#### n:1 Fan-In Support
+
+**Multiple Sources → Single Backup**:
+- Each source peer generates manifest with unique peer ID in filename
+- Example on backup server:
+  - `.archivist-manifest-16Uiu2HAm123.json` (from desktop 1)
+  - `.archivist-manifest-16Uiu2HAm456.json` (from desktop 2)
+  - `.archivist-manifest-16Uiu2HAm789.json` (from laptop)
+
+**Content Deduplication**:
+- Same file content → same CID → stored once
+- Multiple sources may reference same CID
+- Storage efficient: Only one copy regardless of source count
+
+**Source Attribution**:
+- Each manifest tracks `source_peer_id`
+- Backup server can determine which peers have which files
+- Enables selective restore by source
+
+### Manual Operations
+
+#### Manual Backup Trigger
+
+**Via UI** (Sync Page):
+1. Navigate to Sync page
+2. Find watched folder in list
+3. Click "Backup Now" button (visible if backup enabled and manifest exists)
+4. Notification sent immediately to backup peer
+
+**Via API** (for automation):
+```bash
+# Generate manifest for folder
+curl -X POST http://127.0.0.1:8080/api/local/generate_folder_manifest \
+  -H "Content-Type: application/json" \
+  -d '{"folder_id": "uuid-of-folder"}'
+
+# Notify backup peer
+curl -X POST http://127.0.0.1:8080/api/local/notify_backup_peer \
+  -H "Content-Type: application/json" \
+  -d '{"folder_id": "uuid-of-folder"}'
+```
+
+#### Manual Manifest Inspection
+
+Manifests are plain JSON files:
+```bash
+# View manifest
+cat /path/to/watched/folder/.archivist-manifest-16Uiu2HAm.json | jq
+
+# Check sequence number
+jq '.sequence_number' /path/to/watched/folder/.archivist-manifest-*.json
+
+# List all files
+jq '.files[] | .path' /path/to/watched/folder/.archivist-manifest-*.json
+
+# List deleted files
+jq '.deleted_files[] | .path' /path/to/watched/folder/.archivist-manifest-*.json
+
+# Get statistics
+jq '.stats' /path/to/watched/folder/.archivist-manifest-*.json
+```
+
+### Verification & Testing
+
+#### Single-Peer Backup
+
+1. **Setup**
+   - Configure backup peer address in Settings
+   - Enable backup and auto-notify
+   - Add watch folder
+
+2. **Upload Files**
+   - Add 10+ test files to watched folder
+   - Observe manifest generation (check folder for `.archivist-manifest-*.json`)
+
+3. **Verify Manifest**
+   - Open manifest file
+   - Check `sequence_number` starts at 1
+   - Verify `files` array contains all uploaded files
+   - Verify `source_peer_id` matches your peer ID
+
+4. **Check Backup Server**
+   - Navigate to backup server
+   - Verify manifest file received via P2P
+   - (Future) Verify files downloaded
+
+5. **Test Deletion Tracking**
+   - Delete 3 files from watched folder
+   - Wait for threshold or manually trigger backup
+   - New manifest should have `sequence_number: 2`
+   - Check `deleted_files` array contains 3 tombstones
+
+#### Multi-Peer Fan-In
+
+1. **Setup Multiple Sources**
+   - Install on 2+ desktops/laptops
+   - Configure same backup server address on all sources
+   - Add watch folders on each source
+
+2. **Upload Different Files**
+   - Source 1: Upload photos
+   - Source 2: Upload documents
+   - Source 3: Upload videos
+
+3. **Verify Unique Manifests**
+   - Check backup server for multiple manifest files
+   - Each should have different peer ID in filename
+   - Each should track different files
+
+4. **Test Deduplication**
+   - Upload same file (identical content) from two sources
+   - Both manifests should reference same CID
+   - Backup server stores CID only once
+
+5. **Verify Sequence Numbers**
+   - Each source maintains independent sequence
+   - Source 1 may be at sequence 5, Source 2 at sequence 3, etc.
+
+#### Retry Mechanism
+
+1. **Simulate Offline Backup Peer**
+   - Stop node on backup server
+
+2. **Trigger Manifest Generation**
+   - Upload files on primary desktop
+   - Manifest generates, notification fails
+
+3. **Check Logs**
+   - Look for retry attempts logged every 5 minutes
+   - Verify max retries respected (gives up after 5)
+
+4. **Bring Backup Online**
+   - Start backup server node
+   - Wait for retry interval
+   - Verify manifest delivered on next retry
+
+### Troubleshooting
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| **Manifest not generating** | Below threshold | Upload more files or lower `manifest_update_threshold` in config |
+| **Backup peer not receiving** | Peer offline or firewall blocking | Check connection, verify ports 8090/8070 open |
+| **Deletions not tracked** | Manifest not regenerated yet | Wait for threshold or trigger manual backup |
+| **Sequence number gaps** | Missed manifests due to failures | Check retry logs, backup server may need to request missing |
+| **"Backup Now" button disabled** | No manifest generated yet | Wait for threshold or check if backup enabled |
+| **Retry exhausted** | Backup peer unreachable for extended time | Check backup server status, increase `manifest_max_retries` |
+| **Multiple manifests conflict** | Should not happen (unique peer IDs) | Each source has unique peer ID, verify peer ID in manifest |
+| **Manifest CID not showing** | Manifest generation failed | Check logs for errors, verify node running |
+
+### API Reference
+
+#### Tauri Commands
+
+**Generate Manifest**:
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+// Generate manifest for folder, returns manifest CID
+const manifestCid = await invoke<string>('generate_folder_manifest', {
+  folderId: 'uuid-of-folder'
+});
+```
+
+**Notify Backup Peer**:
+```typescript
+// Trigger manual backup notification
+await invoke('notify_backup_peer', {
+  folderId: 'uuid-of-folder'
+});
+```
+
+**Test Backup Peer Connection**:
+```typescript
+// Test if backup peer is reachable
+const connected = await invoke<boolean>('test_backup_peer_connection', {
+  peerAddress: 'spr:CiUI... or /ip4/.../tcp/.../p2p/...'
+});
+```
+
+#### Node API Endpoints
+
+**Create Storage Request**:
+```bash
+POST /api/archivist/v1/storage/request/{cid}
+
+# Example
+curl -X POST http://127.0.0.1:8080/api/archivist/v1/storage/request/zdj7W...
+```
+
+Triggers backup server to download the specified CID from the network.
+
+#### Manifest File Location
+
+- **Primary Desktop**: `{watched_folder}/.archivist-manifest-{peer_id}.json`
+- **Backup Server**: Downloads via P2P, stored in node data directory
+
+### Security Considerations
+
+#### Manifest Visibility
+
+**Unencrypted Metadata**:
+- Manifests are plain JSON (not encrypted)
+- Contains: file paths, CIDs, sizes, MIME types, timestamps
+- Anyone with manifest CID can read metadata
+- **Recommendation**: Don't sync sensitive folder structures
+
+#### Backup Peer Trust
+
+**Manual Configuration Required**:
+- User manually configures backup peer address
+- Implicit trust: Backup peer can see all file metadata
+- Backup peer can download all files
+- **Recommendation**: Only use trusted servers you control
+
+#### Network Security
+
+- Manifests transmitted via libp2p (encrypted P2P channels)
+- No cleartext transmission over public internet
+- Content-addressed: CIDs are cryptographic hashes
+
+#### Future Security Enhancements
+
+- Authentication tokens (require token to accept backups)
+- End-to-end encryption for sensitive files
+- Access control lists (which peers can backup to which servers)
+- Audit logs for all backup operations
+
+### Limitations (v0.1)
+
+#### Primary Peer (Implemented)
+
+- ✅ Manifest generation with sequence numbers
+- ✅ Deletion tracking as tombstones
+- ✅ Retry mechanism for failed notifications
+- ✅ Event-driven manifest updates (threshold-based)
+- ✅ n:1 fan-in support with peer ID namespacing
+- ✅ Manual backup trigger via UI
+
+#### Backup Server (Not Implemented - Future)
+
+- ❌ Automatic manifest processing
+- ❌ Deletion enforcement based on tombstones
+- ❌ Sequence gap detection and recovery
+- ❌ Acknowledgment back to source peer
+- ❌ UI for viewing all sources and their states
+- ❌ Multi-manifest reconciliation
+
+#### Manual Workflow for v0.1
+
+**Current workflow**:
+1. Primary peer generates and uploads manifests ✅
+2. Backup server downloads manifests via P2P ✅
+3. User manually inspects manifests to see file list ⚠️
+4. User manually initiates downloads for missing CIDs ⚠️
+5. User manually deletes files based on tombstones ⚠️
+
+**Future automated workflow**:
+- Backup server daemon auto-watches for new manifest CIDs
+- Auto-parses and applies manifests
+- Auto-downloads missing files
+- Auto-enforces deletions
+- Sends acknowledgments to source peers
+- Provides dashboard UI for multi-source management
+
+### Future Enhancements
+
+These features are planned for future releases but not included in v0.1:
+
+#### Backup Server Daemon
+- **Automatic manifest monitoring**: Watch for new manifest CIDs from configured sources
+- **Auto-download**: Parse manifest and download missing file CIDs automatically
+- **Deletion enforcement**: Process tombstones and remove deleted files
+- **Sequence gap detection**: Detect missing manifests, request recovery
+- **Acknowledgment protocol**: Send confirmation back to source peers
+- **Dashboard UI**: View all sources, their states, and file lists
+
+#### Source Tracking UI
+- **Reverse index**: View CID → [list of source_peer_ids] mapping
+- **Conflict resolution**: Handle duplicate filenames with different content
+- **Source health monitoring**: Last-seen timestamps per source
+- **Selective restore**: Download specific files from specific sources
+
+#### Advanced Sync Features
+- **Bidirectional sync**: Backup peer notifies primary of changes
+- **Multiple backup peers**: 1:n fan-out for redundancy
+- **Backup verification**: Compare checksums between source and backup
+- **Integrity checking**: Alert on inconsistencies
+
+#### Manifest Improvements
+- **Incremental manifests**: Delta updates instead of full state
+- **Manifest compaction**: Merge old manifests to reduce storage
+- **Encrypted manifests**: Encrypt before uploading
+- **Compressed manifests**: Gzip for large file lists
+- **Signed manifests**: Verify authenticity with peer signatures
+
+#### Scheduling & Control
+- **Time-based backups**: Cron-like scheduling
+- **Bandwidth throttling**: Control backup network usage
+- **Pause/resume**: Individual backup operation control
+- **Priority queues**: Urgent vs. background backups
+
+#### Selective Operations
+- **Selective restore**: Download specific files from backup
+- **Folder-level control**: Exclude certain folders
+- **File type filtering**: Only backup specific extensions
+- **Size limits**: Per-folder or total size limits
+
+#### Monitoring & Alerting
+- **Webhook notifications**: When backup completes
+- **Email alerts**: On backup failures
+- **Metrics dashboard**: Backup size, frequency, success rate
+- **Health checks**: Uptime monitoring
+
+#### Performance Optimizations
+- **Parallel downloads**: Multiple CIDs simultaneously on backup server
+- **Chunked processing**: Very large folders (1000+ files)
+- **Manifest caching**: Incremental parsing
+- **Background generation**: Async manifest creation (don't block sync)
+
+### Related Files
+
+| File | Purpose | Lines Changed |
+|------|---------|---------------|
+| [src-tauri/src/services/sync.rs](src-tauri/src/services/sync.rs) | Manifest generation, deletion tracking, change counting | Added ~300 lines |
+| [src-tauri/src/services/backup.rs](src-tauri/src/services/backup.rs) | Backup peer notification, retry logic | New file, ~75 lines |
+| [src-tauri/src/services/config.rs](src-tauri/src/services/config.rs) | Backup settings, thresholds, retry config | Added ~10 lines |
+| [src-tauri/src/commands/sync.rs](src-tauri/src/commands/sync.rs) | Tauri commands for manual manifest/backup operations | Added ~50 lines |
+| [src-tauri/src/node_api.rs](src-tauri/src/node_api.rs) | Storage request API method | Added ~25 lines |
+| [src-tauri/src/state.rs](src-tauri/src/state.rs) | BackupService initialization | Modified ~15 lines |
+| [src/hooks/useSync.ts](src/hooks/useSync.ts) | WatchedFolder interface with manifest fields | Modified interface |
+| [src/pages/Settings.tsx](src/pages/Settings.tsx) | Backup configuration UI | Added ~80 lines |
+| [src/pages/Sync.tsx](src/pages/Sync.tsx) | Backup status display, manual triggers | Added ~40 lines |
+
+---
 
 ## Windows Development
 

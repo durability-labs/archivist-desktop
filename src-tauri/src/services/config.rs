@@ -18,6 +18,9 @@ pub struct AppConfig {
     // Notification settings
     pub notifications: NotificationSettings,
 
+    // Backup server settings
+    pub backup_server: BackupServerSettings,
+
     // V2 Marketplace settings (optional)
     #[cfg(feature = "marketplace")]
     pub blockchain: Option<BlockchainSettings>,
@@ -51,6 +54,18 @@ pub struct SyncSettings {
     pub sync_interval_seconds: u32,
     pub bandwidth_limit_mbps: Option<u32>,
     pub exclude_patterns: Vec<String>,
+
+    // NEW: Backup configuration
+    pub backup_enabled: bool,
+    pub backup_peer_address: Option<String>,
+    pub backup_peer_nickname: Option<String>,
+    pub backup_manifest_enabled: bool,
+    pub backup_auto_notify: bool,
+
+    // NEW: Continuous sync settings
+    pub manifest_update_threshold: u32,
+    pub manifest_retry_interval_secs: u32,
+    pub manifest_max_retries: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,6 +75,15 @@ pub struct NotificationSettings {
     pub sound_on_peer_connect: bool,
     pub sound_on_download: bool,
     pub sound_volume: f32, // 0.0 to 1.0
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupServerSettings {
+    pub enabled: bool,
+    pub poll_interval_secs: u64,
+    pub max_concurrent_downloads: u32,
+    pub max_retries: u32,
+    pub auto_delete_tombstones: bool,
 }
 
 #[cfg(feature = "marketplace")]
@@ -110,6 +134,14 @@ impl Default for AppConfig {
                     ".DS_Store".to_string(),
                     "Thumbs.db".to_string(),
                 ],
+                backup_enabled: false,
+                backup_peer_address: None,
+                backup_peer_nickname: None,
+                backup_manifest_enabled: true,
+                backup_auto_notify: false,
+                manifest_update_threshold: 10,
+                manifest_retry_interval_secs: 300,
+                manifest_max_retries: 5,
             },
             notifications: NotificationSettings {
                 sound_enabled: true,
@@ -117,6 +149,13 @@ impl Default for AppConfig {
                 sound_on_peer_connect: true,
                 sound_on_download: true,
                 sound_volume: 0.5,
+            },
+            backup_server: BackupServerSettings {
+                enabled: false,
+                poll_interval_secs: 30,
+                max_concurrent_downloads: 3,
+                max_retries: 3,
+                auto_delete_tombstones: true,
             },
             #[cfg(feature = "marketplace")]
             blockchain: None,

@@ -1,11 +1,15 @@
 // Service layer - trait-based abstractions for V2 extensibility
 
+pub mod backup;
+pub mod backup_daemon;
 pub mod config;
 pub mod files;
 pub mod node;
 pub mod peers;
 pub mod sync;
 
+pub use backup::BackupService;
+pub use backup_daemon::BackupDaemon;
 pub use config::ConfigService;
 pub use files::FileService;
 pub use node::NodeService;

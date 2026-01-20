@@ -6,6 +6,7 @@ import Files from './pages/Files';
 import Sync from './pages/Sync';
 import Peers from './pages/Peers';
 import Logs from './pages/Logs';
+import BackupServer from './pages/BackupServer';
 import Settings from './pages/Settings';
 import logoSvg from './assets/logo.svg';
 import './styles/App.css';
@@ -38,6 +39,9 @@ function App() {
             <NavLink to="/logs" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Logs
             </NavLink>
+            <NavLink to="/backup-server" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Backup Server
+            </NavLink>
 
             {/* V2 - Only shown when marketplace feature enabled */}
             {marketplaceEnabled && (
@@ -68,6 +72,7 @@ function App() {
             <Route path="/sync" element={<Sync />} />
             <Route path="/peers" element={<Peers />} />
             <Route path="/logs" element={<Logs />} />
+            <Route path="/backup-server" element={<BackupServer />} />
             <Route path="/settings" element={<Settings />} />
 
             {/* V2 routes - placeholder for marketplace */}

@@ -9,6 +9,9 @@ export interface WatchedFolder {
   totalSizeBytes: number;
   lastSynced: string | null;
   status: 'idle' | 'scanning' | 'syncing' | 'error' | 'paused';
+  manifestCid?: string;
+  manifestUpdatedAt?: string;
+  backupSyncedAt?: string;
 }
 
 export interface SyncState {

@@ -1,5 +1,13 @@
+import { useState, useEffect } from 'react';
 import { useSync } from '../hooks/useSync';
 import { open } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
+
+interface AppConfig {
+  sync: {
+    backup_enabled: boolean;
+  };
+}
 
 function Sync() {
   const {
@@ -11,7 +19,24 @@ function Sync() {
     toggleWatchFolder,
     syncNow,
     pauseSync,
+    refreshStatus,
   } = useSync();
+
+  const [config, setConfig] = useState<AppConfig | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
+
+  // Load config to check if backup is enabled
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const cfg = await invoke<AppConfig>('get_config');
+        setConfig(cfg);
+      } catch (e) {
+        console.error('Failed to load config:', e);
+      }
+    }
+    loadConfig();
+  }, []);
 
   const handleAddFolder = async () => {
     try {
@@ -25,6 +50,17 @@ function Sync() {
       }
     } catch (e) {
       console.error('Failed to add folder:', e);
+    }
+  };
+
+  const manualBackupFolder = async (folderId: string) => {
+    try {
+      setBackupError(null);
+      await invoke('notify_backup_peer', { folderId });
+      await refreshStatus();
+    } catch (e) {
+      const msg = typeof e === 'string' ? e : (e instanceof Error ? e.message : 'Backup failed');
+      setBackupError(msg);
     }
   };
 
@@ -91,6 +127,7 @@ function Sync() {
       </div>
 
       {error && <div className="error-banner">{error}</div>}
+      {backupError && <div className="error-banner">{backupError}</div>}
 
       <div className="sync-status-card">
         <h3>Sync Status</h3>
@@ -138,6 +175,16 @@ function Sync() {
                   <span className="last-sync">
                     Last synced: {formatDate(folder.lastSynced)}
                   </span>
+                  {config?.sync.backup_enabled && folder.backupSyncedAt && (
+                    <span className="backup-status">
+                      Backed up: {formatDate(folder.backupSyncedAt)}
+                    </span>
+                  )}
+                  {folder.manifestCid && (
+                    <span className="manifest-cid">
+                      Manifest: <code>{folder.manifestCid.slice(0, 12)}...</code>
+                    </span>
+                  )}
                 </div>
                 <div className="folder-actions">
                   <label className="toggle">
@@ -150,6 +197,16 @@ function Sync() {
                       {folder.enabled ? 'Enabled' : 'Disabled'}
                     </span>
                   </label>
+                  {config?.sync.backup_enabled && (
+                    <button
+                      className="small secondary"
+                      onClick={() => manualBackupFolder(folder.id)}
+                      disabled={!folder.manifestCid}
+                      title="Notify backup peer now"
+                    >
+                      Backup Now
+                    </button>
+                  )}
                   <button
                     className="small danger"
                     onClick={() => removeWatchFolder(folder.id)}

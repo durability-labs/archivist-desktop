@@ -18,6 +18,12 @@ interface SyncSettings {
   sync_interval_seconds: number;
   bandwidth_limit_mbps: number | null;
   exclude_patterns: string[];
+  // Backup configuration
+  backup_enabled: boolean;
+  backup_peer_address: string | null;
+  backup_peer_nickname: string | null;
+  backup_manifest_enabled: boolean;
+  backup_auto_notify: boolean;
 }
 
 interface NotificationSettings {
@@ -57,6 +63,11 @@ const defaultConfig: AppConfig = {
     sync_interval_seconds: 300,
     bandwidth_limit_mbps: null,
     exclude_patterns: ['*.tmp', '*.temp', '.DS_Store', 'Thumbs.db'],
+    backup_enabled: false,
+    backup_peer_address: null,
+    backup_peer_nickname: null,
+    backup_manifest_enabled: true,
+    backup_auto_notify: false,
   },
   notifications: {
     sound_enabled: true,
@@ -439,6 +450,102 @@ function Settings() {
             </div>
           )}
         </div>
+
+        {/* Backup to Peer */}
+        <div className="setting-item">
+          <h4>Backup to Peer</h4>
+          <label>
+            <input
+              type="checkbox"
+              checked={config.sync.backup_enabled}
+              onChange={(e) =>
+                setConfig((prev) => ({
+                  ...prev,
+                  sync: { ...prev.sync, backup_enabled: e.target.checked },
+                }))
+              }
+            />
+            Enable automatic backup to designated peer
+          </label>
+          <span className="hint">
+            Automatically notify a trusted peer (like your server) when files are synced
+          </span>
+        </div>
+
+        {config.sync.backup_enabled && (
+          <>
+            <div className="setting-item">
+              <label>Backup Peer Address</label>
+              <input
+                type="text"
+                value={config.sync.backup_peer_address || ''}
+                onChange={(e) =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    sync: { ...prev.sync, backup_peer_address: e.target.value || null },
+                  }))
+                }
+                placeholder="spr:CiUI... or /ip4/.../tcp/.../p2p/..."
+              />
+              <span className="hint">
+                SPR or multiaddr of your backup peer (e.g., your home server)
+              </span>
+            </div>
+
+            <div className="setting-item">
+              <label>Backup Peer Nickname (Optional)</label>
+              <input
+                type="text"
+                value={config.sync.backup_peer_nickname || ''}
+                onChange={(e) =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    sync: { ...prev.sync, backup_peer_nickname: e.target.value || null },
+                  }))
+                }
+                placeholder="My Home Server"
+              />
+            </div>
+
+            <div className="setting-item">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={config.sync.backup_manifest_enabled}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      sync: { ...prev.sync, backup_manifest_enabled: e.target.checked },
+                    }))
+                  }
+                />
+                Generate manifest files
+              </label>
+              <span className="hint">
+                Creates .archivist-manifest.json in watched folders with CID mappings
+              </span>
+            </div>
+
+            <div className="setting-item">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={config.sync.backup_auto_notify}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      sync: { ...prev.sync, backup_auto_notify: e.target.checked },
+                    }))
+                  }
+                />
+                Automatically notify backup peer
+              </label>
+              <span className="hint">
+                Create storage request for manifest after each sync (requires peer to be online)
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Notification Settings */}

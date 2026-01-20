@@ -22,6 +22,7 @@ pub fn run() {
     let app_state = AppState::new();
     let node_service = app_state.node.clone();
     let sync_service = app_state.sync.clone();
+    let backup_daemon = app_state.backup_daemon.clone();
 
     let mut builder = tauri::Builder::default()
         .plugin(
@@ -86,6 +87,16 @@ pub fn run() {
             commands::toggle_watch_folder,
             commands::sync_now,
             commands::pause_sync,
+            commands::generate_folder_manifest,
+            commands::notify_backup_peer,
+            commands::test_backup_peer_connection,
+            // Backup daemon commands
+            commands::get_backup_daemon_state,
+            commands::enable_backup_daemon,
+            commands::disable_backup_daemon,
+            commands::pause_backup_daemon,
+            commands::resume_backup_daemon,
+            commands::retry_failed_manifest,
             // Peer commands
             commands::get_peers,
             commands::connect_peer,
@@ -144,6 +155,12 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 sync_manager.start_processing().await;
             });
+
+            // Start the backup daemon for automatic manifest processing
+            tauri::async_runtime::spawn(async move {
+                backup_daemon.start().await;
+            });
+            log::info!("Backup daemon initialized");
 
             Ok(())
         })

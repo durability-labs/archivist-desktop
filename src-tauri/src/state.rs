@@ -1,8 +1,11 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use crate::node_api::NodeApiClient;
 use crate::services::node::NodeConfig;
-use crate::services::{ConfigService, FileService, NodeService, PeerService, SyncService};
+use crate::services::{
+    BackupDaemon, BackupService, ConfigService, FileService, NodeService, PeerService, SyncService,
+};
 
 /// Global application state managed by Tauri
 pub struct AppState {
@@ -11,6 +14,8 @@ pub struct AppState {
     pub sync: Arc<RwLock<SyncService>>,
     pub peers: Arc<RwLock<PeerService>>,
     pub config: Arc<RwLock<ConfigService>>,
+    pub backup: Arc<RwLock<BackupService>>,
+    pub backup_daemon: Arc<BackupDaemon>,
 }
 
 impl AppState {
@@ -30,12 +35,33 @@ impl AppState {
             node_config.data_dir
         );
 
+        // Create shared peer service for backup
+        let peers = Arc::new(RwLock::new(PeerService::new()));
+
+        // Create API client for backup service
+        let api_client = NodeApiClient::new(node_config.api_port);
+
+        // Create backup service with API client and peer service
+        let backup_service = BackupService::new(api_client.clone(), peers.clone());
+
+        // Create backup daemon with API client and config
+        let backup_daemon = Arc::new(BackupDaemon::new(
+            api_client,
+            app_config.backup_server.enabled,
+            app_config.backup_server.poll_interval_secs,
+            app_config.backup_server.max_concurrent_downloads,
+            app_config.backup_server.max_retries,
+            app_config.backup_server.auto_delete_tombstones,
+        ));
+
         Self {
             node: Arc::new(RwLock::new(NodeService::with_config(node_config))),
             files: Arc::new(RwLock::new(FileService::new())),
             sync: Arc::new(RwLock::new(SyncService::new())),
-            peers: Arc::new(RwLock::new(PeerService::new())),
+            peers,
             config: Arc::new(RwLock::new(config_service)),
+            backup: Arc::new(RwLock::new(backup_service)),
+            backup_daemon,
         }
     }
 }

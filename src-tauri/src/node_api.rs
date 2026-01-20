@@ -98,6 +98,7 @@ pub struct PeerInfo {
 }
 
 /// HTTP client for the archivist-node API
+#[derive(Clone)]
 pub struct NodeApiClient {
     client: Client,
     base_url: String,
@@ -457,6 +458,32 @@ impl NodeApiClient {
             )));
         }
 
+        Ok(())
+    }
+
+    /// Create a storage request for a CID
+    /// This requests the node to download and store the specified CID from the network
+    pub async fn request_storage(&self, cid: &str) -> Result<()> {
+        let url = format!("{}/api/archivist/v1/storage/request/{}", self.base_url, cid);
+
+        let response = self
+            .client
+            .post(&url)
+            .timeout(Duration::from_secs(60))
+            .send()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Storage request failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(ArchivistError::ApiError(format!(
+                "Storage request failed: HTTP {} - {}",
+                status, body
+            )));
+        }
+
+        log::info!("Storage request created for CID: {}", cid);
         Ok(())
     }
 }

@@ -20,6 +20,13 @@ pub struct WatchedFolder {
     pub total_size_bytes: u64,
     pub last_synced: Option<DateTime<Utc>>,
     pub status: FolderStatus,
+    // NEW: Manifest tracking fields
+    pub manifest_cid: Option<String>,
+    pub manifest_sequence: u64,
+    pub manifest_updated_at: Option<DateTime<Utc>>,
+    pub backup_synced_at: Option<DateTime<Utc>>,
+    pub backup_ack_received: bool,
+    pub pending_retry: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -53,6 +60,54 @@ struct PendingFile {
     added_at: DateTime<Utc>,
 }
 
+/// File CID mapping for manifest generation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct FileCidMapping {
+    path: PathBuf,
+    cid: String,
+    size_bytes: u64,
+    mime_type: Option<String>,
+    uploaded_at: DateTime<Utc>,
+}
+
+/// Manifest file structure (JSON) - Source of Truth for continuous sync
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ManifestFile {
+    version: String,
+    folder_id: String,
+    folder_path: String,
+    source_peer_id: String,
+    sequence_number: u64,
+    last_updated: DateTime<Utc>,
+    manifest_cid: Option<String>,
+    files: Vec<ManifestFileEntry>,
+    deleted_files: Vec<ManifestDeletedEntry>,
+    stats: ManifestStats,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ManifestFileEntry {
+    path: String,
+    cid: String,
+    size_bytes: u64,
+    mime_type: Option<String>,
+    uploaded_at: DateTime<Utc>,
+}
+
+/// Entry for a deleted file (tombstone)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ManifestDeletedEntry {
+    path: String,
+    cid: String,
+    deleted_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ManifestStats {
+    total_files: u32,
+    total_size_bytes: u64,
+}
+
 /// Sync service with file system watching
 pub struct SyncService {
     /// Watched folders
@@ -71,6 +126,15 @@ pub struct SyncService {
     api_client: NodeApiClient,
     /// Files we've already synced (to avoid re-uploading)
     synced_files: HashSet<PathBuf>,
+    /// NEW: Persistent mapping of file paths to CIDs (per folder)
+    file_cid_mappings: HashMap<String, Vec<FileCidMapping>>,
+    /// NEW: Track deleted files since last manifest (per folder)
+    deleted_files: HashMap<String, Vec<ManifestDeletedEntry>>,
+    /// NEW: Track changes since last manifest generation (per folder)
+    changes_since_manifest: HashMap<String, u32>,
+    /// NEW: Manifest update threshold (generate new manifest after N changes)
+    #[allow(dead_code)]
+    manifest_update_threshold: u32,
 }
 
 /// Internal sync events
@@ -93,6 +157,10 @@ impl SyncService {
             event_tx: None,
             api_client: NodeApiClient::new(8080),
             synced_files: HashSet::new(),
+            file_cid_mappings: HashMap::new(),
+            deleted_files: HashMap::new(),
+            changes_since_manifest: HashMap::new(),
+            manifest_update_threshold: 10, // Default: 10 changes
         }
     }
 
@@ -185,6 +253,12 @@ impl SyncService {
             total_size_bytes: total_size,
             last_synced: None,
             status: FolderStatus::Idle,
+            manifest_cid: None,
+            manifest_sequence: 0,
+            manifest_updated_at: None,
+            backup_synced_at: None,
+            backup_ack_received: false,
+            pending_retry: false,
         };
 
         // Add to watcher if available
@@ -300,10 +374,41 @@ impl SyncService {
                 }
             }
             SyncEvent::FileDeleted(path) => {
+                // Find which folder this belongs to
+                if let Some(folder_id) = self.find_folder_for_path(&path) {
+                    // Find CID for this file from mappings
+                    if let Some(mappings) = self.file_cid_mappings.get(&folder_id) {
+                        if let Some(mapping) = mappings.iter().find(|m| m.path == path) {
+                            // Add to deleted files tracking
+                            let deleted_entry = ManifestDeletedEntry {
+                                path: path
+                                    .strip_prefix(&self.folders[&folder_id].path)
+                                    .unwrap_or(&path)
+                                    .to_string_lossy()
+                                    .to_string(),
+                                cid: mapping.cid.clone(),
+                                deleted_at: Utc::now(),
+                            };
+
+                            self.deleted_files
+                                .entry(folder_id.clone())
+                                .or_default()
+                                .push(deleted_entry);
+
+                            // Increment change counter
+                            *self.changes_since_manifest.entry(folder_id).or_insert(0) += 1;
+                        }
+                    }
+                }
+
                 // Remove from synced files
                 self.synced_files.remove(&path);
                 // Remove from queue
                 self.upload_queue.retain(|p| p.path != path);
+                // Remove from CID mappings
+                for mappings in self.file_cid_mappings.values_mut() {
+                    mappings.retain(|m| m.path != path);
+                }
             }
             SyncEvent::ScanFolder(folder_id) => {
                 self.scan_folder(&folder_id).await?;
@@ -323,6 +428,10 @@ impl SyncService {
                 }
             }
             self.is_syncing = false;
+
+            // TODO: Check if any folders need manifest generation (threshold reached)
+            // This would be integrated with backup service in later phases
+
             return Ok(0);
         }
 
@@ -333,8 +442,17 @@ impl SyncService {
             if let Some(pending) = self.upload_queue.pop() {
                 if pending.path.exists() && !self.synced_files.contains(&pending.path) {
                     match self.upload_file(&pending.path).await {
-                        Ok(cid) => {
+                        Ok((cid, size, mime_type)) => {
                             self.synced_files.insert(pending.path.clone());
+
+                            // Store CID mapping for manifest generation
+                            self.store_cid_mapping(
+                                &pending.folder_id,
+                                pending.path.clone(),
+                                cid.clone(),
+                                size,
+                                mime_type,
+                            );
 
                             // Track recent uploads
                             let filename = pending
@@ -393,10 +511,41 @@ impl SyncService {
         }
     }
 
-    /// Upload a file to the node
-    async fn upload_file(&self, path: &Path) -> Result<String> {
+    /// Upload a file to the node and return CID with metadata
+    async fn upload_file(&self, path: &Path) -> Result<(String, u64, Option<String>)> {
         let response = self.api_client.upload_file(path).await?;
-        Ok(response.cid)
+        let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        let mime_type = mime_guess::from_path(path).first().map(|m| m.to_string());
+        Ok((response.cid, size, mime_type))
+    }
+
+    /// Store CID mapping after successful upload
+    fn store_cid_mapping(
+        &mut self,
+        folder_id: &str,
+        path: PathBuf,
+        cid: String,
+        size_bytes: u64,
+        mime_type: Option<String>,
+    ) {
+        let mapping = FileCidMapping {
+            path,
+            cid,
+            size_bytes,
+            mime_type,
+            uploaded_at: Utc::now(),
+        };
+
+        self.file_cid_mappings
+            .entry(folder_id.to_string())
+            .or_default()
+            .push(mapping);
+
+        // Increment change counter
+        *self
+            .changes_since_manifest
+            .entry(folder_id.to_string())
+            .or_insert(0) += 1;
     }
 
     /// Scan folder for files to sync
@@ -484,6 +633,138 @@ impl SyncService {
             }
         }
         None
+    }
+
+    /// Get a folder by ID (public for commands)
+    pub fn get_folder(&self, folder_id: &str) -> Option<&WatchedFolder> {
+        self.folders.get(folder_id)
+    }
+
+    /// Generate manifest file for a watched folder (source of truth)
+    pub async fn generate_manifest(&mut self, folder_id: &str) -> Result<PathBuf> {
+        // 1. Get folder info
+        let folder = self
+            .folders
+            .get_mut(folder_id)
+            .ok_or_else(|| ArchivistError::FileNotFound("Folder not found".into()))?;
+
+        // 2. Get source peer ID from node API
+        let node_info = self.api_client.get_info().await?;
+        let source_peer_id = node_info
+            .local_node
+            .as_ref()
+            .map(|n| n.peer_id.clone())
+            .ok_or_else(|| ArchivistError::ApiError("Failed to get peer ID from node".into()))?;
+
+        // 3. Increment sequence number
+        folder.manifest_sequence += 1;
+        let sequence_number = folder.manifest_sequence;
+        let folder_path = folder.path.clone();
+
+        // 4. Get file mappings for this folder (current state)
+        let mappings = self
+            .file_cid_mappings
+            .get(folder_id)
+            .cloned()
+            .unwrap_or_default();
+
+        // 5. Get deleted files since last manifest (tombstones)
+        let deleted = self
+            .deleted_files
+            .get(folder_id)
+            .cloned()
+            .unwrap_or_default();
+
+        // 6. Build ManifestFile struct
+        let manifest = ManifestFile {
+            version: "1.0".to_string(),
+            folder_id: folder_id.to_string(),
+            folder_path: folder_path.clone(),
+            source_peer_id: source_peer_id.clone(),
+            sequence_number,
+            last_updated: Utc::now(),
+            manifest_cid: None,
+            files: mappings
+                .iter()
+                .map(|m| ManifestFileEntry {
+                    path: m
+                        .path
+                        .strip_prefix(&folder_path)
+                        .unwrap_or(&m.path)
+                        .to_string_lossy()
+                        .to_string(),
+                    cid: m.cid.clone(),
+                    size_bytes: m.size_bytes,
+                    mime_type: m.mime_type.clone(),
+                    uploaded_at: m.uploaded_at,
+                })
+                .collect(),
+            deleted_files: deleted,
+            stats: ManifestStats {
+                total_files: mappings.len() as u32,
+                total_size_bytes: mappings.iter().map(|m| m.size_bytes).sum(),
+            },
+        };
+
+        // 7. Write to .archivist-manifest-{peer_id}.json
+        let peer_id_short = &source_peer_id[..12.min(source_peer_id.len())];
+        let manifest_filename = format!(".archivist-manifest-{}.json", peer_id_short);
+        let manifest_path = PathBuf::from(&folder_path).join(manifest_filename);
+
+        let json = serde_json::to_string_pretty(&manifest).map_err(|e| {
+            ArchivistError::SyncError(format!("Failed to serialize manifest: {}", e))
+        })?;
+        std::fs::write(&manifest_path, json).map_err(|e| {
+            ArchivistError::FileOperationFailed(format!("Failed to write manifest: {}", e))
+        })?;
+
+        // 8. Clear deleted files tracking
+        self.deleted_files.insert(folder_id.to_string(), Vec::new());
+
+        // 9. Reset change counter
+        self.changes_since_manifest.insert(folder_id.to_string(), 0);
+
+        log::info!(
+            "Generated manifest v{} for folder {} at {:?}",
+            sequence_number,
+            folder_id,
+            manifest_path
+        );
+        Ok(manifest_path)
+    }
+
+    /// Upload manifest to local node and return CID
+    pub async fn upload_manifest(&mut self, folder_id: &str) -> Result<String> {
+        let manifest_path = self.generate_manifest(folder_id).await?;
+        let (cid, _, _) = self.upload_file(&manifest_path).await?;
+
+        // Update folder metadata
+        if let Some(folder) = self.folders.get_mut(folder_id) {
+            folder.manifest_cid = Some(cid.clone());
+            folder.manifest_updated_at = Some(Utc::now());
+            folder.backup_ack_received = false;
+            folder.pending_retry = true;
+        }
+
+        Ok(cid)
+    }
+
+    /// Mark manifest as acknowledged by backup server
+    #[allow(dead_code)]
+    pub fn acknowledge_manifest(&mut self, folder_id: &str) -> Result<()> {
+        if let Some(folder) = self.folders.get_mut(folder_id) {
+            folder.backup_ack_received = true;
+            folder.pending_retry = false;
+            folder.backup_synced_at = Some(Utc::now());
+            log::info!("Manifest acknowledged for folder {}", folder_id);
+        }
+        Ok(())
+    }
+
+    /// Set manifest update threshold (configurable from settings)
+    #[allow(dead_code)]
+    pub fn set_manifest_threshold(&mut self, threshold: u32) {
+        self.manifest_update_threshold = threshold;
     }
 }
 
