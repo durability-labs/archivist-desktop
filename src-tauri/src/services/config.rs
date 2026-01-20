@@ -75,6 +75,12 @@ pub struct NotificationSettings {
     pub sound_on_peer_connect: bool,
     pub sound_on_download: bool,
     pub sound_volume: f32, // 0.0 to 1.0
+    #[serde(default)]
+    pub custom_startup_sound: Option<String>,
+    #[serde(default)]
+    pub custom_peer_connect_sound: Option<String>,
+    #[serde(default)]
+    pub custom_download_sound: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,7 +145,7 @@ impl Default for AppConfig {
                 backup_peer_nickname: None,
                 backup_manifest_enabled: true,
                 backup_auto_notify: false,
-                manifest_update_threshold: 10,
+                manifest_update_threshold: 1,
                 manifest_retry_interval_secs: 300,
                 manifest_max_retries: 5,
             },
@@ -149,6 +155,9 @@ impl Default for AppConfig {
                 sound_on_peer_connect: true,
                 sound_on_download: true,
                 sound_volume: 0.5,
+                custom_startup_sound: None,
+                custom_peer_connect_sound: None,
+                custom_download_sound: None,
             },
             backup_server: BackupServerSettings {
                 enabled: false,

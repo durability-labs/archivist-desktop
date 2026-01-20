@@ -137,8 +137,8 @@ export function useNode() {
     }
     init();
 
-    // Poll status every 3 seconds for more responsive UI
-    const interval = setInterval(refreshStatus, 3000);
+    // Poll status every second for more responsive UI
+    const interval = setInterval(refreshStatus, 1000);
     return () => clearInterval(interval);
   }, [refreshStatus, refreshConfig]);
 

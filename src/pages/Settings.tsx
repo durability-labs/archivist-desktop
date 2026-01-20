@@ -24,6 +24,7 @@ interface SyncSettings {
   backup_peer_nickname: string | null;
   backup_manifest_enabled: boolean;
   backup_auto_notify: boolean;
+  manifest_update_threshold: number;
 }
 
 interface NotificationSettings {
@@ -32,6 +33,9 @@ interface NotificationSettings {
   sound_on_peer_connect: boolean;
   sound_on_download: boolean;
   sound_volume: number; // 0.0 to 1.0
+  custom_startup_sound?: string | null;
+  custom_peer_connect_sound?: string | null;
+  custom_download_sound?: string | null;
 }
 
 interface AppConfig {
@@ -68,6 +72,7 @@ const defaultConfig: AppConfig = {
     backup_peer_nickname: null,
     backup_manifest_enabled: true,
     backup_auto_notify: false,
+    manifest_update_threshold: 1,
   },
   notifications: {
     sound_enabled: true,
@@ -75,6 +80,9 @@ const defaultConfig: AppConfig = {
     sound_on_peer_connect: true,
     sound_on_download: true,
     sound_volume: 0.5,
+    custom_startup_sound: null,
+    custom_peer_connect_sound: null,
+    custom_download_sound: null,
   },
 };
 
@@ -544,6 +552,25 @@ function Settings() {
                 Create storage request for manifest after each sync (requires peer to be online)
               </span>
             </div>
+
+            <div className="setting-item">
+              <label>Manifest Update Threshold</label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={config.sync.manifest_update_threshold}
+                onChange={(e) =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    sync: { ...prev.sync, manifest_update_threshold: parseInt(e.target.value) || 1 },
+                  }))
+                }
+              />
+              <span className="hint">
+                Generate new manifest after this many file changes (default: 1, higher values reduce manifest generation frequency)
+              </span>
+            </div>
           </>
         )}
       </div>
@@ -634,6 +661,153 @@ function Settings() {
             <span style={{ minWidth: '3rem' }}>{Math.round(config.notifications.sound_volume * 100)}%</span>
           </div>
           <span className="hint">Adjust notification sound volume</span>
+        </div>
+
+        {/* Custom sound files */}
+        <div className="setting-item">
+          <h4>Custom Sound Files (optional)</h4>
+          <p className="hint">Use custom .mp3 or .wav files instead of default beeps</p>
+        </div>
+
+        <div className="setting-item">
+          <label>Startup Sound</label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input
+              type="text"
+              value={config.notifications.custom_startup_sound || ''}
+              placeholder="No custom sound selected"
+              disabled={!config.notifications.sound_enabled}
+              readOnly
+              style={{ flex: 1 }}
+            />
+            <button
+              onClick={async () => {
+                const selected = await open({
+                  multiple: false,
+                  filters: [{
+                    name: 'Audio Files',
+                    extensions: ['mp3', 'wav', 'ogg', 'm4a']
+                  }]
+                });
+                if (selected) {
+                  setConfig((prev) => ({
+                    ...prev,
+                    notifications: { ...prev.notifications, custom_startup_sound: selected as string },
+                  }));
+                }
+              }}
+              disabled={!config.notifications.sound_enabled}
+            >
+              Browse...
+            </button>
+            {config.notifications.custom_startup_sound && (
+              <button
+                onClick={() =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    notifications: { ...prev.notifications, custom_startup_sound: null },
+                  }))
+                }
+                disabled={!config.notifications.sound_enabled}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="setting-item">
+          <label>Peer Connect Sound</label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input
+              type="text"
+              value={config.notifications.custom_peer_connect_sound || ''}
+              placeholder="No custom sound selected"
+              disabled={!config.notifications.sound_enabled}
+              readOnly
+              style={{ flex: 1 }}
+            />
+            <button
+              onClick={async () => {
+                const selected = await open({
+                  multiple: false,
+                  filters: [{
+                    name: 'Audio Files',
+                    extensions: ['mp3', 'wav', 'ogg', 'm4a']
+                  }]
+                });
+                if (selected) {
+                  setConfig((prev) => ({
+                    ...prev,
+                    notifications: { ...prev.notifications, custom_peer_connect_sound: selected as string },
+                  }));
+                }
+              }}
+              disabled={!config.notifications.sound_enabled}
+            >
+              Browse...
+            </button>
+            {config.notifications.custom_peer_connect_sound && (
+              <button
+                onClick={() =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    notifications: { ...prev.notifications, custom_peer_connect_sound: null },
+                  }))
+                }
+                disabled={!config.notifications.sound_enabled}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="setting-item">
+          <label>Download Sound</label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input
+              type="text"
+              value={config.notifications.custom_download_sound || ''}
+              placeholder="No custom sound selected"
+              disabled={!config.notifications.sound_enabled}
+              readOnly
+              style={{ flex: 1 }}
+            />
+            <button
+              onClick={async () => {
+                const selected = await open({
+                  multiple: false,
+                  filters: [{
+                    name: 'Audio Files',
+                    extensions: ['mp3', 'wav', 'ogg', 'm4a']
+                  }]
+                });
+                if (selected) {
+                  setConfig((prev) => ({
+                    ...prev,
+                    notifications: { ...prev.notifications, custom_download_sound: selected as string },
+                  }));
+                }
+              }}
+              disabled={!config.notifications.sound_enabled}
+            >
+              Browse...
+            </button>
+            {config.notifications.custom_download_sound && (
+              <button
+                onClick={() =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    notifications: { ...prev.notifications, custom_download_sound: null },
+                  }))
+                }
+                disabled={!config.notifications.sound_enabled}
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

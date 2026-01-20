@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 interface NotificationSettings {
   sound_enabled: boolean;
@@ -8,6 +9,9 @@ interface NotificationSettings {
   sound_on_peer_connect: boolean;
   sound_on_download: boolean;
   sound_volume: number;
+  custom_startup_sound?: string | null;
+  custom_peer_connect_sound?: string | null;
+  custom_download_sound?: string | null;
 }
 
 // Extend Window interface for webkit prefix
@@ -15,14 +19,61 @@ interface WindowWithWebkit extends Window {
   webkitAudioContext?: typeof AudioContext;
 }
 
-// Simple notification sounds using Web Audio API
-const playNotificationSound = (type: 'startup' | 'peer-connect' | 'download', volume: number) => {
-  const audioContext = new (window.AudioContext || (window as unknown as WindowWithWebkit).webkitAudioContext!)();
-  const oscillator = audioContext.createOscillator();
-  const gainNode = audioContext.createGain();
+// Reusable audio context (created once to avoid delay)
+let audioContext: AudioContext | null = null;
+function getAudioContext(): AudioContext {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || (window as unknown as WindowWithWebkit).webkitAudioContext!)();
+  }
+  return audioContext;
+}
 
-  oscillator.connect(gainNode);
-  gainNode.connect(audioContext.destination);
+// Cache for loaded audio buffers
+const audioBufferCache: Map<string, AudioBuffer> = new Map();
+
+// Load custom audio file and cache it
+async function loadCustomSound(filePath: string): Promise<AudioBuffer | null> {
+  try {
+    // Check cache first
+    if (audioBufferCache.has(filePath)) {
+      return audioBufferCache.get(filePath)!;
+    }
+
+    // Convert file path to asset URL
+    const assetUrl = convertFileSrc(filePath);
+
+    // Fetch and decode audio
+    const response = await fetch(assetUrl);
+    const arrayBuffer = await response.arrayBuffer();
+    const ctx = getAudioContext();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+
+    // Cache it
+    audioBufferCache.set(filePath, audioBuffer);
+    return audioBuffer;
+  } catch (error) {
+    console.error('Failed to load custom sound:', error);
+    return null;
+  }
+}
+
+// Play custom audio file
+function playCustomSound(audioBuffer: AudioBuffer, volume: number) {
+  const ctx = getAudioContext();
+  const source = ctx.createBufferSource();
+  const gainNode = ctx.createGain();
+
+  source.buffer = audioBuffer;
+  source.connect(gainNode);
+  gainNode.connect(ctx.destination);
+
+  gainNode.gain.value = volume;
+  source.start(0);
+}
+
+// Simple notification sounds using Web Audio API (fallback if no custom sound)
+function playDefaultSound(type: 'startup' | 'peer-connect' | 'download', volume: number) {
+  const ctx = getAudioContext();
 
   // Different frequencies for different notification types
   const frequencies: Record<typeof type, number[]> = {
@@ -36,16 +87,16 @@ const playNotificationSound = (type: 'startup' | 'peer-connect' | 'download', vo
 
   // Play each note in sequence
   notes.forEach((freq, index) => {
-    const osc = audioContext.createOscillator();
-    const gain = audioContext.createGain();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
 
     osc.connect(gain);
-    gain.connect(audioContext.destination);
+    gain.connect(ctx.destination);
 
     osc.frequency.value = freq;
     osc.type = 'sine';
 
-    const startTime = audioContext.currentTime + (index * noteDuration);
+    const startTime = ctx.currentTime + (index * noteDuration);
     const endTime = startTime + noteDuration;
 
     // Set volume with envelope
@@ -56,9 +107,28 @@ const playNotificationSound = (type: 'startup' | 'peer-connect' | 'download', vo
     osc.start(startTime);
     osc.stop(endTime);
   });
-};
+}
+
+// Play notification sound (custom or default)
+async function playNotificationSound(type: 'startup' | 'peer-connect' | 'download', volume: number, customSoundPath?: string | null) {
+  // Try to play custom sound first
+  if (customSoundPath) {
+    const audioBuffer = await loadCustomSound(customSoundPath);
+    if (audioBuffer) {
+      playCustomSound(audioBuffer, volume);
+      return;
+    }
+    // Fall through to default sound if custom sound failed to load
+  }
+
+  // Play default synthesized sound
+  playDefaultSound(type, volume);
+}
 
 export function useSoundNotifications() {
+  // Cache settings to avoid repeated fetches (causes delay)
+  const settingsRef = useRef<NotificationSettings | null>(null);
+
   useEffect(() => {
     // Skip if not in Tauri environment (e.g., during tests)
     if (typeof window === 'undefined' || !(window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) {
@@ -66,7 +136,7 @@ export function useSoundNotifications() {
     }
 
     const setupListeners = async () => {
-      // Fetch current notification settings
+      // Fetch and cache notification settings
       const getSettings = async (): Promise<NotificationSettings> => {
         try {
           const config = await invoke<{ notifications: NotificationSettings }>('get_config');
@@ -83,32 +153,41 @@ export function useSoundNotifications() {
         }
       };
 
+      // Load settings once at startup
+      settingsRef.current = await getSettings();
+
+      // Refresh settings periodically (every 10 seconds) to pick up changes
+      const settingsRefreshInterval = setInterval(async () => {
+        settingsRef.current = await getSettings();
+      }, 10000);
+
       // Node startup event
       const unlistenStartup = await listen('node-started', async () => {
-        const settings = await getSettings();
+        const settings = settingsRef.current || await getSettings();
         if (settings.sound_enabled && settings.sound_on_startup) {
-          playNotificationSound('startup', settings.sound_volume);
+          playNotificationSound('startup', settings.sound_volume, settings.custom_startup_sound);
         }
       });
 
       // Peer connection event
       const unlistenPeer = await listen<string>('peer-connected', async () => {
-        const settings = await getSettings();
+        const settings = settingsRef.current || await getSettings();
         if (settings.sound_enabled && settings.sound_on_peer_connect) {
-          playNotificationSound('peer-connect', settings.sound_volume);
+          playNotificationSound('peer-connect', settings.sound_volume, settings.custom_peer_connect_sound);
         }
       });
 
       // File download event
       const unlistenDownload = await listen<string>('file-downloaded', async () => {
-        const settings = await getSettings();
+        const settings = settingsRef.current || await getSettings();
         if (settings.sound_enabled && settings.sound_on_download) {
-          playNotificationSound('download', settings.sound_volume);
+          playNotificationSound('download', settings.sound_volume, settings.custom_download_sound);
         }
       });
 
       // Cleanup function
       return () => {
+        clearInterval(settingsRefreshInterval);
         unlistenStartup();
         unlistenPeer();
         unlistenDownload();

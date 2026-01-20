@@ -36,7 +36,7 @@ function Logs() {
   const [logPath, setLogPath] = useState<string>('');
 
   // Load settings from localStorage on mount
-  const [autoRefresh, setAutoRefresh] = useState(() => loadSetting(STORAGE_KEYS.AUTO_REFRESH, false));
+  const [autoRefresh, setAutoRefresh] = useState(() => loadSetting(STORAGE_KEYS.AUTO_REFRESH, true));
   const [autoScroll, setAutoScroll] = useState(() => loadSetting(STORAGE_KEYS.AUTO_SCROLL, true));
   const [lineCount, setLineCount] = useState(() => loadSetting(STORAGE_KEYS.LINE_COUNT, 500));
 
