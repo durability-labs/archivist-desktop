@@ -252,6 +252,76 @@ curl "http://127.0.0.1:8080/api/archivist/v1/connect/16Uiu2HAmXYZ...?addrs[]=/ip
 }
 ```
 
+#### NodeInfo (from /debug/info)
+**Important:** This is the actual response from archivist-node v0.2.0. The Desktop app's `NodeInfo` struct must match this format.
+
+```json
+{
+  "id": "16Uiu2HAmXYZ...",
+  "addrs": [
+    "/ip4/127.0.0.1/tcp/8070",
+    "/ip4/192.168.0.1/tcp/8070"
+  ],
+  "repo": "/home/user/.local/share/archivist/node",
+  "spr": "spr:CiUIAhI...",
+  "announceAddresses": [
+    "/ip4/192.168.0.1/tcp/8070"
+  ],
+  "ethAddress": "0x...",
+  "archivist": {
+    "version": "v0.1.0",
+    "revision": "abc123",
+    "contracts": "def456"
+  }
+}
+```
+
+**Rust struct (in `src-tauri/src/node_api.rs`):**
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeInfo {
+    pub id: String,
+    #[serde(default)]
+    pub addrs: Vec<String>,
+    #[serde(default)]
+    pub repo: Option<String>,
+    #[serde(default)]
+    pub spr: Option<String>,
+    #[serde(default, rename = "announceAddresses")]
+    pub announce_addresses: Vec<String>,
+    #[serde(default, rename = "ethAddress")]
+    pub eth_address: Option<String>,
+    #[serde(default)]
+    pub archivist: Option<ArchivistInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchivistInfo {
+    pub version: String,
+    #[serde(default)]
+    pub revision: Option<String>,
+    #[serde(default)]
+    pub contracts: Option<String>,
+}
+```
+
+**Usage:**
+```rust
+// Get peer ID for manifest generation
+let node_info = api_client.get_info().await?;
+let peer_id = node_info.id;  // Direct access to id field
+
+// Get addresses
+let addresses = node_info.addrs;
+
+// Get version
+let version = node_info.archivist
+    .as_ref()
+    .map(|a| a.version.clone());
+```
+
 ## Tauri Commands
 
 Commands are invoked from frontend via `@tauri-apps/api`:
@@ -2565,6 +2635,40 @@ bash scripts/download-sidecar.sh
    - Port 8070 (TCP) - Listen
 2. Ensure you're connected to a network
 3. Check Settings → Advanced → Port configuration
+
+### Manifest Generation Fails with "Failed to parse node info"
+**Error:** `Failed to generate manifest: API request failed: Failed to parse node info: error decoding response body`
+
+**Cause:** The `NodeInfo` struct in the Desktop app doesn't match the actual API response from archivist-node.
+
+**Background:**
+- Fixed in commit 1e18a43 (2026-01-20)
+- The struct previously expected `version`, `local_node`, `codex` fields
+- But archivist-node v0.2.0 actually returns `id`, `addrs`, `archivist`, etc.
+
+**Solution:** Update to latest version of Archivist Desktop (includes the fix)
+
+**If you see this error:**
+1. Check your version: should be post-2026-01-20
+2. Pull latest code and rebuild: `git pull && pnpm tauri build`
+3. Or download latest release from GitHub
+
+**NodeInfo struct should now match this API response:**
+```json
+{
+  "id": "16Uiu2HAmXYZ...",
+  "addrs": ["/ip4/127.0.0.1/tcp/8070"],
+  "repo": "/path/to/node",
+  "spr": "spr:CiUI...",
+  "announceAddresses": [...],
+  "ethAddress": "0x...",
+  "archivist": {
+    "version": "v0.1.0",
+    "revision": "abc123",
+    "contracts": "def456"
+  }
+}
+```
 
 ### Pre-commit Hook Too Slow
 
