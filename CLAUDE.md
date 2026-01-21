@@ -92,7 +92,9 @@ archivist-desktop/
 │   │       ├── files.rs         # File operations via API
 │   │       ├── sync.rs          # File watching (notify crate)
 │   │       ├── peers.rs         # Peer management
-│   │       └── config.rs        # Settings persistence
+│   │       ├── config.rs        # Settings persistence
+│   │       ├── backup_daemon.rs # Backup daemon (polls source peers)
+│   │       └── manifest_server.rs # HTTP manifest discovery server
 │   ├── sidecars/                # archivist-node binaries (gitignored)
 │   ├── Cargo.toml               # Rust dependencies
 │   └── tauri.conf.json          # Tauri configuration
@@ -2806,6 +2808,30 @@ Sidecar binaries include SHA256 checksum verification in download script.
   - System tray integration for background operation
   - Auto-update support from GitHub releases
 
+#### Hybrid Manifest Discovery System
+
+- **Architecture:** Two-machine backup system using HTTP for discovery + P2P for data transfer
+  - **Machine A (Source):** Runs manifest discovery server exposing folder manifest CIDs via HTTP
+  - **Machine B (Backup):** Runs backup daemon that polls source peers for manifests, downloads via P2P
+- **New Services:**
+  - `ManifestServer` ([src-tauri/src/services/manifest_server.rs](src-tauri/src/services/manifest_server.rs)): HTTP server with IP whitelist security
+  - `BackupDaemon` ([src-tauri/src/services/backup_daemon.rs](src-tauri/src/services/backup_daemon.rs)): Polls source peers, processes manifests
+  - `ManifestClient`: HTTP client for querying remote manifest servers
+- **Settings UI:** New sections in Settings page for:
+  - **Manifest Server** (Machine A): Enable/disable, port config, IP whitelist management
+  - **Backup Server** (Machine B): Enable/disable, poll interval, max concurrent downloads, source peer management
+- **Security:** IP whitelist for manifest server (secure by default - empty whitelist denies all)
+
+#### Bug Fixes
+
+- **Windows Startup Crash Fix**
+  - **Problem:** App crashed on Windows when launched from installer - nothing happened after install
+  - **Cause:** `tokio::spawn()` called in `AppState::new()` before Tauri runtime initialized (no tokio runtime available)
+  - **Solution:**
+    - Added `ManifestServer::with_config()` constructor for synchronous initialization
+    - Moved backup daemon source peer configuration to `lib.rs` `setup()` closure where async runtime is available
+  - **Fixed in:** [src-tauri/src/state.rs](src-tauri/src/state.rs), [src-tauri/src/lib.rs](src-tauri/src/lib.rs), [src-tauri/src/services/manifest_server.rs](src-tauri/src/services/manifest_server.rs)
+
 #### New UX Features
 
 - **Sound Notifications** (see [User Experience Features](#sound-notifications))
@@ -2865,6 +2891,8 @@ Sidecar binaries include SHA256 checksum verification in download script.
 | `src-tauri/src/services/sync.rs` | File watching + upload queue |
 | `src-tauri/src/services/node.rs` | Sidecar process management |
 | `src-tauri/src/services/config.rs` | Settings persistence and configuration |
+| `src-tauri/src/services/backup_daemon.rs` | Backup daemon that polls source peers for manifests |
+| `src-tauri/src/services/manifest_server.rs` | HTTP manifest discovery server with IP whitelist |
 | `src-tauri/src/commands/node.rs` | Node control commands including diagnostics and logs |
 | `src-tauri/src/commands/files.rs` | File upload/download commands with event emissions |
 | `src-tauri/src/commands/peers.rs` | Peer connection commands with event emissions |
