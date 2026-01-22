@@ -250,6 +250,9 @@ interface SplashScreenProps {
 }
 
 function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
+  // Use import.meta.env.BASE_URL for correct path resolution in both dev and production
+  const videoSrc = `${import.meta.env.BASE_URL}intro.mp4`;
+
   return (
     <div className="splash-screen">
       <video
@@ -259,7 +262,7 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
         className="splash-video"
         onEnded={onComplete}
       >
-        <source src="/intro.mp4" type="video/mp4" />
+        <source src={videoSrc} type="video/mp4" />
       </video>
       <button className="splash-skip" onClick={onSkip}>
         Skip
