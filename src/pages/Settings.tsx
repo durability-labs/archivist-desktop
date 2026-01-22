@@ -1253,6 +1253,30 @@ function Settings() {
         </div>
       )}
 
+      {/* Developer / Debug Settings */}
+      <div className="settings-section">
+        <h3>Developer</h3>
+        <div className="setting-item">
+          <label>Reset Onboarding</label>
+          <p className="hint" style={{ marginBottom: '8px' }}>
+            Clear onboarding state to see the welcome wizard again on next app launch.
+          </p>
+          <button
+            className="secondary"
+            onClick={() => {
+              if (!confirm('Reset onboarding? The app will reload and show the welcome wizard.')) {
+                return;
+              }
+              localStorage.removeItem('archivist_onboarding_complete');
+              localStorage.removeItem('archivist_onboarding_step');
+              window.location.reload();
+            }}
+          >
+            Reset Onboarding
+          </button>
+        </div>
+      </div>
+
       {/* About */}
       <div className="settings-section">
         <h3>About</h3>

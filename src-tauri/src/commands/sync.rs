@@ -230,3 +230,57 @@ pub async fn retry_failed_manifest(state: State<'_, AppState>, manifest_cid: Str
     log::info!("Retrying failed manifest: {}", manifest_cid);
     Ok(())
 }
+
+// ========== Onboarding Commands ==========
+
+/// Create a quickstart folder for first-run onboarding
+/// Creates ~/Documents/Archivist Quickstart/ with a sample welcome.txt file
+#[tauri::command]
+pub async fn create_quickstart_folder() -> Result<String> {
+    // Get the user's Documents directory
+    let documents_dir = dirs::document_dir()
+        .ok_or_else(|| ArchivistError::SyncError("Could not find Documents directory".into()))?;
+
+    let quickstart_path = documents_dir.join("Archivist Quickstart");
+
+    // Create the folder if it doesn't exist
+    if !quickstart_path.exists() {
+        std::fs::create_dir_all(&quickstart_path).map_err(|e| {
+            ArchivistError::SyncError(format!("Failed to create quickstart folder: {}", e))
+        })?;
+        log::info!("Created quickstart folder: {:?}", quickstart_path);
+    }
+
+    // Create a sample welcome.txt file
+    let welcome_file = quickstart_path.join("welcome.txt");
+    if !welcome_file.exists() {
+        let welcome_content = r#"Welcome to Archivist!
+======================
+
+This folder is being backed up to the decentralized network.
+
+How it works:
+1. Any files you add to this folder will be automatically synced
+2. Each file gets a unique Content ID (CID) - like a fingerprint
+3. Your files are stored across the P2P network for durability
+
+Try it out:
+- Add a photo, document, or any file to this folder
+- Watch the sync progress in the Archivist app
+- Your files are now backed up!
+
+Next steps:
+- Add more folders to backup in the Backups section
+- Connect another device to access your files anywhere
+- Explore the Dashboard to see your storage usage
+
+Happy archiving!
+"#;
+        std::fs::write(&welcome_file, welcome_content).map_err(|e| {
+            ArchivistError::SyncError(format!("Failed to create welcome file: {}", e))
+        })?;
+        log::info!("Created welcome file: {:?}", welcome_file);
+    }
+
+    Ok(quickstart_path.to_string_lossy().to_string())
+}

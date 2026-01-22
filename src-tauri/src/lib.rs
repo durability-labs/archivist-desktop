@@ -93,6 +93,7 @@ pub fn run() {
             commands::generate_folder_manifest,
             commands::notify_backup_peer,
             commands::test_backup_peer_connection,
+            commands::create_quickstart_folder,
             // Backup daemon commands
             commands::get_backup_daemon_state,
             commands::enable_backup_daemon,

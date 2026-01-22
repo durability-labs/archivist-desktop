@@ -5,6 +5,30 @@
   overflow: hidden;
 }
 
+/* App loading state */
+.app-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background-color: var(--color-bg);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Sidebar */
 .sidebar {
   width: 220px;
@@ -61,7 +85,8 @@
   color: white;
 }
 
-.nav-divider {
+.nav-divider,
+.nav-section-label {
   margin: var(--spacing-md) 0 var(--spacing-xs);
   padding: 0 var(--spacing-md);
   font-size: 0.75rem;
@@ -69,6 +94,50 @@
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* Nav accordion for collapsible sections */
+.nav-accordion {
+  margin-top: var(--spacing-sm);
+}
+
+.nav-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.nav-accordion-header:hover {
+  color: var(--color-text-secondary);
+}
+
+.nav-accordion-icon {
+  transition: transform 0.2s ease;
+}
+
+.nav-accordion.open .nav-accordion-icon {
+  transform: rotate(180deg);
+}
+
+.nav-accordion-content {
+  display: none;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.nav-accordion.open .nav-accordion-content {
+  display: flex;
 }
 
 /* Main content */
@@ -1397,6 +1466,15 @@ button.secondary:hover:not(:disabled) {
   font-size: 0.875rem;
   color: var(--color-text-secondary);
   margin-top: var(--spacing-xs);
+}
+
+.quick-stat-card.clickable {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.quick-stat-card.clickable:hover {
+  border-color: var(--color-primary);
 }
 
 /* Connection Card */

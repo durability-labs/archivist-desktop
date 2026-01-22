@@ -1,0 +1,145 @@
+/* NextSteps panel styles */
+.next-steps-panel {
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  border: 1px solid var(--color-border);
+}
+
+.next-steps-panel h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-xs);
+  color: var(--color-text);
+}
+
+.next-steps-intro {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-lg);
+}
+
+.next-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+/* Individual step card */
+.next-step-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  transition: all 0.15s ease;
+}
+
+.next-step-card:hover {
+  border-color: var(--color-primary);
+}
+
+.next-step-card.completed {
+  opacity: 0.6;
+  border-color: var(--color-success);
+}
+
+.next-step-card.completed:hover {
+  border-color: var(--color-success);
+}
+
+.next-step-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.next-step-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.next-step-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.next-step-title .check-mark {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.next-step-description {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.next-step-action {
+  flex-shrink: 0;
+}
+
+.btn-next-step {
+  display: inline-block;
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-next-step:hover {
+  background-color: var(--color-primary-dark);
+}
+
+.btn-next-step.secondary {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.btn-next-step.secondary:hover {
+  background-color: var(--color-border);
+}
+
+.next-step-card.completed .btn-next-step {
+  display: none;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .next-step-card {
+    flex-direction: column;
+    text-align: center;
+    gap: var(--spacing-sm);
+  }
+
+  .next-step-action {
+    width: 100%;
+  }
+
+  .btn-next-step {
+    display: block;
+    width: 100%;
+    text-align: center;
+  }
+}

@@ -1,0 +1,220 @@
+/* AddDevice wizard styles */
+.add-device-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--spacing-xl);
+}
+
+.wizard-container {
+  width: 100%;
+  max-width: 480px;
+}
+
+.wizard-step {
+  text-align: center;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wizard-icon {
+  margin-bottom: var(--spacing-lg);
+  color: var(--color-primary);
+}
+
+.wizard-icon.success {
+  color: var(--color-success);
+}
+
+.wizard-icon.error {
+  color: var(--color-error);
+}
+
+.wizard-icon.connecting {
+  display: flex;
+  justify-content: center;
+}
+
+.wizard-icon .spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wizard-step h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+  color: var(--color-text);
+}
+
+.wizard-description {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-xl);
+  line-height: 1.6;
+}
+
+/* Input section */
+.input-section {
+  text-align: left;
+  margin-bottom: var(--spacing-lg);
+}
+
+.input-section label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: var(--spacing-sm);
+  color: var(--color-text);
+}
+
+.input-section textarea {
+  width: 100%;
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text);
+  font-family: monospace;
+  font-size: 0.875rem;
+  resize: vertical;
+  transition: border-color 0.15s ease;
+}
+
+.input-section textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.input-section textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.input-hint {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-sm);
+}
+
+/* Connecting state */
+.connecting-address {
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  margin-top: var(--spacing-lg);
+}
+
+.connecting-address code {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  word-break: break-all;
+}
+
+/* Success state */
+.connected-peer-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-xl);
+}
+
+.peer-label {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.connected-peer-info code {
+  font-size: 0.875rem;
+  color: var(--color-text);
+}
+
+/* Error display */
+.wizard-error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+/* Actions */
+.wizard-actions {
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: center;
+}
+
+.wizard-actions button {
+  padding: var(--spacing-sm) var(--spacing-xl);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wizard-actions button.primary {
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+}
+
+.wizard-actions button.primary:hover {
+  background-color: var(--color-primary-dark);
+}
+
+.wizard-actions button.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wizard-actions button.secondary {
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.wizard-actions button.secondary:hover {
+  background-color: var(--color-border);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .add-device-page {
+    padding: var(--spacing-lg);
+  }
+
+  .wizard-actions {
+    flex-direction: column;
+  }
+
+  .wizard-actions button {
+    width: 100%;
+  }
+}

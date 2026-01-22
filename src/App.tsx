@@ -1,8 +1,9 @@
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import { useFeatures } from './hooks/useFeatures';
 import { useSoundNotifications } from './hooks/useSoundNotifications';
-import { useIntroModal } from './hooks/useIntroModal';
-import { IntroModal } from './components/IntroModal';
+import { useOnboarding } from './hooks/useOnboarding';
+import NavAccordion from './components/NavAccordion';
+import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import Files from './pages/Files';
 import Sync from './pages/Sync';
@@ -10,17 +11,36 @@ import Peers from './pages/Peers';
 import Logs from './pages/Logs';
 import BackupServer from './pages/BackupServer';
 import Settings from './pages/Settings';
+import Devices from './pages/Devices';
+import AddDevice from './pages/AddDevice';
 import logoSvg from './assets/logo.svg';
 import './styles/App.css';
 
 function App() {
   const { marketplaceEnabled } = useFeatures();
   useSoundNotifications(); // Enable sound notifications globally
-  const { showIntro, hideIntro } = useIntroModal();
+  const { showOnboarding, loading, completeOnboarding, skipOnboarding } = useOnboarding();
+
+  // Show loading state while checking onboarding status
+  if (loading) {
+    return (
+      <div className="app-loading">
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
+
+  // Show onboarding for first-run users
+  if (showOnboarding) {
+    return (
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Onboarding onComplete={completeOnboarding} onSkip={skipOnboarding} />
+      </Router>
+    );
+  }
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      {showIntro && <IntroModal onClose={hideIntro} />}
       <div className="app">
         <aside className="sidebar">
           <div className="logo">
@@ -28,29 +48,45 @@ function App() {
             <span className="logo-text">Archivist</span>
           </div>
           <nav className="nav">
+            {/* Primary navigation */}
             <NavLink to="/" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Dashboard
             </NavLink>
-            <NavLink to="/files" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Files
-            </NavLink>
             <NavLink to="/sync" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Sync
+              Backups
             </NavLink>
-            <NavLink to="/peers" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Peers
+            <NavLink to="/files" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Restore
             </NavLink>
-            <NavLink to="/logs" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Logs
+
+            {/* Devices section */}
+            <div className="nav-section-label">Devices</div>
+            <NavLink to="/devices" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              My Devices
             </NavLink>
-            <NavLink to="/backup-server" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Backup Server
+            <NavLink to="/devices/add" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Add Device
             </NavLink>
+
+            {/* Advanced section - collapsible */}
+            <NavAccordion title="Advanced" storageKey="nav-advanced-open" defaultOpen={false}>
+              <NavLink to="/peers" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                Peers
+              </NavLink>
+              <NavLink to="/logs" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                Logs
+              </NavLink>
+              <NavLink to="/backup-server" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                Backup Server
+              </NavLink>
+              <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                Settings
+              </NavLink>
+            </NavAccordion>
 
             {/* V2 - Only shown when marketplace feature enabled */}
             {marketplaceEnabled && (
-              <>
-                <div className="nav-divider">Marketplace</div>
+              <NavAccordion title="Marketplace" storageKey="nav-marketplace-open" defaultOpen={false}>
                 <NavLink to="/marketplace" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
                   Browse
                 </NavLink>
@@ -60,12 +96,8 @@ function App() {
                 <NavLink to="/wallet" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
                   Wallet
                 </NavLink>
-              </>
+              </NavAccordion>
             )}
-
-            <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Settings
-            </NavLink>
           </nav>
         </aside>
 
@@ -74,6 +106,8 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/files" element={<Files />} />
             <Route path="/sync" element={<Sync />} />
+            <Route path="/devices" element={<Devices />} />
+            <Route path="/devices/add" element={<AddDevice />} />
             <Route path="/peers" element={<Peers />} />
             <Route path="/logs" element={<Logs />} />
             <Route path="/backup-server" element={<BackupServer />} />

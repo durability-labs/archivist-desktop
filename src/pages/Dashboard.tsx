@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useNode, NodeState, NodeStatus } from '../hooks/useNode';
 import { useSync, SyncState } from '../hooks/useSync';
 import { invoke } from '@tauri-apps/api/core';
+import NextSteps from '../components/NextSteps';
 
 interface DiagnosticInfo {
   apiReachable: boolean;
@@ -245,8 +247,38 @@ function Dashboard() {
   );
 }
 
+// Helper to format relative time
+function formatRelativeTime(dateString: string | null): string {
+  if (!dateString) return 'Never';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
+// Get most recent backup time from folders
+function getLastBackupTime(syncState: SyncState): string | null {
+  const times = syncState.folders
+    .map(f => f.lastSynced)
+    .filter((t): t is string => t !== null)
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+  return times[0] || null;
+}
+
 // Basic View - Simple, focused on essential controls
 function BasicView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, copied, copyToClipboard, getShareableAddress }: BasicViewProps) {
+  const hasBackupFolders = syncState.folders.length > 0;
+  const hasConnectedPeers = status.peerCount > 0;
+  const lastBackupTime = getLastBackupTime(syncState);
+
   return (
     <div className="basic-view">
       {/* Main Status Hero */}
@@ -283,6 +315,14 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
         </div>
       </div>
 
+      {/* Next Steps Panel (for post-onboarding guidance) */}
+      {isRunning && (
+        <NextSteps
+          hasBackupFolders={hasBackupFolders}
+          hasConnectedPeers={hasConnectedPeers}
+        />
+      )}
+
       {/* Quick Stats */}
       <div className="quick-stats">
         <div className="quick-stat-card">
@@ -299,19 +339,19 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
             <div className="quick-stat-label">Storage Used</div>
           </div>
         </div>
-        <div className="quick-stat-card">
-          <div className="quick-stat-icon">🔄</div>
+        <Link to="/sync" className="quick-stat-card clickable">
+          <div className="quick-stat-icon">🕐</div>
           <div className="quick-stat-content">
-            <div className="quick-stat-value">{syncState.queueSize}</div>
-            <div className="quick-stat-label">Files Queued</div>
+            <div className="quick-stat-value">{formatRelativeTime(lastBackupTime)}</div>
+            <div className="quick-stat-label">Last Backup</div>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Connection Info (when running) */}
       {isRunning && status.peerId && status.addresses.length > 0 && (
         <div className="connection-card">
-          <h3>📡 Share Your Connection</h3>
+          <h3>Share Your Connection</h3>
           <p className="connection-hint">Copy this address to share with other nodes</p>
           {getShareableAddress(status.addresses, status.publicIp) && (
             <div className="connection-field">
@@ -332,7 +372,7 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
       {/* Recent Activity (when available) */}
       {syncState.recentUploads.length > 0 && (
         <div className="recent-activity-card">
-          <h3>📁 Recent Uploads</h3>
+          <h3>Recent Uploads</h3>
           <div className="recent-list">
             {syncState.recentUploads.slice(0, 3).map((filename: string, i: number) => (
               <div key={i} className="recent-item">
