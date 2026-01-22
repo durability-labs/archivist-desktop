@@ -21,6 +21,9 @@ Tauri v2 desktop application for decentralized file storage with P2P sync capabi
 15. [Backup Server Daemon](#backup-server-daemon)
 16. [Windows Development](#windows-development)
 17. [User Experience Features](#user-experience-features)
+    - [Onboarding System](#onboarding-system)
+    - [Auto-Trigger Download on CID Paste](#auto-trigger-download-on-cid-paste)
+    - [Sound Notifications](#sound-notifications)
 18. [Troubleshooting](#troubleshooting)
 19. [Security](#security)
 20. [Version History](#version-history)
@@ -2394,6 +2397,147 @@ Example log search workflow:
 
 ## User Experience Features
 
+### Onboarding System
+
+**Location:** [src/pages/Onboarding.tsx](src/pages/Onboarding.tsx), [src/hooks/useOnboarding.ts](src/hooks/useOnboarding.ts)
+
+The application includes a guided onboarding flow for first-time users, designed to complete the first backup in ≤30 seconds with ≤3 user decisions.
+
+#### Onboarding Flow
+
+1. **Splash Screen** - Animated branding (video or CSS fallback)
+2. **Welcome Screen** - Introduction with "Get Started" CTA
+3. **Node Starting** - Auto-starts node with progress indicator
+4. **Folder Selection** - "Quick Backup" (default folder) or "Choose Folder"
+5. **Syncing Progress** - Timeline showing sync status with CID proof
+
+#### Video Splash with CSS Fallback
+
+The splash screen attempts to play a branding video (`intro.webm` / `intro.mp4`) and falls back to a CSS-animated splash if video playback fails.
+
+**Video Format Priority:**
+1. WebM (VP9 codec) - Better native support across platforms
+2. MP4 (H.264 codec) - Fallback for older browsers
+
+**CSS Fallback Triggers:**
+- Video error (codec not supported)
+- Video load timeout (2 seconds)
+
+**CSS Fallback Animation:**
+- Gradient dark background (#0a0a0a → #1a1a2e → #16213e)
+- Rotating/pulsing logo with glow effect
+- Animated title slide-up with tagline
+- 3-second duration before auto-advance
+
+**Platform Behavior:**
+- **Windows/macOS**: Video typically plays (WebView2/Safari have built-in codecs)
+- **Linux**: Usually shows CSS fallback (WebKitGTK requires GStreamer for video codecs)
+
+**Implementation:**
+
+```typescript
+// Video attempt with fallback
+function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [showFallback, setShowFallback] = useState(false);
+
+  // Timeout: if video hasn't loaded after 2 seconds, show fallback
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!videoLoaded && !showFallback) {
+        setShowFallback(true);
+      }
+    }, 2000);
+    return () => clearTimeout(timeout);
+  }, [videoLoaded, showFallback]);
+
+  if (showFallback) {
+    return <CSSAnimatedSplash onComplete={onComplete} />;
+  }
+
+  return (
+    <video autoPlay muted playsInline onEnded={onComplete} onError={() => setShowFallback(true)}>
+      <source src="/intro.webm" type="video/webm" />
+      <source src="/intro.mp4" type="video/mp4" />
+    </video>
+  );
+}
+```
+
+**CSS Animation Styles** ([src/styles/Onboarding.css](src/styles/Onboarding.css)):
+
+```css
+.splash-fallback {
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+}
+
+.splash-icon {
+  color: #6366f1;
+  filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.5));
+  animation: splashPulse 2s ease-in-out infinite, splashRotate 8s linear infinite;
+}
+
+.splash-title {
+  font-size: 3rem;
+  animation: splashSlideUp 0.6s ease-out 0.3s both;
+}
+```
+
+#### Quickstart Folder
+
+When user selects "Quick Backup", the app:
+1. Creates `~/Documents/Archivist Quickstart/` folder
+2. Adds a `welcome.txt` sample file
+3. Adds folder to watch list
+4. Shows sync progress with CID
+
+**Backend Command** ([src-tauri/src/commands/sync.rs](src-tauri/src/commands/sync.rs)):
+
+```rust
+#[tauri::command]
+pub async fn create_quickstart_folder() -> Result<String, ArchivistError> {
+    // Creates folder in Documents with welcome.txt
+}
+```
+
+#### Onboarding State Management
+
+**Hook:** [src/hooks/useOnboarding.ts](src/hooks/useOnboarding.ts)
+
+```typescript
+export type OnboardingStep = 'splash' | 'welcome' | 'node-starting' | 'folder-select' | 'syncing';
+
+export function useOnboarding() {
+  // First-run detection via localStorage
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    return !localStorage.getItem('onboarding_complete');
+  });
+
+  const completeOnboarding = () => {
+    localStorage.setItem('onboarding_complete', 'true');
+    setShowOnboarding(false);
+  };
+
+  // ... step tracking, error handling
+}
+```
+
+#### Reset Onboarding
+
+Users can reset onboarding via Settings → Developer → "Reset Onboarding". This clears the `onboarding_complete` flag and reloads the app.
+
+#### Related Files
+
+| File | Purpose |
+|------|---------|
+| [src/pages/Onboarding.tsx](src/pages/Onboarding.tsx) | Main onboarding component with all screens |
+| [src/hooks/useOnboarding.ts](src/hooks/useOnboarding.ts) | Onboarding state management hook |
+| [src/styles/Onboarding.css](src/styles/Onboarding.css) | Onboarding styles including CSS fallback animation |
+| [public/intro.webm](public/intro.webm) | Branding video (WebM/VP9, 7.3MB) |
+| [public/intro.mp4](public/intro.mp4) | Branding video (MP4/H.264, 33MB) |
+
+---
+
 ### Auto-Trigger Download on CID Paste
 
 **Location:** [src/pages/Files.tsx](src/pages/Files.tsx)
@@ -2773,7 +2917,70 @@ Sidecar binaries include SHA256 checksum verification in download script.
 
 ## Version History
 
-### v0.1.2 (Current)
+### v0.2.0 (Current)
+
+Major UI/UX overhaul focused on simplifying the first-run experience.
+
+#### Onboarding System
+
+- **New 5-step onboarding wizard** for first-time users
+  - Splash screen with video or CSS-animated fallback
+  - Welcome screen with value proposition
+  - Auto-starting node with progress indicator
+  - Folder selection (Quick Backup or Choose Folder)
+  - Sync progress timeline with completion confirmation
+- **Goal**: First backup complete in ≤30 seconds with ≤3 user decisions
+- **Files**: [src/pages/Onboarding.tsx](src/pages/Onboarding.tsx), [src/hooks/useOnboarding.ts](src/hooks/useOnboarding.ts), [src/styles/Onboarding.css](src/styles/Onboarding.css)
+
+#### Video Splash with CSS Fallback
+
+- **Video formats**: WebM (VP9, 7.3MB) primary, MP4 (H.264, 33MB) fallback
+- **CSS fallback**: Animated logo with gradient background when video fails
+- **Platform handling**:
+  - Windows/macOS: Video plays (built-in codecs)
+  - Linux: CSS fallback (WebKitGTK codec limitation)
+- **Timeout**: 2 seconds before showing CSS fallback
+- **Files**: [public/intro.webm](public/intro.webm), [public/intro.mp4](public/intro.mp4)
+
+#### Navigation Restructure
+
+- **Primary section**: Dashboard, Backups (renamed from Sync), Restore (renamed from Files)
+- **Devices section**: My Devices, Add Device (new pages)
+- **Advanced section**: Collapsible accordion containing Peers, Logs, Backup Server, Settings
+- **New files**: [src/pages/Devices.tsx](src/pages/Devices.tsx), [src/pages/AddDevice.tsx](src/pages/AddDevice.tsx), [src/components/NavAccordion.tsx](src/components/NavAccordion.tsx)
+
+#### Dashboard Enhancement
+
+- **NextSteps panel**: Post-onboarding guidance cards (Add backup folder, Connect a peer)
+- **Quick Stats**: Connected Peers, Storage Used, Last Backup (clickable)
+- **Recent Activity**: Shows last 3 uploaded files
+- **Files**: [src/components/NextSteps.tsx](src/components/NextSteps.tsx), [src/styles/NextSteps.css](src/styles/NextSteps.css)
+
+#### Linux Video Codec Issue (Known Limitation)
+
+**Problem**: Video splash doesn't play on Linux due to missing codecs in WebKitGTK.
+
+**Root Cause**: WebKitGTK (Tauri's webview on Linux) requires GStreamer plugins to decode video:
+- VP9 (WebM) requires `gstreamer1.0-plugins-bad`
+- H.264 (MP4) requires `gstreamer1.0-libav`
+
+**Attempted Solutions**:
+1. Added GStreamer dependencies to .deb package - didn't help (dependencies may not auto-install)
+2. Added `bundleMediaFramework: true` for AppImage - only affects AppImage, not .deb
+3. Converted video to WebM (VP9) - still needs GStreamer on Linux
+
+**Final Solution**: CSS-animated fallback that triggers when video fails to load within 2 seconds.
+
+**Debug information** (from testing):
+```
+Origin: tauri://localhost
+Video src: tauri://localhost/intro.webm
+Error: Unknown error (codec not supported)
+```
+
+---
+
+### v0.1.2
 - **Feature:** Added built-in Logs viewer for real-time node log monitoring
   - New Logs page with auto-refresh and auto-scroll capabilities
   - Line count control (100, 500, 1000, 5000)
@@ -2907,14 +3114,24 @@ Sidecar binaries include SHA256 checksum verification in download script.
 | `src-tauri/src/state.rs` | AppState initialization and config sync |
 | `src/hooks/useNode.ts` | Node state management hook |
 | `src/hooks/useSync.ts` | Sync state management hook |
+| `src/hooks/useOnboarding.ts` | Onboarding state management (first-run detection, steps) |
 | `src/hooks/useSoundNotifications.ts` | Sound notification event listener hook |
 | `src/lib/cidValidation.ts` | CID format validation utility |
-| `src/pages/Dashboard.tsx` | Main UI with diagnostics panel |
+| `src/pages/Dashboard.tsx` | Main UI with diagnostics panel and NextSteps |
 | `src/pages/Files.tsx` | File management with auto-download on paste |
+| `src/pages/Onboarding.tsx` | First-run wizard with video/CSS splash |
+| `src/pages/Devices.tsx` | Device management (this device + connected devices) |
+| `src/pages/AddDevice.tsx` | Step-by-step device pairing wizard |
 | `src/pages/Logs.tsx` | Real-time node logs viewer |
 | `src/pages/Settings.tsx` | App configuration with notification settings |
+| `src/components/NextSteps.tsx` | Post-onboarding guidance cards |
+| `src/components/NavAccordion.tsx` | Collapsible navigation section |
+| `src/styles/Onboarding.css` | Onboarding styles with CSS fallback animation |
+| `src/styles/NextSteps.css` | NextSteps component styling |
 | `src/styles/Logs.css` | Logs page styling |
 | `src/styles/App.css` | Global styles, dropdown contrast fixes, CID validation styling |
+| `public/intro.webm` | Splash video (WebM/VP9, 7.3MB) |
+| `public/intro.mp4` | Splash video (MP4/H.264, 33MB) |
 | `scripts/download-sidecar.sh` | Sidecar binary downloader |
 | `src-tauri/tauri.conf.json` | Tauri app configuration |
 | `.github/workflows/ci.yml` | CI pipeline configuration |
