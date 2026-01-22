@@ -253,17 +253,39 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+
+  // Helper to add debug messages
+  const addDebug = useCallback((msg: string) => {
+    setDebugInfo(prev => [...prev.slice(-6), msg]);
+    console.log('SplashScreen:', msg);
+  }, []);
+
+  // Log environment info on mount
+  useEffect(() => {
+    addDebug(`Origin: ${window.location.origin}`);
+    addDebug(`BASE_URL: ${import.meta.env.BASE_URL}`);
+  }, [addDebug]);
 
   // Handle video load success
   const handleCanPlay = useCallback(() => {
-    console.log('SplashScreen: Video ready to play');
+    addDebug('Video canplay event fired');
     setVideoLoaded(true);
-  }, []);
+  }, [addDebug]);
 
-  // Handle video error - skip to welcome immediately
+  // Handle source error (individual <source> element failed)
+  const handleSourceError = useCallback((e: React.SyntheticEvent<HTMLSourceElement, Event>) => {
+    const source = e.currentTarget;
+    addDebug(`Source failed: ${source.src}`);
+  }, [addDebug]);
+
+  // Handle video error - show debug info, skip after delay
   const handleVideoError = useCallback((e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
     const video = e.currentTarget;
     const error = video.error;
+    const errorMsg = error ? `Code ${error.code}: ${error.message || 'No message'}` : 'Unknown error';
+    addDebug(`Video error: ${errorMsg}`);
+    addDebug(`Current src: ${video.currentSrc || 'none'}`);
     console.error('SplashScreen: Video error:', {
       code: error?.code,
       message: error?.message,
@@ -272,20 +294,20 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
       readyState: video.readyState,
     });
     setVideoFailed(true);
-    // Skip immediately on error - don't show error to users
-    onComplete();
-  }, [onComplete]);
+    // Skip after delay so user can see error info
+    setTimeout(onComplete, 3000);
+  }, [onComplete, addDebug]);
 
-  // If video hasn't loaded after 3 seconds, skip it
+  // If video hasn't loaded after 5 seconds, skip it
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (!videoLoaded && !videoFailed) {
-        console.log('SplashScreen: Video load timeout, skipping...');
-        onComplete();
+        addDebug('Timeout (5s), skipping...');
+        setTimeout(onComplete, 1000);
       }
-    }, 3000);
+    }, 5000);
     return () => clearTimeout(timeout);
-  }, [videoLoaded, videoFailed, onComplete]);
+  }, [videoLoaded, videoFailed, onComplete, addDebug]);
 
   return (
     <div className="splash-screen">
@@ -300,12 +322,36 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
         onError={handleVideoError}
       >
         {/* WebM (VP9) has better native support across platforms */}
-        <source src={`${import.meta.env.BASE_URL}intro.webm`} type="video/webm" />
-        <source src="/intro.webm" type="video/webm" />
+        <source src={`${import.meta.env.BASE_URL}intro.webm`} type="video/webm" onError={handleSourceError} />
+        <source src="/intro.webm" type="video/webm" onError={handleSourceError} />
         {/* MP4 (H.264) as fallback */}
-        <source src={`${import.meta.env.BASE_URL}intro.mp4`} type="video/mp4" />
-        <source src="/intro.mp4" type="video/mp4" />
+        <source src={`${import.meta.env.BASE_URL}intro.mp4`} type="video/mp4" onError={handleSourceError} />
+        <source src="/intro.mp4" type="video/mp4" onError={handleSourceError} />
       </video>
+      {/* Debug panel */}
+      <div style={{
+        position: 'absolute',
+        bottom: '80px',
+        left: '20px',
+        right: '20px',
+        color: 'rgba(255,255,255,0.9)',
+        fontSize: '12px',
+        fontFamily: 'monospace',
+        textAlign: 'left',
+        background: 'rgba(0,0,0,0.7)',
+        padding: '12px 16px',
+        borderRadius: '8px',
+        maxHeight: '150px',
+        overflow: 'auto',
+      }}>
+        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Video Debug Info:</div>
+        {debugInfo.map((msg, i) => (
+          <div key={i} style={{ color: msg.includes('error') || msg.includes('failed') ? '#ff6b6b' : '#fff' }}>{msg}</div>
+        ))}
+        {!videoLoaded && !videoFailed && debugInfo.length <= 2 && (
+          <div style={{ color: '#ffd93d' }}>Loading video...</div>
+        )}
+      </div>
       <button className="splash-skip" onClick={onSkip}>
         Skip
       </button>
