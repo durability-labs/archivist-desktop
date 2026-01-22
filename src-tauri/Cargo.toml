@@ -86,5 +86,5 @@ tauri-plugin-updater = "2"
 [dev-dependencies]
 tokio-test = "0.4"
 mockall = "0.13"
-tempfile = "3.13"
+tempfile = "3.24"
 rstest = "0.23"
