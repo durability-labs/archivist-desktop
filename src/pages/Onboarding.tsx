@@ -250,19 +250,70 @@ interface SplashScreenProps {
 }
 
 function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
-  // Use import.meta.env.BASE_URL for correct path resolution in both dev and production
-  const videoSrc = `${import.meta.env.BASE_URL}intro.mp4`;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
+
+  // Log environment info for debugging
+  useEffect(() => {
+    console.log('SplashScreen environment:', {
+      protocol: window.location.protocol,
+      origin: window.location.origin,
+      href: window.location.href,
+      baseUrl: import.meta.env.BASE_URL,
+    });
+  }, []);
+
+  // Handle video load success
+  const handleCanPlay = useCallback(() => {
+    console.log('Video can play');
+    setVideoLoaded(true);
+  }, []);
+
+  // Handle video error - skip to welcome after brief delay
+  const handleVideoError = useCallback((e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    const video = e.currentTarget;
+    const error = video.error;
+    console.error('Video error:', {
+      code: error?.code,
+      message: error?.message,
+      currentSrc: video.currentSrc,
+      networkState: video.networkState,
+      readyState: video.readyState,
+    });
+    setVideoFailed(true);
+    // Skip to welcome after a short delay
+    setTimeout(onComplete, 500);
+  }, [onComplete]);
+
+  // If video hasn't loaded after 3 seconds, skip it
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!videoLoaded && !videoFailed) {
+        console.log('Video load timeout, skipping splash');
+        onComplete();
+      }
+    }, 3000);
+    return () => clearTimeout(timeout);
+  }, [videoLoaded, videoFailed, onComplete]);
 
   return (
     <div className="splash-screen">
       <video
+        ref={videoRef}
         autoPlay
         muted
         playsInline
         className="splash-video"
         onEnded={onComplete}
+        onCanPlay={handleCanPlay}
+        onError={handleVideoError}
       >
-        <source src={videoSrc} type="video/mp4" />
+        {/* Try multiple source paths for different environments */}
+        <source src={`${import.meta.env.BASE_URL}intro.mp4`} type="video/mp4" />
+        <source src="/intro.mp4" type="video/mp4" />
+        <source src="./intro.mp4" type="video/mp4" />
+        <source src="intro.mp4" type="video/mp4" />
       </video>
       <button className="splash-skip" onClick={onSkip}>
         Skip
