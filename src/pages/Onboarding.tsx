@@ -5,6 +5,22 @@ import { useOnboarding, OnboardingStep } from '../hooks/useOnboarding';
 import { open } from '@tauri-apps/plugin-dialog';
 import '../styles/Onboarding.css';
 
+// Load video as blob URL to work around Tauri asset protocol issues in release builds
+async function loadVideoAsBlob(paths: string[]): Promise<string | null> {
+  for (const path of paths) {
+    try {
+      const response = await fetch(path);
+      if (response.ok) {
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+      }
+    } catch (e) {
+      console.log(`Failed to load video from ${path}:`, e);
+    }
+  }
+  return null;
+}
+
 interface OnboardingProps {
   onComplete: () => void;
   onSkip: () => void;
@@ -253,6 +269,49 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
+  const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
+
+  // Load video as blob URL on mount (works around Tauri asset protocol issues in release builds)
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadVideo = async () => {
+      // Try WebM first (better codec support), then MP4
+      const videoPaths = [
+        `${import.meta.env.BASE_URL}intro.webm`,
+        '/intro.webm',
+        `${import.meta.env.BASE_URL}intro.mp4`,
+        '/intro.mp4',
+      ];
+
+      const blobUrl = await loadVideoAsBlob(videoPaths);
+
+      if (cancelled) {
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+        return;
+      }
+
+      if (blobUrl) {
+        console.log('SplashScreen: Video loaded as blob URL');
+        blobUrlRef.current = blobUrl;
+        setVideoBlobUrl(blobUrl);
+      } else {
+        console.log('SplashScreen: Failed to load video, showing CSS fallback');
+        setShowFallback(true);
+      }
+    };
+
+    loadVideo();
+
+    return () => {
+      cancelled = true;
+      // Clean up blob URL on unmount
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+      }
+    };
+  }, []);
 
   // Handle video load success
   const handleCanPlay = useCallback(() => {
@@ -262,7 +321,7 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
 
   // Handle video error - show CSS fallback animation
   const handleVideoError = useCallback(() => {
-    console.log('SplashScreen: Video failed, showing CSS animation fallback');
+    console.log('SplashScreen: Video playback error, showing CSS animation fallback');
     setShowFallback(true);
   }, []);
 
@@ -274,14 +333,14 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     }
   }, [showFallback, onComplete]);
 
-  // Timeout: if video hasn't loaded after 2 seconds, show fallback
+  // Timeout: if video hasn't loaded after 3 seconds, show fallback
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (!videoLoaded && !showFallback) {
         console.log('SplashScreen: Video load timeout, showing fallback');
         setShowFallback(true);
       }
-    }, 2000);
+    }, 3000);
     return () => clearTimeout(timeout);
   }, [videoLoaded, showFallback]);
 
@@ -313,6 +372,29 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     );
   }
 
+  // Show loading state while fetching video blob
+  if (!videoBlobUrl) {
+    return (
+      <div className="splash-screen splash-fallback">
+        <div className="splash-fallback-content">
+          <div className="splash-logo-animated">
+            <svg viewBox="0 0 24 24" width="120" height="120" className="splash-icon">
+              <path
+                d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="splash-icon-path"
+              />
+            </svg>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="splash-screen">
       <video
@@ -324,14 +406,8 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
         onEnded={onComplete}
         onCanPlay={handleCanPlay}
         onError={handleVideoError}
-      >
-        {/* WebM (VP9) has better native support across platforms */}
-        <source src={`${import.meta.env.BASE_URL}intro.webm`} type="video/webm" />
-        <source src="/intro.webm" type="video/webm" />
-        {/* MP4 (H.264) as fallback */}
-        <source src={`${import.meta.env.BASE_URL}intro.mp4`} type="video/mp4" />
-        <source src="/intro.mp4" type="video/mp4" />
-      </video>
+        src={videoBlobUrl}
+      />
       <button className="splash-skip" onClick={onSkip}>
         Skip
       </button>
