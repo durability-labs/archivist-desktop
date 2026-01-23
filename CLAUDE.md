@@ -2938,9 +2938,27 @@ Major UI/UX overhaul focused on simplifying the first-run experience.
 - **CSS fallback**: Animated logo with gradient background when video fails
 - **Platform handling**:
   - Windows/macOS: Video plays (built-in codecs)
-  - Linux: CSS fallback (WebKitGTK codec limitation)
+  - Linux: Video plays if GStreamer plugins installed, CSS fallback otherwise
 - **Timeout**: 2 seconds before showing CSS fallback
 - **Files**: [public/intro.webm](public/intro.webm), [public/intro.mp4](public/intro.mp4)
+
+#### CSP Fix for Bundled Video Playback
+
+Video playback failed in bundled builds (release/debug) but worked in dev mode. The fix was adding `blob:` and `data:` to the Content Security Policy's `media-src` directive.
+
+**Root Cause**: When Tauri serves bundled assets via the `tauri://` protocol, WebKitGTK internally converts media to blob/data URLs. The original CSP blocked these URLs.
+
+**Fix** (in [src-tauri/tauri.conf.json](src-tauri/tauri.conf.json)):
+```diff
+- media-src 'self' asset: https://asset.localhost
++ media-src 'self' asset: https://asset.localhost blob: data:
+```
+
+**Behavior by mode**:
+| Mode | Video URL | CSP Match |
+|------|-----------|-----------|
+| Dev (`pnpm tauri dev`) | `http://localhost:1420/intro.webm` | `'self'` |
+| Bundled (release/debug) | Internal blob/data conversion | `blob: data:` |
 
 #### Navigation Restructure
 
@@ -2956,27 +2974,27 @@ Major UI/UX overhaul focused on simplifying the first-run experience.
 - **Recent Activity**: Shows last 3 uploaded files
 - **Files**: [src/components/NextSteps.tsx](src/components/NextSteps.tsx), [src/styles/NextSteps.css](src/styles/NextSteps.css)
 
-#### Linux Video Codec Issue (Known Limitation)
+#### Linux Video Playback (Fixed)
 
-**Problem**: Video splash doesn't play on Linux due to missing codecs in WebKitGTK.
+**Problem**: Video splash didn't play in bundled builds on Linux, even with GStreamer installed.
 
-**Root Cause**: WebKitGTK (Tauri's webview on Linux) requires GStreamer plugins to decode video:
-- VP9 (WebM) requires `gstreamer1.0-plugins-bad`
-- H.264 (MP4) requires `gstreamer1.0-libav`
+**Root Causes Identified**:
+1. **CSP blocking blob/data URLs** (FIXED): WebKitGTK converts bundled media to blob/data URLs internally
+2. **Missing GStreamer codecs**: WebKitGTK requires GStreamer plugins for video decode
 
-**Attempted Solutions**:
-1. Added GStreamer dependencies to .deb package - didn't help (dependencies may not auto-install)
-2. Added `bundleMediaFramework: true` for AppImage - only affects AppImage, not .deb
-3. Converted video to WebM (VP9) - still needs GStreamer on Linux
+**Solutions Applied**:
+1. **CSP Fix**: Added `blob: data:` to `media-src` directive - fixes bundled builds
+2. **GStreamer dependencies**: Added to .deb package for codec support
+3. **CSS fallback**: Triggers if video fails (e.g., no GStreamer on minimal installs)
 
-**Final Solution**: CSS-animated fallback that triggers when video fails to load within 2 seconds.
+**Required GStreamer packages** (for video to play on Linux):
+- `gstreamer1.0-plugins-bad` (VP9/WebM)
+- `gstreamer1.0-libav` (H.264/MP4)
 
-**Debug information** (from testing):
-```
-Origin: tauri://localhost
-Video src: tauri://localhost/intro.webm
-Error: Unknown error (codec not supported)
-```
+**Current behavior**:
+- Ubuntu/Debian with GStreamer: Video plays ✓
+- Minimal Linux without GStreamer: CSS fallback animation
+- Windows/macOS: Video plays (built-in codecs)
 
 ---
 
