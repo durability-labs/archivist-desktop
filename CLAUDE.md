@@ -724,6 +724,32 @@ git push origin main --tags
 # Go to: https://github.com/basedmint/archivist-desktop/actions
 ```
 
+### Manual Release Build (Testing)
+
+To build release artifacts from any branch without creating a version tag:
+
+```bash
+# Trigger release workflow manually from current branch
+gh workflow run release.yml --ref feature/your-branch
+
+# Check workflow status
+gh run list --workflow=release.yml --limit 3
+
+# Watch the build progress
+gh run watch <run-id>
+```
+
+This is useful for:
+- Testing release builds before tagging a final version
+- Creating release candidates from feature branches
+- Debugging platform-specific build issues
+
+The workflow builds for all 4 platforms:
+- macOS ARM64 (`aarch64-apple-darwin`)
+- macOS Intel (`x86_64-apple-darwin`)
+- Linux x64 (`x86_64-unknown-linux-gnu`)
+- Windows x64 (`x86_64-pc-windows-msvc`)
+
 ### Running CI Checks Locally
 
 ```bash
