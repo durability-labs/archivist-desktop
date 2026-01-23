@@ -2872,6 +2872,26 @@ Edit `.husky/pre-commit` to skip some checks during development:
 
 See [Windows Development](#windows-development) section for technical details.
 
+### Release Build: Video Not Playing (Linux)
+
+**Problem:** Splash screen video plays in dev mode and debug builds but fails in release builds.
+
+**Cause:** Tauri's asset protocol behaves differently between debug and release builds. Direct `<source>` paths in video elements aren't properly served in release mode, even with correct CSP settings.
+
+**Solution:** Fixed in v0.2.0 by loading video as blob URL instead of direct source paths:
+1. Video is fetched using `fetch()` API
+2. Response is converted to a blob
+3. Blob URL is created with `URL.createObjectURL()`
+4. Blob URL is used as video `src` attribute
+5. Falls back to CSS animation if blob loading fails
+
+**Technical Details:**
+- The CSP allows `blob:` in `media-src`
+- `fetch()` can access bundled assets in both debug and release mode
+- Blob URLs bypass Tauri's asset protocol differences entirely
+
+**Files:** [src/pages/Onboarding.tsx](src/pages/Onboarding.tsx) - `loadVideoAsBlob()` function and `SplashScreen` component
+
 ## Security
 
 ### Security Architecture
@@ -3002,23 +3022,47 @@ Video playback failed in bundled builds (release/debug) but worked in dev mode. 
 
 #### Linux Video Playback (Fixed)
 
-**Problem**: Video splash didn't play in bundled builds on Linux, even with GStreamer installed.
+**Problem**: Video splash didn't play in release builds on Linux, even with GStreamer installed and correct CSP.
 
 **Root Causes Identified**:
-1. **CSP blocking blob/data URLs** (FIXED): WebKitGTK converts bundled media to blob/data URLs internally
-2. **Missing GStreamer codecs**: WebKitGTK requires GStreamer plugins for video decode
+1. **CSP blocking blob/data URLs**: WebKitGTK converts bundled media to blob/data URLs internally
+2. **Asset protocol difference**: Tauri's asset protocol behaves differently in debug vs release builds
+3. **Missing GStreamer codecs**: WebKitGTK requires GStreamer plugins for video decode
 
 **Solutions Applied**:
-1. **CSP Fix**: Added `blob: data:` to `media-src` directive - fixes bundled builds
-2. **GStreamer dependencies**: Added to .deb package for codec support
-3. **CSS fallback**: Triggers if video fails (e.g., no GStreamer on minimal installs)
+1. **CSP Fix**: Added `blob: data:` to `media-src` directive
+2. **Blob URL Loading**: Load video via `fetch()` API and create blob URL (bypass asset protocol)
+3. **GStreamer dependencies**: Added to .deb package for codec support
+4. **CSS fallback**: Triggers if video fails (e.g., no GStreamer on minimal installs)
+
+**Blob URL Fix** (the key fix for release builds):
+```typescript
+// In src/pages/Onboarding.tsx
+async function loadVideoAsBlob(paths: string[]): Promise<string | null> {
+  for (const path of paths) {
+    const response = await fetch(path);
+    if (response.ok) {
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    }
+  }
+  return null;
+}
+```
+
+This approach:
+- Uses `fetch()` which works consistently in both debug and release builds
+- Creates a blob URL which is allowed by CSP (`blob:` in `media-src`)
+- Bypasses Tauri's asset protocol entirely for video loading
 
 **Required GStreamer packages** (for video to play on Linux):
 - `gstreamer1.0-plugins-bad` (VP9/WebM)
 - `gstreamer1.0-libav` (H.264/MP4)
 
 **Current behavior**:
-- Ubuntu/Debian with GStreamer: Video plays ✓
+- Dev mode: Video plays ✓
+- Debug build: Video plays ✓
+- Release build: Video plays ✓ (via blob URL)
 - Minimal Linux without GStreamer: CSS fallback animation
 - Windows/macOS: Video plays (built-in codecs)
 
