@@ -271,13 +271,25 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
   const [showFallback, setShowFallback] = useState(false);
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+  const lastProgressTime = useRef<number>(0);
+  const stallCheckInterval = useRef<number | null>(null);
 
-  // Load video as blob URL on mount (works around Tauri asset protocol issues in release builds)
+  // Load video on mount
+  // Note: In production builds on Linux, WebKitGTK has codec issues with blob URLs
+  // so we use CSS fallback for production builds to ensure reliable UX
   useEffect(() => {
     let cancelled = false;
 
     const loadVideo = async () => {
-      // Try WebM first (better codec support), then MP4
+      // In production builds, skip video and use CSS fallback (more reliable on Linux)
+      // Video works in dev mode where Vite serves files directly
+      if (import.meta.env.PROD) {
+        console.log('SplashScreen: Production build detected, using CSS fallback for reliability');
+        setShowFallback(true);
+        return;
+      }
+
+      // Dev mode: try to load video
       const videoPaths = [
         `${import.meta.env.BASE_URL}intro.webm`,
         '/intro.webm',
@@ -310,13 +322,33 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
       }
+      // Clean up stall check interval
+      if (stallCheckInterval.current) {
+        clearInterval(stallCheckInterval.current);
+      }
     };
   }, []);
 
-  // Handle video load success
-  const handleCanPlay = useCallback(() => {
-    console.log('SplashScreen: Video ready to play');
+  // Handle video fully buffered and ready
+  const handleCanPlayThrough = useCallback(() => {
+    console.log('SplashScreen: Video fully buffered, ready to play');
     setVideoLoaded(true);
+    lastProgressTime.current = Date.now();
+  }, []);
+
+  // Track video progress to detect stalls
+  const handleTimeUpdate = useCallback(() => {
+    lastProgressTime.current = Date.now();
+  }, []);
+
+  // Handle video stall - might need to show fallback
+  const handleStalled = useCallback(() => {
+    console.log('SplashScreen: Video stalled, waiting for data...');
+  }, []);
+
+  // Handle video waiting for data
+  const handleWaiting = useCallback(() => {
+    console.log('SplashScreen: Video waiting for data...');
   }, []);
 
   // Handle video error - show CSS fallback animation
@@ -324,6 +356,30 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     console.log('SplashScreen: Video playback error, showing CSS animation fallback');
     setShowFallback(true);
   }, []);
+
+  // Start stall detection when video is loaded
+  useEffect(() => {
+    if (videoLoaded && !showFallback) {
+      // Check every 2 seconds if video has progressed
+      stallCheckInterval.current = window.setInterval(() => {
+        const timeSinceProgress = Date.now() - lastProgressTime.current;
+        // If no progress for 3 seconds, video is stuck - show fallback
+        if (timeSinceProgress > 3000) {
+          console.log('SplashScreen: Video stuck (no progress for 3s), showing fallback');
+          setShowFallback(true);
+          if (stallCheckInterval.current) {
+            clearInterval(stallCheckInterval.current);
+          }
+        }
+      }, 2000);
+
+      return () => {
+        if (stallCheckInterval.current) {
+          clearInterval(stallCheckInterval.current);
+        }
+      };
+    }
+  }, [videoLoaded, showFallback]);
 
   // Auto-advance after animation completes (for fallback)
   useEffect(() => {
@@ -333,14 +389,14 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     }
   }, [showFallback, onComplete]);
 
-  // Timeout: if video hasn't loaded after 3 seconds, show fallback
+  // Timeout: if video hasn't loaded after 5 seconds, show fallback
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (!videoLoaded && !showFallback) {
         console.log('SplashScreen: Video load timeout, showing fallback');
         setShowFallback(true);
       }
-    }, 3000);
+    }, 5000);
     return () => clearTimeout(timeout);
   }, [videoLoaded, showFallback]);
 
@@ -402,9 +458,13 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
         autoPlay
         muted
         playsInline
+        preload="auto"
         className="splash-video"
         onEnded={onComplete}
-        onCanPlay={handleCanPlay}
+        onCanPlayThrough={handleCanPlayThrough}
+        onTimeUpdate={handleTimeUpdate}
+        onStalled={handleStalled}
+        onWaiting={handleWaiting}
         onError={handleVideoError}
         src={videoBlobUrl}
       />
