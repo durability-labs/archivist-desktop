@@ -3173,6 +3173,19 @@ if (isTauri && isLinux) {
 - `gstreamer1.0-plugins-ugly`
 - `gstreamer1.0-libav`
 
+#### README.md Updates
+
+- **Added Alpha/Pilot Program Disclaimer**: Prominent warning at top of README about data loss risks
+- **Updated Tech Stack**: Converted to table format, updated versions (Node.js 20+, pnpm v10+, Rust 1.77.2+)
+- **Expanded Features List**: Added Guided Onboarding, Backup Server, Sound Notifications
+- **Updated Architecture Diagram**: Reflects new navigation (Backups, Restore, Devices) and Backup Daemon
+- **Expanded Project Structure**: Added all new components, hooks, pages, and services
+- **Added Configuration Tables**: Node Configuration and Backup Server Configuration with defaults
+- **Improved Network Setup**: Converted to table format for clarity
+- **Added Key Features Table**: Includes n:1 Fan-In and Content Deduplication
+- **Added Troubleshooting Section**: Common issues table and log file locations
+- **Added Resources Section**: Links to repositories and CLAUDE.md
+
 ---
 
 ### v0.1.2
