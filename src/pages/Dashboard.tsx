@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useNode, NodeState, NodeStatus } from '../hooks/useNode';
 import { useSync, SyncState } from '../hooks/useSync';
+import { usePeers } from '../hooks/usePeers';
 import { invoke } from '@tauri-apps/api/core';
 import NextSteps from '../components/NextSteps';
 
@@ -34,6 +35,7 @@ interface BasicViewProps {
   copied: string | null;
   copyToClipboard: (text: string, label: string) => Promise<void>;
   getShareableAddress: (addresses: string[], publicIp?: string) => string | null;
+  connectedPeerCount: number;
 }
 
 interface AdvancedViewProps extends BasicViewProps {
@@ -68,6 +70,10 @@ function Dashboard() {
     isTransitioning,
   } = useNode();
   const { syncState } = useSync();
+  const { peerList } = usePeers();
+
+  // Get actual connected peer count from usePeers hook (more accurate than status.peerCount)
+  const connectedPeerCount = peerList.peers.filter(p => p.connected).length;
 
   useEffect(() => {
     localStorage.setItem('dashboardViewMode', viewMode);
@@ -216,6 +222,7 @@ function Dashboard() {
           copied={copied}
           copyToClipboard={copyToClipboard}
           getShareableAddress={getShareableAddress}
+          connectedPeerCount={connectedPeerCount}
         />
       ) : (
         <AdvancedView
@@ -236,6 +243,7 @@ function Dashboard() {
           copied={copied}
           copyToClipboard={copyToClipboard}
           getShareableAddress={getShareableAddress}
+          connectedPeerCount={connectedPeerCount}
           showDiagnostics={showDiagnostics}
           setShowDiagnostics={setShowDiagnostics}
           diagnostics={diagnostics}
@@ -274,9 +282,9 @@ function getLastBackupTime(syncState: SyncState): string | null {
 }
 
 // Basic View - Simple, focused on essential controls
-function BasicView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, copied, copyToClipboard, getShareableAddress }: BasicViewProps) {
+function BasicView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, copied, copyToClipboard, getShareableAddress, connectedPeerCount }: BasicViewProps) {
   const hasBackupFolders = syncState.folders.length > 0;
-  const hasConnectedPeers = status.peerCount > 0;
+  const hasConnectedPeers = connectedPeerCount > 0;
   const lastBackupTime = getLastBackupTime(syncState);
 
   return (
@@ -315,6 +323,31 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
         </div>
       </div>
 
+      {/* Quick Stats - positioned below Status Hero */}
+      <div className="quick-stats">
+        <Link to="/devices" className="quick-stat-card clickable">
+          <div className="quick-stat-icon">👥</div>
+          <div className="quick-stat-content">
+            <div className="quick-stat-value">{connectedPeerCount}</div>
+            <div className="quick-stat-label">Connected Peers</div>
+          </div>
+        </Link>
+        <div className="quick-stat-card">
+          <div className="quick-stat-icon">💾</div>
+          <div className="quick-stat-content">
+            <div className="quick-stat-value">{formatBytes(status.storageUsedBytes)}</div>
+            <div className="quick-stat-label">Storage Used</div>
+          </div>
+        </div>
+        <Link to="/sync" className="quick-stat-card clickable">
+          <div className="quick-stat-icon">🕐</div>
+          <div className="quick-stat-content">
+            <div className="quick-stat-value">{formatRelativeTime(lastBackupTime)}</div>
+            <div className="quick-stat-label">Last Backup</div>
+          </div>
+        </Link>
+      </div>
+
       {/* Connection Info (when running) */}
       {isRunning && status.peerId && status.addresses.length > 0 && (
         <div className="connection-card">
@@ -344,31 +377,6 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
         />
       )}
 
-      {/* Quick Stats */}
-      <div className="quick-stats">
-        <div className="quick-stat-card">
-          <div className="quick-stat-icon">👥</div>
-          <div className="quick-stat-content">
-            <div className="quick-stat-value">{status.peerCount}</div>
-            <div className="quick-stat-label">Connected Peers</div>
-          </div>
-        </div>
-        <div className="quick-stat-card">
-          <div className="quick-stat-icon">💾</div>
-          <div className="quick-stat-content">
-            <div className="quick-stat-value">{formatBytes(status.storageUsedBytes)}</div>
-            <div className="quick-stat-label">Storage Used</div>
-          </div>
-        </div>
-        <Link to="/sync" className="quick-stat-card clickable">
-          <div className="quick-stat-icon">🕐</div>
-          <div className="quick-stat-content">
-            <div className="quick-stat-value">{formatRelativeTime(lastBackupTime)}</div>
-            <div className="quick-stat-label">Last Backup</div>
-          </div>
-        </Link>
-      </div>
-
       {/* Recent Activity (when available) */}
       {syncState.recentUploads.length > 0 && (
         <div className="recent-activity-card">
@@ -388,7 +396,7 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
 }
 
 // Advanced View - Full detailed information
-function AdvancedView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, copied, copyToClipboard, getShareableAddress, showDiagnostics, setShowDiagnostics, diagnostics, runningDiagnostics, runDiagnostics }: AdvancedViewProps) {
+function AdvancedView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, copied, copyToClipboard, getShareableAddress, connectedPeerCount, showDiagnostics, setShowDiagnostics, diagnostics, runningDiagnostics, runDiagnostics }: AdvancedViewProps) {
   return (
     <div className="advanced-view">
       <div className="stats-grid">
@@ -432,7 +440,7 @@ function AdvancedView({ status, loading, isRunning, isStopped, isError, isTransi
 
         <div className="stat-card">
           <h3>Connected Peers</h3>
-          <div className="big-number">{status.peerCount}</div>
+          <div className="big-number">{connectedPeerCount}</div>
           <p>Active connections</p>
         </div>
 
@@ -623,11 +631,11 @@ function AdvancedView({ status, loading, isRunning, isStopped, isError, isTransi
                       {diagnostics.apiReachable && diagnostics.addressCount === 0 && (
                         <li>No network addresses found. Check firewall and network configuration.</li>
                       )}
-                      {diagnostics.apiReachable && diagnostics.addressCount > 0 && status.peerCount === 0 && (
-                        <li>Node is reachable but no peers connected. Share your SPR on the Peers page.</li>
+                      {diagnostics.apiReachable && diagnostics.addressCount > 0 && connectedPeerCount === 0 && (
+                        <li>Node is reachable but no peers connected. Share your SPR on the Devices page.</li>
                       )}
-                      {diagnostics.apiReachable && status.peerCount > 0 && (
-                        <li>✓ Everything looks good! You have {status.peerCount} connected peer{status.peerCount !== 1 ? 's' : ''}.</li>
+                      {diagnostics.apiReachable && connectedPeerCount > 0 && (
+                        <li>✓ Everything looks good! You have {connectedPeerCount} connected peer{connectedPeerCount !== 1 ? 's' : ''}.</li>
                       )}
                     </ul>
                   </div>
