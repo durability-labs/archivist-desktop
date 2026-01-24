@@ -3109,8 +3109,33 @@ Video playback failed in bundled builds (release/debug) but worked in dev mode. 
 
 - **Primary section**: Dashboard, Backups (renamed from Sync), Restore (renamed from Files)
 - **Devices section**: My Devices, Add Device (new pages)
-- **Advanced section**: Collapsible accordion containing Peers, Logs, Backup Server, Settings
+- **Advanced section**: Collapsible accordion containing Logs, Backup Server, Settings
+- **Peers page removed**: Functionality consolidated into Devices page (route kept at `/peers` for backwards compatibility)
 - **New files**: [src/pages/Devices.tsx](src/pages/Devices.tsx), [src/pages/AddDevice.tsx](src/pages/AddDevice.tsx), [src/components/NavAccordion.tsx](src/components/NavAccordion.tsx)
+
+#### Peers → Devices Consolidation
+
+The Peers page was redundant with the Devices page - both used the same `usePeers()` hook and `connectPeer()` function. The consolidation merged all peer management into the Devices page.
+
+**Features added to Devices page**:
+- **Disconnect button**: Disconnect from connected peers
+- **Saved Devices section**: Shows offline/disconnected peers with Reconnect and Remove buttons
+- **Latency display**: Shows ping time for connected peers
+- **Refresh button**: Manually refresh peer list
+
+**NavLink fix**: Added `end` prop to "My Devices" NavLink to prevent both "My Devices" and "Add Device" from highlighting when on `/devices/add`.
+
+**Files changed**:
+- [src/pages/Devices.tsx](src/pages/Devices.tsx) - Added peer management actions
+- [src/styles/Devices.css](src/styles/Devices.css) - Added styles for new elements
+- [src/App.tsx](src/App.tsx) - Removed Peers from nav, added `end` prop
+
+#### Backups Page Description Update
+
+Updated "How Sync Works" to "How Backups Work" with accurate description of the manifest-based backup workflow:
+- Changed terminology from "sync" to "backup"
+- Replaced passive P2P sharing description with manifest-based backup explanation
+- Added pointer to Settings → Backup Server for configuration
 
 #### Dashboard Enhancement
 
