@@ -3180,11 +3180,30 @@ Updated "How Sync Works" to "How Backups Work" with accurate description of the 
 
 #### Dashboard Enhancement
 
-- **Card Layout Order** (BasicView): Status Hero → Share Your Connection → Next Steps → Quick Stats → Recent Activity
+- **Card Layout Order** (BasicView): Status Hero → Quick Stats → Share Your Connection → Next Steps → Recent Activity
 - **NextSteps panel**: Post-onboarding guidance cards (Add backup folder, Connect a peer)
-- **Quick Stats**: Connected Peers, Storage Used, Last Backup (clickable)
+- **Quick Stats**: Connected Peers (clickable → Devices), Storage Used, Last Backup (clickable → Backups)
 - **Recent Activity**: Shows last 3 uploaded files
 - **Files**: [src/components/NextSteps.tsx](src/components/NextSteps.tsx), [src/styles/NextSteps.css](src/styles/NextSteps.css)
+
+#### Dashboard Peer Count Fix
+
+**Problem**: Connected Peers on Dashboard always showed 0, even when peers were connected and visible on the Devices page.
+
+**Root Cause**: The `status.peerCount` from `useNode` hook was never populated by the backend - the `/debug/info` API endpoint doesn't include peer count. The peer data is retrieved via a separate `get_peers` command used by the `usePeers` hook.
+
+**Solution**: Import `usePeers` hook in Dashboard and calculate the connected peer count directly:
+```typescript
+const { peerList } = usePeers();
+const connectedPeerCount = peerList.peers.filter(p => p.connected).length;
+```
+
+**Changes**:
+- Added `usePeers` import to [src/pages/Dashboard.tsx](src/pages/Dashboard.tsx)
+- Added `connectedPeerCount` prop to `BasicViewProps` and `AdvancedViewProps`
+- Updated BasicView and AdvancedView to use actual peer count
+- Fixed `hasConnectedPeers` check for NextSteps panel
+- Made Connected Peers stat clickable (navigates to `/devices`)
 
 #### Linux Video Playback (Known Limitation)
 

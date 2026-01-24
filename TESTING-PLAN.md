@@ -62,6 +62,51 @@ Machine B should now automatically receive manifests without needing to click "B
 
 ---
 
+### Issue: P2P Connection Fails Between Internet-Separated Machines
+
+**Status:** ✅ RESOLVED - Reverse Connection Works
+
+**Problem:** Machine B's backup daemon can reach Machine A's manifest server (HTTP on port 8085) and receives the manifest list correctly. However, when the daemon tries to download the manifest/files via P2P, the libp2p connection fails with "Unable to dial peer".
+
+**Symptoms:**
+```
+[17:30:56][backup_daemon][INFO] Connecting to source peer 16Uiu2HAmG88f62k... at /ip4/99.74.3.238/tcp/8070/p2p/16Uiu2HAmG88f62k...
+[17:30:56][node_api][INFO] Sending GET request to: http://127.0.0.1:8080/api/archivist/v1/connect/16Uiu2HAmG88f62k...
+[17:30:56][archivist-node] Received error response from handler status=400 restError="Unable to dial peer"
+[17:30:56][backup_daemon][WARN] Failed to connect to peer... (will try download anyway)
+[17:30:56][backup_daemon][INFO] Manifest not in local storage, fetching from network
+[17:30:57][archivist-node] WRN No key for a QueryResponse
+```
+
+**Key Finding:** TCP port 8070 IS reachable (`nc -zv 99.74.3.238 8070` succeeds), but libp2p protocol negotiation fails. The archivist-node returns "Unable to dial peer" error.
+
+**Root Cause Analysis:**
+1. Both nodes only announce LAN addresses (192.168.x.x), not public IPs
+2. NAT traversal (UPnP) may not be working properly
+3. Libp2p requires both sides to be reachable or use a relay
+
+**Potential Solutions:**
+1. **Try reverse connection** - Have Machine A connect to Machine B's multiaddr first
+2. **Configure announce addresses** - Add public IP to announce addresses in settings
+3. **Use relay/bootstrap** - Connect both nodes to a public bootstrap node first
+4. **Check Windows Firewall** - Ensure Windows allows inbound on TCP 8070
+
+**Resolution (2026-01-24 12:39 EST):**
+Machine A successfully connected to Machine B using the reverse direction:
+1. Machine A → Peers page → Connected to `/ip4/174.80.132.129/tcp/8070/p2p/16Uiu2HAmPVCGtzHq8TYvD9AYA6Mf5K9KqobPKWRJUNHU59PGTfCj`
+2. P2P connection established bidirectionally
+3. Backup daemon on Machine B successfully processed manifest `zDvZRwzmBAzu...`
+4. All 16 files (25.8 MB) downloaded from Machine A to Machine B
+
+**Files Backed Up:**
+- Wallpaper images: `illustration-anime-city.jpg`, `Wallpaper_-_37.jpg`, `anime-moon-landscape.jpg`, `thumb-1920-1195443.jpg`
+- Test files: `manifest-trigger-1.txt` through `manifest-trigger-11.txt`
+- `welcome.txt` from quickstart folder
+
+**Lesson Learned:** When NAT traversal fails in one direction, try the reverse direction. The machine with more permissive NAT/firewall should initiate the connection.
+
+---
+
 ## Current Machine Connection Info
 
 ### Machine A (Windows) - VERIFIED ✅
