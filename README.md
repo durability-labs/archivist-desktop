@@ -244,20 +244,31 @@ archivist-desktop/
 
 ## Network Setup
 
-The application uses **two separate ports** for P2P networking:
+The application uses multiple ports for P2P networking and backup functionality:
 
-| Port | Protocol | Purpose |
-|------|----------|---------|
-| 8090 | UDP | Discovery via DHT/mDNS |
-| 8070 | TCP | P2P connections and file transfers |
+| Port | Protocol | Purpose | Required On |
+|------|----------|---------|-------------|
+| 8070 | TCP | P2P connections and file transfers | Both machines |
+| 8090 | UDP | Discovery via DHT/mDNS | Both machines |
+| 8085 | TCP | Manifest server (backup source) | Source machine only |
+| 8086 | TCP | Backup trigger endpoint | Backup server only |
 
-You must open **both ports** in your firewall for full P2P functionality.
+**Minimum required**: Open ports 8070 (TCP) and 8090 (UDP) for basic P2P functionality.
+
+**For backup system**: Also open 8085 on the source machine and 8086 on the backup server.
 
 ### Linux (UFW)
 
 ```bash
-sudo ufw allow 8090/udp  # Discovery
+# Required for P2P
 sudo ufw allow 8070/tcp  # P2P connections
+sudo ufw allow 8090/udp  # Discovery
+
+# For backup source (Machine A)
+sudo ufw allow 8085/tcp  # Manifest server
+
+# For backup server (Machine B)
+sudo ufw allow 8086/tcp  # Backup trigger
 ```
 
 ### macOS
@@ -267,8 +278,15 @@ The firewall will prompt you to allow connections when the app first runs. Click
 ### Windows (PowerShell as Administrator)
 
 ```powershell
-netsh advfirewall firewall add rule name="Archivist Discovery" dir=in action=allow protocol=udp localport=8090
+# Required for P2P
 netsh advfirewall firewall add rule name="Archivist P2P" dir=in action=allow protocol=tcp localport=8070
+netsh advfirewall firewall add rule name="Archivist Discovery" dir=in action=allow protocol=udp localport=8090
+
+# For backup source (Machine A)
+netsh advfirewall firewall add rule name="Archivist Manifest Server" dir=in action=allow protocol=tcp localport=8085
+
+# For backup server (Machine B)
+netsh advfirewall firewall add rule name="Archivist Backup Trigger" dir=in action=allow protocol=tcp localport=8086
 ```
 
 If you change the ports in Settings → Advanced, update your firewall rules accordingly.
@@ -495,18 +513,19 @@ auto_delete_tombstones = true    # Process file deletions
 
 For cross-network backup (Machine A → Internet → Machine B):
 
-1. **Machine B (Backup Server)** must have port forwarding configured:
-   - Forward external port 8070 (TCP) → Machine B's local IP:8070
-   - This allows Machine A to connect and send data
+1. **Machine A (Source)** port forwarding:
+   - Forward external port 8070 (TCP) → Machine A's local IP:8070 (P2P)
+   - Forward external port 8085 (TCP) → Machine A's local IP:8085 (Manifest server)
 
-2. **Firewall rules on Machine B**:
-   - Allow incoming TCP on port 8070 (P2P connections)
-   - Allow incoming UDP on port 8090 (discovery)
+2. **Machine B (Backup Server)** port forwarding:
+   - Forward external port 8070 (TCP) → Machine B's local IP:8070 (P2P)
+   - Forward external port 8086 (TCP) → Machine B's local IP:8086 (Backup trigger, optional)
 
-3. **Connection verification**:
-   - Machine A should connect to Machine B using the backup peer SPR
-   - Check Peers page on both machines to confirm connection
-   - Connected peers should show in Dashboard statistics
+3. **Firewall rules**:
+   - **Machine A**: Allow TCP 8070, 8085 and UDP 8090
+   - **Machine B**: Allow TCP 8070, 8086 and UDP 8090
+
+4. **Connection tip**: If NAT traversal fails in one direction, try connecting from the other machine first. The machine with more permissive NAT/firewall should initiate the P2P connection.
 
 ## Troubleshooting
 
