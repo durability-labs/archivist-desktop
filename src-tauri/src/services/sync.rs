@@ -1,5 +1,6 @@
 use crate::error::{ArchivistError, Result};
 use crate::node_api::NodeApiClient;
+use crate::services::manifest_server::{ManifestInfo, ManifestRegistry};
 use chrono::{DateTime, Utc};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
@@ -135,6 +136,8 @@ pub struct SyncService {
     /// NEW: Manifest update threshold (generate new manifest after N changes)
     #[allow(dead_code)]
     manifest_update_threshold: u32,
+    /// Manifest registry for auto-registering manifests
+    manifest_registry: Option<Arc<RwLock<ManifestRegistry>>>,
 }
 
 /// Internal sync events
@@ -161,6 +164,26 @@ impl SyncService {
             deleted_files: HashMap::new(),
             changes_since_manifest: HashMap::new(),
             manifest_update_threshold: 10, // Default: 10 changes
+            manifest_registry: None,
+        }
+    }
+
+    /// Create a new SyncService with a manifest registry for auto-registration
+    pub fn with_manifest_registry(manifest_registry: Arc<RwLock<ManifestRegistry>>) -> Self {
+        Self {
+            folders: HashMap::new(),
+            upload_queue: Vec::new(),
+            recent_uploads: Vec::new(),
+            is_syncing: false,
+            watcher: None,
+            event_tx: None,
+            api_client: NodeApiClient::new(8080),
+            synced_files: HashSet::new(),
+            file_cid_mappings: HashMap::new(),
+            deleted_files: HashMap::new(),
+            changes_since_manifest: HashMap::new(),
+            manifest_update_threshold: 10, // Default: 10 changes
+            manifest_registry: Some(manifest_registry),
         }
     }
 
@@ -456,8 +479,28 @@ impl SyncService {
                             folder_id,
                             manifest_cid
                         );
-                        // Note: Backup notification will be handled by backup service
-                        // based on manifest_cid and pending_retry flags
+
+                        // Register manifest with the discovery server's registry
+                        if let Some(registry) = &self.manifest_registry {
+                            if let Some(folder) = self.folders.get(&folder_id) {
+                                let manifest_info = ManifestInfo {
+                                    folder_id: folder_id.clone(),
+                                    folder_path: folder.path.clone(),
+                                    manifest_cid: manifest_cid.clone(),
+                                    sequence_number: folder.manifest_sequence,
+                                    updated_at: Utc::now().to_rfc3339(),
+                                    file_count: folder.file_count,
+                                    total_size_bytes: folder.total_size_bytes,
+                                };
+                                let mut reg = registry.write().await;
+                                reg.register_manifest(manifest_info);
+                                log::info!(
+                                    "Auto-registered manifest {} for folder {}",
+                                    manifest_cid,
+                                    folder_id
+                                );
+                            }
+                        }
                     }
                     Err(e) => {
                         log::error!(

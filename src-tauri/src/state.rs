@@ -64,6 +64,9 @@ impl AppState {
         // Create manifest registry (shared between sync service and manifest server)
         let manifest_registry = Arc::new(RwLock::new(ManifestRegistry::new()));
 
+        // Create sync service with manifest registry for auto-registration
+        let sync_service = SyncService::with_manifest_registry(manifest_registry.clone());
+
         // Create manifest server with config from settings
         let mut allowed_ips = std::collections::HashSet::new();
         for ip_str in &app_config.manifest_server.allowed_ips {
@@ -90,7 +93,7 @@ impl AppState {
         Self {
             node: Arc::new(RwLock::new(NodeService::with_config(node_config))),
             files: Arc::new(RwLock::new(FileService::new())),
-            sync: Arc::new(RwLock::new(SyncService::new())),
+            sync: Arc::new(RwLock::new(sync_service)),
             peers,
             config: Arc::new(RwLock::new(config_service)),
             backup: Arc::new(RwLock::new(backup_service)),
