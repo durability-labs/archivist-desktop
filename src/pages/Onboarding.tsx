@@ -3,23 +3,9 @@ import { useNode } from '../hooks/useNode';
 import { useSync } from '../hooks/useSync';
 import { useOnboarding, OnboardingStep } from '../hooks/useOnboarding';
 import { open } from '@tauri-apps/plugin-dialog';
+import { resolveResource } from '@tauri-apps/api/path';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import '../styles/Onboarding.css';
-
-// Load video as blob URL to work around Tauri asset protocol issues in release builds
-async function loadVideoAsBlob(paths: string[]): Promise<string | null> {
-  for (const path of paths) {
-    try {
-      const response = await fetch(path);
-      if (response.ok) {
-        const blob = await response.blob();
-        return URL.createObjectURL(blob);
-      }
-    } catch (e) {
-      console.log(`Failed to load video from ${path}:`, e);
-    }
-  }
-  return null;
-}
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -149,7 +135,16 @@ function Onboarding({ onComplete, onSkip }: OnboardingProps) {
     try {
       const path = await createQuickstartFolder();
       setQuickBackupPath(path);
-      await addWatchFolder(path);
+      try {
+        await addWatchFolder(path);
+      } catch (watchErr) {
+        // If folder is already being watched, that's fine - proceed anyway
+        const errMsg = watchErr instanceof Error ? watchErr.message : String(watchErr);
+        if (!errMsg.includes('already being watched')) {
+          throw watchErr;
+        }
+        // Folder already watched - just continue to syncing
+      }
       setStep('syncing');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -269,60 +264,61 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
-  const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
-  const blobUrlRef = useRef<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const lastProgressTime = useRef<number>(0);
   const stallCheckInterval = useRef<number | null>(null);
 
-  // Load video on mount
-  // Note: In production builds on Linux, WebKitGTK has codec issues with blob URLs
-  // so we use CSS fallback for production builds to ensure reliable UX
+  // Determine if we should attempt video or use CSS fallback directly
   useEffect(() => {
     let cancelled = false;
 
-    const loadVideo = async () => {
-      // In production builds, skip video and use CSS fallback (more reliable on Linux)
-      // Video works in dev mode where Vite serves files directly
-      if (import.meta.env.PROD) {
-        console.log('SplashScreen: Production build detected, using CSS fallback for reliability');
+    const loadVideoResource = async () => {
+      const isTauri = !!(window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+
+      // Detect platform - Linux with WebKitGTK has unreliable video playback
+      const isLinux = navigator.userAgent.toLowerCase().includes('linux');
+
+      if (isTauri && isLinux) {
+        // On Linux, WebKitGTK video playback is unreliable even with GStreamer
+        // Use CSS fallback directly for a better, faster experience
+        console.log('SplashScreen: Linux detected, using CSS fallback (WebKitGTK video limitation)');
         setShowFallback(true);
         return;
       }
 
-      // Dev mode: try to load video
-      const videoPaths = [
-        `${import.meta.env.BASE_URL}intro.webm`,
-        '/intro.webm',
-        `${import.meta.env.BASE_URL}intro.mp4`,
-        '/intro.mp4',
-      ];
-
-      const blobUrl = await loadVideoAsBlob(videoPaths);
-
-      if (cancelled) {
-        if (blobUrl) URL.revokeObjectURL(blobUrl);
+      if (!isTauri) {
+        // Dev mode - use standard path
+        setVideoUrl('/intro.webm');
         return;
       }
 
-      if (blobUrl) {
-        console.log('SplashScreen: Video loaded as blob URL');
-        blobUrlRef.current = blobUrl;
-        setVideoBlobUrl(blobUrl);
-      } else {
-        console.log('SplashScreen: Failed to load video, showing CSS fallback');
-        setShowFallback(true);
+      // Windows/macOS - try video playback
+      try {
+        const webmPath = await resolveResource('intro.webm');
+        const webmUrl = convertFileSrc(webmPath);
+        console.log('SplashScreen: Video URL:', webmUrl);
+
+        if (!cancelled) {
+          setVideoUrl(webmUrl);
+        }
+      } catch (error) {
+        console.error('SplashScreen: Failed to resolve video:', error);
+        if (!cancelled) {
+          setVideoUrl('/intro.webm');
+        }
       }
     };
 
-    loadVideo();
+    loadVideoResource();
 
     return () => {
       cancelled = true;
-      // Clean up blob URL on unmount
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-      }
-      // Clean up stall check interval
+    };
+  }, []);
+
+  // Clean up stall check interval on unmount
+  useEffect(() => {
+    return () => {
       if (stallCheckInterval.current) {
         clearInterval(stallCheckInterval.current);
       }
@@ -352,8 +348,16 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
   }, []);
 
   // Handle video error - show CSS fallback animation
-  const handleVideoError = useCallback(() => {
-    console.log('SplashScreen: Video playback error, showing CSS animation fallback');
+  const handleVideoError = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    const error = video.error;
+    console.log('SplashScreen: Video playback error:', {
+      code: error?.code,
+      message: error?.message,
+      networkState: video.networkState,
+      readyState: video.readyState,
+      currentSrc: video.currentSrc,
+    });
     setShowFallback(true);
   }, []);
 
@@ -389,14 +393,15 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     }
   }, [showFallback, onComplete]);
 
-  // Timeout: if video hasn't loaded after 5 seconds, show fallback
+  // Timeout: if video hasn't loaded after 2 seconds, show fallback
+  // Reduced from 5s since Linux/WebKitGTK often can't play video
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (!videoLoaded && !showFallback) {
-        console.log('SplashScreen: Video load timeout, showing fallback');
+        console.log('SplashScreen: Video load timeout (2s), showing fallback');
         setShowFallback(true);
       }
-    }, 5000);
+    }, 2000);
     return () => clearTimeout(timeout);
   }, [videoLoaded, showFallback]);
 
@@ -406,16 +411,27 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
       <div className="splash-screen splash-fallback">
         <div className="splash-fallback-content">
           <div className="splash-logo-animated">
-            <svg viewBox="0 0 24 24" width="120" height="120" className="splash-icon">
-              <path
-                d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="splash-icon-path"
-              />
+            <svg viewBox="0 0 400 400" width="120" height="120" className="splash-icon">
+              <g transform="translate(0,400) scale(0.1,-0.1)" fill="currentColor" stroke="none">
+                <path d="M1750 3254 c-135 -79 -371 -217 -525 -305 -154 -89 -310 -180 -348
+                  -201 l-67 -40 2 -691 3 -690 280 -165 c154 -90 294 -172 310 -182 55 -31 499
+                  -292 548 -321 26 -16 49 -29 52 -29 2 0 60 33 127 73 68 41 245 145 393 232
+                  149 87 359 210 467 274 l197 116 1 665 c0 366 3 675 6 687 7 25 25 12 -246
+                  170 -91 52 -277 161 -415 241 -393 228 -538 312 -539 311 -1 0 -111 -66 -246
+                  -145z m308 -306 c22 -40 113 -215 202 -388 89 -173 197 -380 240 -460 146
+                  -274 300 -579 300 -594 0 -29 -17 -24 -106 28 -484 288 -687 406 -698 406 -7
+                  0 -187 -102 -400 -226 -213 -124 -391 -223 -394 -219 -6 6 64 150 151 310 23
+                  44 83 157 131 250 49 94 123 235 166 315 42 80 112 213 155 295 43 83 90 173
+                  105 200 15 28 39 74 54 103 14 28 33 52 40 52 8 0 32 -33 54 -72z"/>
+                <g transform="translate(1988,2200) scale(0.75) translate(-1988,-2200)">
+                  <path d="M1890 2712 c-62 -119 -168 -320 -235 -447 -67 -126 -153 -288 -190
+                    -360 -38 -71 -88 -166 -112 -209 -24 -43 -42 -80 -40 -82 1 -2 79 42 172 98
+                    395 234 485 287 503 292 13 5 118 -53 353 -195 184 -110 340 -205 347 -211 6
+                    -6 12 -7 12 -4 0 7 -86 171 -120 231 -10 17 -57 107 -105 200 -49 94 -114 217
+                    -144 275 -31 58 -114 220 -185 360 -71 140 -132 258 -135 262 -4 5 -58 -90
+                    -121 -210z"/>
+                </g>
+              </g>
             </svg>
           </div>
           <h1 className="splash-title">Archivist</h1>
@@ -428,22 +444,33 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     );
   }
 
-  // Show loading state while fetching video blob
-  if (!videoBlobUrl) {
+  // Show loading state while resolving video URL
+  if (!videoUrl) {
     return (
       <div className="splash-screen splash-fallback">
         <div className="splash-fallback-content">
           <div className="splash-logo-animated">
-            <svg viewBox="0 0 24 24" width="120" height="120" className="splash-icon">
-              <path
-                d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="splash-icon-path"
-              />
+            <svg viewBox="0 0 400 400" width="120" height="120" className="splash-icon">
+              <g transform="translate(0,400) scale(0.1,-0.1)" fill="currentColor" stroke="none">
+                <path d="M1750 3254 c-135 -79 -371 -217 -525 -305 -154 -89 -310 -180 -348
+                  -201 l-67 -40 2 -691 3 -690 280 -165 c154 -90 294 -172 310 -182 55 -31 499
+                  -292 548 -321 26 -16 49 -29 52 -29 2 0 60 33 127 73 68 41 245 145 393 232
+                  149 87 359 210 467 274 l197 116 1 665 c0 366 3 675 6 687 7 25 25 12 -246
+                  170 -91 52 -277 161 -415 241 -393 228 -538 312 -539 311 -1 0 -111 -66 -246
+                  -145z m308 -306 c22 -40 113 -215 202 -388 89 -173 197 -380 240 -460 146
+                  -274 300 -579 300 -594 0 -29 -17 -24 -106 28 -484 288 -687 406 -698 406 -7
+                  0 -187 -102 -400 -226 -213 -124 -391 -223 -394 -219 -6 6 64 150 151 310 23
+                  44 83 157 131 250 49 94 123 235 166 315 42 80 112 213 155 295 43 83 90 173
+                  105 200 15 28 39 74 54 103 14 28 33 52 40 52 8 0 32 -33 54 -72z"/>
+                <g transform="translate(1988,2200) scale(0.75) translate(-1988,-2200)">
+                  <path d="M1890 2712 c-62 -119 -168 -320 -235 -447 -67 -126 -153 -288 -190
+                    -360 -38 -71 -88 -166 -112 -209 -24 -43 -42 -80 -40 -82 1 -2 79 42 172 98
+                    395 234 485 287 503 292 13 5 118 -53 353 -195 184 -110 340 -205 347 -211 6
+                    -6 12 -7 12 -4 0 7 -86 171 -120 231 -10 17 -57 107 -105 200 -49 94 -114 217
+                    -144 275 -31 58 -114 220 -185 360 -71 140 -132 258 -135 262 -4 5 -58 -90
+                    -121 -210z"/>
+                </g>
+              </g>
             </svg>
           </div>
         </div>
@@ -451,6 +478,7 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     );
   }
 
+  // Render video from resolved resource URL
   return (
     <div className="splash-screen">
       <video
@@ -466,7 +494,7 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
         onStalled={handleStalled}
         onWaiting={handleWaiting}
         onError={handleVideoError}
-        src={videoBlobUrl}
+        src={videoUrl}
       />
       <button className="splash-skip" onClick={onSkip}>
         Skip
@@ -485,8 +513,27 @@ function WelcomeScreen({ onGetStarted, onSkip }: WelcomeScreenProps) {
   return (
     <div className="onboarding-screen welcome-screen">
       <div className="welcome-icon">
-        <svg viewBox="0 0 24 24" width="64" height="64">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <svg viewBox="0 0 400 400" width="64" height="64">
+          <g transform="translate(0,400) scale(0.1,-0.1)" fill="currentColor" stroke="none">
+            <path d="M1750 3254 c-135 -79 -371 -217 -525 -305 -154 -89 -310 -180 -348
+              -201 l-67 -40 2 -691 3 -690 280 -165 c154 -90 294 -172 310 -182 55 -31 499
+              -292 548 -321 26 -16 49 -29 52 -29 2 0 60 33 127 73 68 41 245 145 393 232
+              149 87 359 210 467 274 l197 116 1 665 c0 366 3 675 6 687 7 25 25 12 -246
+              170 -91 52 -277 161 -415 241 -393 228 -538 312 -539 311 -1 0 -111 -66 -246
+              -145z m308 -306 c22 -40 113 -215 202 -388 89 -173 197 -380 240 -460 146
+              -274 300 -579 300 -594 0 -29 -17 -24 -106 28 -484 288 -687 406 -698 406 -7
+              0 -187 -102 -400 -226 -213 -124 -391 -223 -394 -219 -6 6 64 150 151 310 23
+              44 83 157 131 250 49 94 123 235 166 315 42 80 112 213 155 295 43 83 90 173
+              105 200 15 28 39 74 54 103 14 28 33 52 40 52 8 0 32 -33 54 -72z"/>
+            <g transform="translate(1988,2200) scale(0.75) translate(-1988,-2200)">
+              <path d="M1890 2712 c-62 -119 -168 -320 -235 -447 -67 -126 -153 -288 -190
+                -360 -38 -71 -88 -166 -112 -209 -24 -43 -42 -80 -40 -82 1 -2 79 42 172 98
+                395 234 485 287 503 292 13 5 118 -53 353 -195 184 -110 340 -205 347 -211 6
+                -6 12 -7 12 -4 0 7 -86 171 -120 231 -10 17 -57 107 -105 200 -49 94 -114 217
+                -144 275 -31 58 -114 220 -185 360 -71 140 -132 258 -135 262 -4 5 -58 -90
+                -121 -210z"/>
+            </g>
+          </g>
         </svg>
       </div>
       <h1>Welcome to Archivist</h1>

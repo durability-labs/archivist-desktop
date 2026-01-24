@@ -2439,54 +2439,57 @@ The application includes a guided onboarding flow for first-time users, designed
 
 #### Video Splash with CSS Fallback
 
-The splash screen attempts to play a branding video (`intro.webm` / `intro.mp4`) and falls back to a CSS-animated splash if video playback fails.
+The splash screen shows a branding video on Windows/macOS, or a CSS-animated splash on Linux (due to WebKitGTK limitations).
 
-**Video Format Priority:**
-1. WebM (VP9 codec) - Better native support across platforms
-2. MP4 (H.264 codec) - Fallback for older browsers
+**Platform-Specific Behavior:**
+- **Linux**: Immediately shows CSS fallback (WebKitGTK video playback is unreliable)
+- **Windows**: Video plays via WebView2 (built-in codecs)
+- **macOS**: Video plays via Safari WebView (built-in codecs)
 
-**CSS Fallback Triggers:**
-- Video error (codec not supported)
-- Video load timeout (2 seconds)
+**Video Files** (bundled as Tauri resources):
+- `src-tauri/resources/intro.webm` - VP8 codec, 1.7MB (primary)
+- `src-tauri/resources/intro.mp4` - H.264 codec, 34MB (fallback)
 
 **CSS Fallback Animation:**
-- Gradient dark background (#0a0a0a → #1a1a2e → #16213e)
-- Rotating/pulsing logo with glow effect
+- Terminal aesthetic dark background with phosphor green accents
+- Breathing scale animation with intensifying glow effect
 - Animated title slide-up with tagline
 - 3-second duration before auto-advance
 
-**Platform Behavior:**
-- **Windows/macOS**: Video typically plays (WebView2/Safari have built-in codecs)
-- **Linux**: Usually shows CSS fallback (WebKitGTK requires GStreamer for video codecs)
+**CSS Fallback Triggers:**
+- Linux platform detected (immediate)
+- Video error on other platforms
+- Video load timeout (2 seconds) on other platforms
 
 **Implementation:**
 
 ```typescript
-// Video attempt with fallback
+// Platform detection with immediate Linux fallback
 function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
-  const [videoLoaded, setVideoLoaded] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
-  // Timeout: if video hasn't loaded after 2 seconds, show fallback
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (!videoLoaded && !showFallback) {
-        setShowFallback(true);
-      }
-    }, 2000);
-    return () => clearTimeout(timeout);
-  }, [videoLoaded, showFallback]);
+    const isTauri = !!window.__TAURI_INTERNALS__;
+    const isLinux = navigator.userAgent.toLowerCase().includes('linux');
 
-  if (showFallback) {
-    return <CSSAnimatedSplash onComplete={onComplete} />;
-  }
+    if (isTauri && isLinux) {
+      // Linux: Use CSS fallback directly (WebKitGTK video is unreliable)
+      setShowFallback(true);
+      return;
+    }
 
-  return (
-    <video autoPlay muted playsInline onEnded={onComplete} onError={() => setShowFallback(true)}>
-      <source src="/intro.webm" type="video/webm" />
-      <source src="/intro.mp4" type="video/mp4" />
-    </video>
-  );
+    // Windows/macOS: Load video from Tauri resources
+    const loadVideo = async () => {
+      const webmPath = await resolveResource('intro.webm');
+      setVideoUrl(convertFileSrc(webmPath));
+    };
+    loadVideo();
+  }, []);
+
+  if (showFallback) return <CSSAnimatedSplash onComplete={onComplete} />;
+
+  return <video src={videoUrl} autoPlay muted playsInline onEnded={onComplete} />;
 }
 ```
 
@@ -2494,13 +2497,24 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
 
 ```css
 .splash-fallback {
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+  background: var(--terminal-bg);
 }
 
 .splash-icon {
-  color: #6366f1;
-  filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.5));
-  animation: splashPulse 2s ease-in-out infinite, splashRotate 8s linear infinite;
+  color: var(--phosphor);
+  filter: drop-shadow(0 0 20px var(--phosphor-glow));
+  animation: splashBreathe 3s ease-in-out infinite;
+}
+
+@keyframes splashBreathe {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 20px var(--phosphor-glow));
+  }
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 40px rgba(0, 255, 65, 0.7));
+  }
 }
 
 .splash-title {
@@ -2509,13 +2523,49 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
 }
 ```
 
+**Welcome Screen Animation:**
+
+The welcome screen uses a glow-intensity breathing animation (not opacity-based) to avoid visual artifacts:
+
+```css
+.welcome-screen .welcome-icon svg {
+  filter: drop-shadow(0 0 15px var(--phosphor-glow));
+  animation: welcomeGlow 3s ease-in-out infinite;
+}
+
+@keyframes welcomeGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 15px var(--phosphor-glow));
+  }
+  50% {
+    filter: drop-shadow(0 0 30px rgba(0, 255, 65, 0.6));
+  }
+}
+```
+
 #### Quickstart Folder
 
 When user selects "Quick Backup", the app:
 1. Creates `~/Documents/Archivist Quickstart/` folder
 2. Adds a `welcome.txt` sample file
-3. Adds folder to watch list
+3. Adds folder to watch list (gracefully handles if already watched)
 4. Shows sync progress with CID
+
+**Graceful Error Handling:**
+
+If the quickstart folder is already being watched (e.g., user re-runs onboarding), the error is silently ignored and the flow continues:
+
+```typescript
+try {
+  await addWatchFolder(path);
+} catch (watchErr) {
+  const errMsg = watchErr instanceof Error ? watchErr.message : String(watchErr);
+  if (!errMsg.includes('already being watched')) {
+    throw watchErr; // Re-throw non-duplicate errors
+  }
+  // Folder already watched - just continue to syncing
+}
+```
 
 **Backend Command** ([src-tauri/src/commands/sync.rs](src-tauri/src/commands/sync.rs)):
 
@@ -2548,6 +2598,42 @@ export function useOnboarding() {
 }
 ```
 
+#### Post-Onboarding Navigation
+
+After completing onboarding, users are redirected to the Dashboard. This uses a localStorage flag to communicate across Router context switches:
+
+**Files:** [src/App.tsx](src/App.tsx)
+
+```typescript
+const REDIRECT_AFTER_ONBOARDING_KEY = 'archivist_redirect_to_dashboard';
+
+// Component inside main Router that handles redirect
+function OnboardingRedirect() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const shouldRedirect = localStorage.getItem(REDIRECT_AFTER_ONBOARDING_KEY);
+    if (shouldRedirect === 'true') {
+      localStorage.removeItem(REDIRECT_AFTER_ONBOARDING_KEY);
+      if (location.pathname !== '/') {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [navigate, location.pathname]);
+
+  return null;
+}
+
+// Wrapper functions set the flag before completing onboarding
+const handleCompleteOnboarding = () => {
+  localStorage.setItem(REDIRECT_AFTER_ONBOARDING_KEY, 'true');
+  completeOnboarding();
+};
+```
+
+**Why localStorage?** The app switches between two separate Router contexts (onboarding vs main app), so React Router's navigation hooks can't be used directly. The localStorage flag persists across the context switch.
+
 #### Reset Onboarding
 
 Users can reset onboarding via Settings → Developer → "Reset Onboarding". This clears the `onboarding_complete` flag and reloads the app.
@@ -2559,8 +2645,9 @@ Users can reset onboarding via Settings → Developer → "Reset Onboarding". Th
 | [src/pages/Onboarding.tsx](src/pages/Onboarding.tsx) | Main onboarding component with all screens |
 | [src/hooks/useOnboarding.ts](src/hooks/useOnboarding.ts) | Onboarding state management hook |
 | [src/styles/Onboarding.css](src/styles/Onboarding.css) | Onboarding styles including CSS fallback animation |
-| [public/intro.webm](public/intro.webm) | Branding video (WebM/VP9, 7.3MB) |
-| [public/intro.mp4](public/intro.mp4) | Branding video (MP4/H.264, 33MB) |
+| [src/App.tsx](src/App.tsx) | OnboardingRedirect component for post-onboarding navigation |
+| [src-tauri/resources/intro.webm](src-tauri/resources/intro.webm) | Branding video (WebM/VP8, 1.7MB) |
+| [src-tauri/resources/intro.mp4](src-tauri/resources/intro.mp4) | Branding video (MP4/H.264, 34MB) |
 
 ---
 
@@ -2980,13 +3067,25 @@ Major UI/UX overhaul focused on simplifying the first-run experience.
 
 #### Video Splash with CSS Fallback
 
-- **Video formats**: WebM (VP9, 7.3MB) primary, MP4 (H.264, 33MB) fallback
-- **CSS fallback**: Animated logo with gradient background when video fails
+- **Video formats**: WebM (VP8, 1.7MB) primary, MP4 (H.264, 34MB) fallback
+- **CSS fallback**: Terminal aesthetic with breathing scale animation and phosphor green glow
+- **Welcome screen**: Glow-intensity breathing animation (avoids opacity-based visual artifacts)
 - **Platform handling**:
   - Windows/macOS: Video plays (built-in codecs)
-  - Linux: Video plays if GStreamer plugins installed, CSS fallback otherwise
-- **Timeout**: 2 seconds before showing CSS fallback
-- **Files**: [public/intro.webm](public/intro.webm), [public/intro.mp4](public/intro.mp4)
+  - Linux: CSS fallback immediately (WebKitGTK video unreliable)
+- **Timeout**: 2 seconds before showing CSS fallback (Windows/macOS only)
+- **Files**: [src-tauri/resources/intro.webm](src-tauri/resources/intro.webm), [src-tauri/resources/intro.mp4](src-tauri/resources/intro.mp4)
+
+#### Post-Onboarding Navigation
+
+- **Fix**: After onboarding completes, user is now redirected to Dashboard (was incorrectly going to Settings)
+- **Implementation**: Uses localStorage flag to communicate across Router context switches
+- **Component**: `OnboardingRedirect` in [src/App.tsx](src/App.tsx) handles the redirect inside the main Router
+
+#### Graceful Error Handling
+
+- **Quick Backup**: If quickstart folder is already being watched, error is silently ignored and flow continues
+- **Use case**: Users re-running onboarding after reset don't see duplicate folder errors
 
 #### CSP Fix for Bundled Video Playback
 
@@ -3015,56 +3114,64 @@ Video playback failed in bundled builds (release/debug) but worked in dev mode. 
 
 #### Dashboard Enhancement
 
+- **Card Layout Order** (BasicView): Status Hero → Share Your Connection → Next Steps → Quick Stats → Recent Activity
 - **NextSteps panel**: Post-onboarding guidance cards (Add backup folder, Connect a peer)
 - **Quick Stats**: Connected Peers, Storage Used, Last Backup (clickable)
 - **Recent Activity**: Shows last 3 uploaded files
 - **Files**: [src/components/NextSteps.tsx](src/components/NextSteps.tsx), [src/styles/NextSteps.css](src/styles/NextSteps.css)
 
-#### Linux Video Playback (Fixed)
+#### Linux Video Playback (Known Limitation)
 
-**Problem**: Video splash didn't play in release builds on Linux, even with GStreamer installed and correct CSP.
+**Problem**: Video splash doesn't play in release builds on Linux with WebKitGTK, even with GStreamer plugins installed and correct CSP configuration.
 
-**Root Causes Identified**:
-1. **CSP blocking blob/data URLs**: WebKitGTK converts bundled media to blob/data URLs internally
-2. **Asset protocol difference**: Tauri's asset protocol behaves differently in debug vs release builds
-3. **Missing GStreamer codecs**: WebKitGTK requires GStreamer plugins for video decode
+**Approaches Tried** (none worked on Linux):
+1. **Standard paths** (`/intro.webm`) - Video fails to load
+2. **Asset protocol URLs** (`https://asset.localhost/intro.webm`) - Video fails to load
+3. **Tauri resources** with `resolveResource()` + `convertFileSrc()` - Video fails to load
+4. **Blob URL loading** via `fetch()` - Video starts but gets stuck partway
+5. **VP8 codec** instead of VP9 - Same behavior
+6. **CSP fixes** - Added `blob: data:` to `media-src` - Didn't help
 
-**Solutions Applied**:
-1. **CSP Fix**: Added `blob: data:` to `media-src` directive
-2. **Blob URL Loading**: Load video via `fetch()` API and create blob URL (bypass asset protocol)
-3. **GStreamer dependencies**: Added to .deb package for codec support
-4. **CSS fallback**: Triggers if video fails (e.g., no GStreamer on minimal installs)
+**Root Cause**: WebKitGTK's video playback is fundamentally unreliable in Tauri applications on Linux. Even with:
+- All GStreamer plugins installed (`gstreamer1.0-plugins-base/good/bad/ugly`, `gstreamer1.0-libav`)
+- Correct CSP configuration
+- Multiple URL patterns and codec formats
 
-**Blob URL Fix** (the key fix for release builds):
+The video either fails to load entirely or gets stuck during playback.
+
+**Solution**: Platform detection with immediate CSS fallback on Linux.
+
 ```typescript
 // In src/pages/Onboarding.tsx
-async function loadVideoAsBlob(paths: string[]): Promise<string | null> {
-  for (const path of paths) {
-    const response = await fetch(path);
-    if (response.ok) {
-      const blob = await response.blob();
-      return URL.createObjectURL(blob);
-    }
-  }
-  return null;
+const isLinux = navigator.userAgent.toLowerCase().includes('linux');
+
+if (isTauri && isLinux) {
+  // On Linux, WebKitGTK video playback is unreliable
+  // Use CSS fallback directly for a better, faster experience
+  console.log('SplashScreen: Linux detected, using CSS fallback');
+  setShowFallback(true);
+  return;
 }
 ```
 
-This approach:
-- Uses `fetch()` which works consistently in both debug and release builds
-- Creates a blob URL which is allowed by CSP (`blob:` in `media-src`)
-- Bypasses Tauri's asset protocol entirely for video loading
-
-**Required GStreamer packages** (for video to play on Linux):
-- `gstreamer1.0-plugins-bad` (VP9/WebM)
-- `gstreamer1.0-libav` (H.264/MP4)
-
 **Current behavior**:
-- Dev mode: Video plays ✓
-- Debug build: Video plays ✓
-- Release build: Video plays ✓ (via blob URL)
-- Minimal Linux without GStreamer: CSS fallback animation
-- Windows/macOS: Video plays (built-in codecs)
+| Platform | Splash Screen |
+|----------|--------------|
+| **Linux** | CSS animated fallback (immediate) |
+| **Windows** | Video playback via WebView2 |
+| **macOS** | Video playback via Safari WebView |
+| **Dev mode** | Video playback via Vite dev server |
+
+**Video files bundled** (for Windows/macOS):
+- `src-tauri/resources/intro.webm` - VP8 codec, 1.7MB
+- `src-tauri/resources/intro.mp4` - H.264 codec, 34MB
+
+**GStreamer packages** (still included in .deb for other media features):
+- `gstreamer1.0-plugins-base`
+- `gstreamer1.0-plugins-good`
+- `gstreamer1.0-plugins-bad`
+- `gstreamer1.0-plugins-ugly`
+- `gstreamer1.0-libav`
 
 ---
 

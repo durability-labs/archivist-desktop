@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.95);
+  background-color: var(--term-black);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -45,8 +45,8 @@
 .intro-video {
   max-width: 100%;
   max-height: 70vh;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 30px var(--phosphor-glow);
   outline: none;
 }
 
@@ -60,33 +60,36 @@
   padding: 0.75rem 2rem;
   font-size: 1.1rem;
   font-weight: 600;
-  border: none;
-  border-radius: 8px;
+  border: 1px solid var(--ui-green);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--duration-normal) var(--ease-out);
   min-width: 150px;
+  font-family: var(--font-mono);
 }
 
 .intro-modal-actions .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  background: var(--ui-green);
+  color: var(--term-black);
+  border-color: var(--ui-green);
 }
 
 .intro-modal-actions .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+  background: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 20px var(--phosphor-glow);
 }
 
 .intro-modal-actions .btn-secondary {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: var(--term-text);
+  border: 1px solid var(--term-border);
 }
 
 .intro-modal-actions .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .intro-modal-actions button:active {

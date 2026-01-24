@@ -315,6 +315,27 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
         </div>
       </div>
 
+      {/* Connection Info (when running) */}
+      {isRunning && status.peerId && status.addresses.length > 0 && (
+        <div className="connection-card">
+          <h3>Share Your Connection</h3>
+          <p className="connection-hint">Copy this address to share with other nodes</p>
+          {getShareableAddress(status.addresses, status.publicIp) && (
+            <div className="connection-field">
+              <code className="connection-addr">
+                {getShareableAddress(status.addresses, status.publicIp)}/p2p/{status.peerId}
+              </code>
+              <button
+                className="btn-copy"
+                onClick={() => copyToClipboard(`${getShareableAddress(status.addresses, status.publicIp)}/p2p/${status.peerId}`, 'multiaddr')}
+              >
+                {copied === 'multiaddr' ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Next Steps Panel (for post-onboarding guidance) */}
       {isRunning && (
         <NextSteps
@@ -347,27 +368,6 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
           </div>
         </Link>
       </div>
-
-      {/* Connection Info (when running) */}
-      {isRunning && status.peerId && status.addresses.length > 0 && (
-        <div className="connection-card">
-          <h3>Share Your Connection</h3>
-          <p className="connection-hint">Copy this address to share with other nodes</p>
-          {getShareableAddress(status.addresses, status.publicIp) && (
-            <div className="connection-field">
-              <code className="connection-addr">
-                {getShareableAddress(status.addresses, status.publicIp)}/p2p/{status.peerId}
-              </code>
-              <button
-                className="btn-copy"
-                onClick={() => copyToClipboard(`${getShareableAddress(status.addresses, status.publicIp)}/p2p/${status.peerId}`, 'multiaddr')}
-              >
-                {copied === 'multiaddr' ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Recent Activity (when available) */}
       {syncState.recentUploads.length > 0 && (

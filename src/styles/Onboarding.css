@@ -44,24 +44,27 @@
   position: absolute;
   bottom: var(--spacing-xl);
   right: var(--spacing-xl);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.7);
-  border: none;
+  background: transparent;
+  color: var(--term-text-dim);
+  border: 1px solid var(--term-border);
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 0.875rem;
-  transition: all 0.2s ease;
+  font-family: var(--font-mono);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .splash-skip:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
+  background: transparent;
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
-/* Fallback animated splash (when video fails) */
+/* Fallback animated splash (when video fails) - Terminal aesthetic */
 .splash-fallback {
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+  background: radial-gradient(ellipse at center, var(--term-dark) 0%, var(--term-black) 70%);
 }
 
 .splash-fallback-content {
@@ -88,26 +91,20 @@
 }
 
 .splash-icon {
-  color: #6366f1;
-  filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.5));
-  animation: splashPulse 2s ease-in-out infinite, splashRotate 8s linear infinite;
+  color: var(--phosphor);
+  filter: drop-shadow(0 0 20px var(--phosphor-glow));
+  animation: splashBreathe 3s ease-in-out infinite;
 }
 
-@keyframes splashPulse {
+/* Breathing Scale - subtle scale with intensifying glow */
+@keyframes splashBreathe {
   0%, 100% {
-    filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.5));
+    transform: scale(1);
+    filter: drop-shadow(0 0 20px var(--phosphor-glow));
   }
   50% {
-    filter: drop-shadow(0 0 50px rgba(99, 102, 241, 0.8));
-  }
-}
-
-@keyframes splashRotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 40px rgba(0, 255, 65, 0.7));
   }
 }
 
@@ -126,17 +123,20 @@
 .splash-title {
   font-size: 3rem;
   font-weight: 700;
-  color: white;
+  color: var(--phosphor);
   margin: 0 0 0.5rem 0;
   letter-spacing: -0.02em;
   animation: splashSlideUp 0.6s ease-out 0.3s both;
+  text-shadow: 0 0 20px var(--phosphor-glow);
+  font-family: var(--font-mono);
 }
 
 .splash-tagline {
   font-size: 1.25rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--term-text);
   margin: 0;
   animation: splashSlideUp 0.6s ease-out 0.5s both;
+  font-family: var(--font-mono);
 }
 
 @keyframes splashSlideUp {
@@ -194,34 +194,37 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--color-border);
+  background-color: var(--term-border);
   transition: all 0.3s ease;
 }
 
 .step-dot.active {
-  background-color: var(--color-primary);
+  background-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .step-dot.completed {
-  background-color: var(--color-success);
+  background-color: var(--phosphor);
 }
 
 /* Welcome screen */
 .welcome-screen .welcome-icon {
   margin-bottom: var(--spacing-lg);
-  color: var(--color-primary);
+  color: var(--phosphor);
 }
 
 .welcome-screen .welcome-icon svg {
-  animation: pulse 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 15px var(--phosphor-glow));
+  animation: welcomeGlow 3s ease-in-out infinite;
 }
 
-@keyframes pulse {
+/* Glow Breathe - subtle glow intensity change without opacity flicker */
+@keyframes welcomeGlow {
   0%, 100% {
-    opacity: 1;
+    filter: drop-shadow(0 0 15px var(--phosphor-glow));
   }
   50% {
-    opacity: 0.6;
+    filter: drop-shadow(0 0 30px rgba(0, 255, 65, 0.6));
   }
 }
 
@@ -245,25 +248,28 @@
   align-items: center;
 }
 
-/* Button styles */
+/* Button styles - Terminal aesthetic */
 .btn-primary {
-  background-color: var(--color-primary);
-  color: white;
-  border: none;
+  background-color: var(--ui-green);
+  color: var(--term-black);
+  border: 1px solid var(--ui-green);
   padding: var(--spacing-sm) var(--spacing-lg);
   border-radius: var(--radius-md);
   font-size: 1rem;
   font-weight: 500;
+  font-family: var(--font-mono);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .btn-primary:hover {
-  background-color: var(--color-primary-dark);
+  background-color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 15px var(--phosphor-glow);
 }
 
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -275,14 +281,16 @@
 .btn-text {
   background: none;
   border: none;
-  color: var(--color-text-muted);
+  color: var(--term-text-dim);
   padding: var(--spacing-sm);
   cursor: pointer;
-  transition: color 0.15s ease;
+  font-family: var(--font-mono);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .btn-text:hover {
-  color: var(--color-text-secondary);
+  color: var(--phosphor);
+  text-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 /* Node starting screen */
@@ -299,10 +307,11 @@
 .status-icon.loading .spinner {
   width: 48px;
   height: 48px;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border: 3px solid var(--term-border);
+  border-top-color: var(--phosphor);
   border-radius: 50%;
   animation: spin 1s linear infinite;
+  box-shadow: 0 0 15px var(--phosphor-glow);
 }
 
 @keyframes spin {
@@ -312,7 +321,8 @@
 }
 
 .status-icon.ready {
-  color: var(--color-success);
+  color: var(--phosphor);
+  filter: drop-shadow(0 0 15px var(--phosphor-glow));
 }
 
 .status-icon.error {
@@ -336,8 +346,9 @@
 
 .progress-bar-fill {
   height: 100%;
-  background-color: var(--color-primary);
+  background: linear-gradient(90deg, var(--ui-green) 0%, var(--phosphor) 100%);
   transition: width 0.3s ease;
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .progress-bar-fill.indeterminate {
@@ -371,31 +382,38 @@
   align-items: center;
   gap: var(--spacing-md);
   padding: var(--spacing-lg);
-  background-color: var(--color-bg-secondary);
-  border: 2px solid var(--color-border);
+  background-color: var(--term-dark);
+  border: 2px solid var(--term-border);
   border-radius: var(--radius-lg);
   cursor: pointer;
   text-align: left;
-  transition: all 0.15s ease;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .folder-option:hover {
-  border-color: var(--color-primary);
-  background-color: var(--color-bg-tertiary);
+  border-color: var(--phosphor);
+  background-color: var(--term-panel);
+  box-shadow: 0 0 15px var(--phosphor-glow);
 }
 
 .folder-option:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .folder-option.recommended {
-  border-color: var(--color-primary);
+  border-color: var(--ui-green);
 }
 
 .folder-option-icon {
   flex-shrink: 0;
-  color: var(--color-primary);
+  color: var(--ui-green);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.folder-option:hover .folder-option-icon {
+  color: var(--phosphor);
+  filter: drop-shadow(0 0 8px var(--phosphor-glow));
 }
 
 .folder-option-content {
@@ -419,10 +437,11 @@
   display: inline-block;
   margin-top: var(--spacing-xs);
   padding: 2px 8px;
-  background-color: var(--color-primary);
-  color: white;
+  background-color: var(--ui-green);
+  color: var(--term-black);
   font-size: 0.75rem;
   font-weight: 500;
+  font-family: var(--font-mono);
   border-radius: var(--radius-sm);
   width: fit-content;
 }
@@ -430,8 +449,8 @@
 .mini-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border: 2px solid var(--term-border);
+  border-top-color: var(--phosphor);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   flex-shrink: 0;
@@ -439,12 +458,13 @@
 
 /* Syncing screen */
 .syncing-folder-path {
-  color: var(--color-text-muted);
-  font-family: monospace;
+  color: var(--ui-green);
+  font-family: var(--font-mono);
   font-size: 0.875rem;
   margin-bottom: var(--spacing-xl);
   padding: var(--spacing-sm) var(--spacing-md);
-  background-color: var(--color-bg-secondary);
+  background-color: var(--term-panel);
+  border: 1px solid var(--term-border);
   border-radius: var(--radius-md);
   display: inline-block;
 }
@@ -476,7 +496,8 @@
 }
 
 .timeline-step.completed:not(:last-child)::after {
-  background-color: var(--color-success);
+  background-color: var(--phosphor);
+  box-shadow: 0 0 6px var(--phosphor-glow);
 }
 
 .timeline-dot {
@@ -494,14 +515,15 @@
 }
 
 .timeline-step.active .timeline-dot {
-  border-color: var(--color-primary);
-  background-color: var(--color-bg-secondary);
+  border-color: var(--phosphor);
+  background-color: var(--term-dark);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .timeline-step.completed .timeline-dot {
-  border-color: var(--color-success);
-  background-color: var(--color-success);
-  color: white;
+  border-color: var(--phosphor);
+  background-color: var(--phosphor);
+  color: var(--term-black);
 }
 
 .timeline-dot .dot-inner {
@@ -512,7 +534,8 @@
 }
 
 .timeline-step.active .timeline-dot .dot-inner {
-  background-color: var(--color-primary);
+  background-color: var(--phosphor);
+  box-shadow: 0 0 6px var(--phosphor-glow);
 }
 
 .timeline-dot .mini-spinner {
@@ -532,7 +555,8 @@
 }
 
 .timeline-step.completed .timeline-label {
-  color: var(--color-success);
+  color: var(--phosphor);
+  text-shadow: 0 0 6px var(--phosphor-glow);
 }
 
 /* Sync complete */
@@ -541,8 +565,9 @@
 }
 
 .sync-complete-message .success-icon {
-  color: var(--color-success);
+  color: var(--phosphor);
   margin-bottom: var(--spacing-md);
+  filter: drop-shadow(0 0 15px var(--phosphor-glow));
 }
 
 .sync-complete-message p {
@@ -553,7 +578,8 @@
 .first-cid {
   margin-bottom: var(--spacing-lg);
   padding: var(--spacing-md);
-  background-color: var(--color-bg-secondary);
+  background-color: var(--term-panel);
+  border: 1px solid var(--term-border);
   border-radius: var(--radius-md);
   display: inline-block;
 }
@@ -566,10 +592,11 @@
 }
 
 .cid-value {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.875rem;
-  color: var(--color-primary);
+  color: var(--phosphor);
   word-break: break-all;
+  text-shadow: 0 0 6px var(--phosphor-glow);
 }
 
 /* Error state */

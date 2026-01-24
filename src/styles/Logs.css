@@ -21,10 +21,10 @@
 }
 
 .log-path {
-  color: var(--text-secondary);
+  color: var(--term-text-dim);
   font-size: 0.875rem;
   margin: 0.25rem 0 0 0;
-  font-family: monospace;
+  font-family: var(--font-mono);
 }
 
 .logs-controls {
@@ -48,35 +48,33 @@
 
 .control-item select {
   padding: 0.375rem 0.75rem;
-  border: 1px solid #ccc !important;
-  border-radius: 0.375rem;
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  border: 1px solid var(--term-border);
+  border-radius: var(--radius-md);
+  background-color: var(--term-dark);
+  color: var(--term-text);
   font-size: 0.875rem;
+  font-family: var(--font-mono);
   cursor: pointer;
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.control-item select:hover {
+  border-color: var(--ui-green);
+}
+
+.control-item select:focus {
+  border-color: var(--phosphor);
+  outline: none;
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .control-item select option {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--term-dark);
+  color: var(--term-text);
   padding: 0.5rem;
-}
-
-/* Force proper contrast in dark mode */
-@media (prefers-color-scheme: dark) {
-  .control-item select {
-    background-color: #2d2d2d !important;
-    color: #ffffff !important;
-    border-color: #555 !important;
-  }
-
-  .control-item select option {
-    background-color: #2d2d2d !important;
-    color: #ffffff !important;
-  }
 }
 
 .control-item input[type="checkbox"] {
@@ -85,66 +83,74 @@
 
 .btn-secondary {
   padding: 0.5rem 1rem;
-  background: var(--secondary-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 0.375rem;
-  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid var(--ui-green);
+  border-radius: var(--radius-md);
+  color: var(--ui-green);
   cursor: pointer;
   font-size: 0.875rem;
-  transition: all 0.2s;
+  font-family: var(--font-mono);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--secondary-hover);
+  background: transparent;
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .btn-secondary:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .btn-danger {
   padding: 0.5rem 1rem;
-  background: var(--danger-bg);
-  border: 1px solid var(--danger-border);
-  border-radius: 0.375rem;
-  color: white;
+  background: transparent;
+  border: 1px solid var(--error-dim);
+  border-radius: var(--radius-md);
+  color: var(--error-dim);
   cursor: pointer;
   font-size: 0.875rem;
-  transition: all 0.2s;
+  font-family: var(--font-mono);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: var(--danger-hover);
+  background: transparent;
+  color: var(--error);
+  border-color: var(--error);
+  box-shadow: 0 0 10px var(--error-glow);
 }
 
 .btn-danger:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .error-message {
   padding: 1rem;
-  background: #fee;
-  border: 1px solid #fcc;
-  border-radius: 0.375rem;
-  color: #c00;
+  background: var(--error-dark);
+  border: 1px solid var(--error-dim);
+  border-radius: var(--radius-md);
+  color: var(--error);
 }
 
 .loading {
   text-align: center;
   padding: 2rem;
-  color: var(--text-secondary);
+  color: var(--term-text-dim);
 }
 
 .logs-viewer {
   flex: 1;
   overflow-y: auto;
-  background: var(--code-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
+  background: var(--term-black);
+  border: 1px solid var(--term-border);
+  border-radius: var(--radius-md);
   padding: 1rem;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: var(--font-mono);
   font-size: 0.875rem;
   line-height: 1.5;
 }
@@ -152,22 +158,22 @@
 .empty-logs {
   text-align: center;
   padding: 3rem;
-  color: var(--text-secondary);
+  color: var(--term-text-dim);
 }
 
 .log-line {
   display: flex;
   gap: 1rem;
   padding: 0.125rem 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid var(--term-border);
 }
 
 .log-line:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--term-panel);
 }
 
 .log-line-number {
-  color: var(--text-secondary);
+  color: var(--term-text-dim);
   min-width: 3rem;
   text-align: right;
   user-select: none;
@@ -178,22 +184,10 @@
   flex: 1;
   word-break: break-all;
   white-space: pre-wrap;
+  color: var(--term-text);
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .logs-viewer {
-    background: #1e1e1e;
-  }
-
-  .log-line {
-    border-bottom-color: rgba(255, 255, 255, 0.05);
-  }
-
-  .log-line:hover {
-    background: rgba(255, 255, 255, 0.05);
-  }
-}
+/* Terminal styling is always dark - no media query needed */
 
 /* Scrollbar styling */
 .logs-viewer::-webkit-scrollbar {
@@ -205,10 +199,10 @@
 }
 
 .logs-viewer::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+  background: var(--term-border);
   border-radius: 4px;
 }
 
 .logs-viewer::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  background: var(--ui-green);
 }

@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useFeatures } from './hooks/useFeatures';
 import { useSoundNotifications } from './hooks/useSoundNotifications';
 import { useOnboarding } from './hooks/useOnboarding';
@@ -16,10 +17,43 @@ import AddDevice from './pages/AddDevice';
 import logoSvg from './assets/logo.svg';
 import './styles/App.css';
 
+const REDIRECT_AFTER_ONBOARDING_KEY = 'archivist_redirect_to_dashboard';
+
+// Component that handles redirect after onboarding (must be inside Router)
+function OnboardingRedirect() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const shouldRedirect = localStorage.getItem(REDIRECT_AFTER_ONBOARDING_KEY);
+    if (shouldRedirect === 'true') {
+      localStorage.removeItem(REDIRECT_AFTER_ONBOARDING_KEY);
+      // Only redirect if not already on dashboard
+      if (location.pathname !== '/') {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [navigate, location.pathname]);
+
+  return null;
+}
+
 function App() {
   const { marketplaceEnabled } = useFeatures();
   useSoundNotifications(); // Enable sound notifications globally
   const { showOnboarding, loading, completeOnboarding, skipOnboarding } = useOnboarding();
+
+  // Wrapper for completeOnboarding that sets redirect flag
+  const handleCompleteOnboarding = () => {
+    localStorage.setItem(REDIRECT_AFTER_ONBOARDING_KEY, 'true');
+    completeOnboarding();
+  };
+
+  // Wrapper for skipOnboarding that sets redirect flag
+  const handleSkipOnboarding = () => {
+    localStorage.setItem(REDIRECT_AFTER_ONBOARDING_KEY, 'true');
+    skipOnboarding();
+  };
 
   // Show loading state while checking onboarding status
   if (loading) {
@@ -34,13 +68,14 @@ function App() {
   if (showOnboarding) {
     return (
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Onboarding onComplete={completeOnboarding} onSkip={skipOnboarding} />
+        <Onboarding onComplete={handleCompleteOnboarding} onSkip={handleSkipOnboarding} />
       </Router>
     );
   }
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <OnboardingRedirect />
       <div className="app">
         <aside className="sidebar">
           <div className="logo">

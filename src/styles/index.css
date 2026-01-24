@@ -1,39 +1,140 @@
+/**
+ * Archivist Design Tokens
+ * Terminal Aesthetic v1.0
+ */
+
 :root {
-  /* Archivist brand colors */
-  --color-primary: #6366f1;
-  --color-primary-dark: #4f46e5;
-  --color-secondary: #10b981;
-  --color-accent: #f59e0b;
+  /* ============================================
+   * BACKGROUND COLORS
+   * Deep blacks with green tint
+   * ============================================ */
+  --term-black: #010302;        /* Primary background */
+  --term-dark: #0a0f0c;         /* Secondary background */
+  --term-panel: #0f1a14;        /* Card/panel background */
+  --term-border: #1a2f22;       /* Borders and dividers */
+  --term-muted: #2a4a38;        /* Disabled/muted elements */
 
-  /* Neutral colors */
-  --color-bg: #0f0f0f;
-  --color-bg-secondary: #1a1a1a;
-  --color-bg-tertiary: #262626;
-  --color-text: #f5f5f5;
-  --color-text-secondary: #a3a3a3;
-  --color-text-muted: #737373;
-  --color-border: #333333;
+  /* ============================================
+   * GREEN HIERARCHY (Dim → Bright)
+   * Icons/buttons dim by default, bright on hover
+   * ============================================ */
 
-  /* Status colors */
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
+  /* UI Green (Dim) - DEFAULT for icons, buttons, borders */
+  --ui-green: #4a7a5a;
+  --ui-green-light: #5a9a6a;
 
-  /* Spacing */
-  --spacing-xs: 0.25rem;
-  --spacing-sm: 0.5rem;
-  --spacing-md: 1rem;
-  --spacing-lg: 1.5rem;
-  --spacing-xl: 2rem;
+  /* Phosphor (Bright) - for headlines, CTAs, active states */
+  --phosphor: #00ff41;
+  --phosphor-dim: #00cc34;
+  --phosphor-bright: #33ff66;
+  --phosphor-glow: rgba(0, 255, 65, 0.5);
 
-  /* Border radius */
+  /* ============================================
+   * SEMANTIC COLORS (Dim → Bright on Hover)
+   * ============================================ */
+
+  /* Success - uses phosphor green */
+  --color-success: #00ff41;
+  --success-dim: #4a7a5a;
+
+  /* Warning/Amber */
+  --amber-dim: #8a6a2a;         /* Default state */
+  --color-warning: #ffaa00;     /* Hover/active state */
+  --amber-dark: #332200;        /* Background tint */
+  --amber-glow: rgba(255, 170, 0, 0.5);
+
+  /* Error/Destructive */
+  --error-dim: #8a3a3a;         /* Default state */
+  --color-error: #ff4444;       /* Hover/active state */
+  --error-dark: #331111;        /* Background tint */
+  --error-glow: rgba(255, 68, 68, 0.5);
+
+  /* Info */
+  --color-info: #4a9a9a;
+
+  /* ============================================
+   * TEXT COLORS
+   * ============================================ */
+  --term-text: #88aa99;         /* Body text */
+  --term-text-bright: #c0e0d0;  /* Headlines, emphasis */
+  --term-text-dim: #4a6a58;     /* Captions, disabled */
+
+  /* ============================================
+   * LEGACY COLOR MAPPINGS
+   * Map old variable names to new terminal aesthetic
+   * ============================================ */
+  --color-primary: #00ff41;
+  --color-primary-dark: #00cc34;
+  --color-secondary: #4a7a5a;
+  --color-accent: #ffaa00;
+
+  /* Background mappings */
+  --color-bg: #010302;
+  --color-bg-secondary: #0a0f0c;
+  --color-bg-tertiary: #0f1a14;
+
+  /* Text mappings */
+  --color-text: #c0e0d0;
+  --color-text-secondary: #88aa99;
+  --color-text-muted: #4a6a58;
+
+  /* Border mapping */
+  --color-border: #1a2f22;
+
+  /* ============================================
+   * SPACING SCALE
+   * Based on 4px grid
+   * ============================================ */
+  --spacing-xs: 0.25rem;   /* 4px */
+  --spacing-sm: 0.5rem;    /* 8px */
+  --spacing-md: 1rem;      /* 16px */
+  --spacing-lg: 1.5rem;    /* 24px */
+  --spacing-xl: 2rem;      /* 32px */
+
+  /* ============================================
+   * TYPOGRAPHY
+   * ============================================ */
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --font-sans: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+
+  /* Font Sizes */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.875rem;    /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px */
+
+  /* ============================================
+   * BORDERS & RADIUS
+   * ============================================ */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-full: 9999px;
 
-  /* Fonts */
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  /* ============================================
+   * SHADOWS & GLOWS
+   * ============================================ */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px var(--phosphor-glow);
+  --shadow-glow-amber: 0 0 20px var(--amber-glow);
+  --shadow-glow-error: 0 0 20px var(--error-glow);
+
+  /* ============================================
+   * TRANSITIONS
+   * ============================================ */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Apply fonts */
+  font-family: var(--font-mono);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -58,33 +159,74 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Scrollbar styling */
+/* Scrollbar styling - terminal aesthetic */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-bg-secondary);
+  background: var(--term-dark);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: var(--term-border);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
+  background: var(--ui-green);
 }
 
-/* Selection */
+/* Selection - phosphor green */
 ::selection {
-  background: var(--color-primary);
-  color: white;
+  background: var(--phosphor);
+  color: var(--term-black);
 }
 
-/* Focus styles */
+/* Focus styles - phosphor glow */
 :focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--phosphor);
   outline-offset: 2px;
+}
+
+/* ============================================
+ * ICON STATE UTILITIES
+ * ============================================ */
+.icon-default {
+  color: var(--ui-green);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.icon-default:hover {
+  color: var(--phosphor);
+  filter: drop-shadow(0 0 6px var(--phosphor-glow));
+}
+
+.icon-amber {
+  color: var(--amber-dim);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.icon-amber:hover {
+  color: var(--color-warning);
+  filter: drop-shadow(0 0 6px var(--amber-glow));
+}
+
+.icon-error {
+  color: var(--error-dim);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.icon-error:hover {
+  color: var(--color-error);
+  filter: drop-shadow(0 0 6px var(--error-glow));
+}
+
+/* ============================================
+ * GLOW EFFECTS
+ * ============================================ */
+.glow-text {
+  text-shadow: 0 0 10px var(--phosphor), 0 0 20px var(--phosphor-glow);
+}
+
+.glow-box {
+  box-shadow: var(--shadow-glow);
 }

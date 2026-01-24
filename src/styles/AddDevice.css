@@ -30,15 +30,17 @@
 
 .wizard-icon {
   margin-bottom: var(--spacing-lg);
-  color: var(--color-primary);
+  color: var(--ui-green);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .wizard-icon.success {
-  color: var(--color-success);
+  color: var(--phosphor);
+  filter: drop-shadow(0 0 15px var(--phosphor-glow));
 }
 
 .wizard-icon.error {
-  color: var(--color-error);
+  color: var(--error);
 }
 
 .wizard-icon.connecting {
@@ -49,10 +51,11 @@
 .wizard-icon .spinner {
   width: 48px;
   height: 48px;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border: 3px solid var(--term-border);
+  border-top-color: var(--phosphor);
   border-radius: 50%;
   animation: spin 1s linear infinite;
+  box-shadow: 0 0 15px var(--phosphor-glow);
 }
 
 @keyframes spin {
@@ -65,11 +68,11 @@
   font-size: 1.5rem;
   font-weight: 600;
   margin-bottom: var(--spacing-md);
-  color: var(--color-text);
+  color: var(--term-text-bright);
 }
 
 .wizard-description {
-  color: var(--color-text-secondary);
+  color: var(--term-text);
   margin-bottom: var(--spacing-xl);
   line-height: 1.6;
 }
@@ -84,48 +87,51 @@
   display: block;
   font-weight: 500;
   margin-bottom: var(--spacing-sm);
-  color: var(--color-text);
+  color: var(--term-text-bright);
 }
 
 .input-section textarea {
   width: 100%;
   padding: var(--spacing-md);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--term-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text);
-  font-family: monospace;
+  background-color: var(--term-dark);
+  color: var(--term-text);
+  font-family: var(--font-mono);
   font-size: 0.875rem;
   resize: vertical;
-  transition: border-color 0.15s ease;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .input-section textarea:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .input-section textarea::placeholder {
-  color: var(--color-text-muted);
+  color: var(--term-text-dim);
 }
 
 .input-hint {
   font-size: 0.875rem;
-  color: var(--color-text-muted);
+  color: var(--term-text-dim);
   margin-top: var(--spacing-sm);
 }
 
 /* Connecting state */
 .connecting-address {
   padding: var(--spacing-md);
-  background-color: var(--color-bg-secondary);
+  background-color: var(--term-dark);
+  border: 1px solid var(--term-border);
   border-radius: var(--radius-md);
   margin-top: var(--spacing-lg);
 }
 
 .connecting-address code {
   font-size: 0.75rem;
-  color: var(--color-text-muted);
+  color: var(--ui-green);
+  font-family: var(--font-mono);
   word-break: break-all;
 }
 
@@ -136,26 +142,30 @@
   justify-content: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-md);
-  background-color: var(--color-bg-secondary);
+  background-color: var(--term-panel);
+  border: 1px solid var(--phosphor);
   border-radius: var(--radius-md);
   margin-bottom: var(--spacing-xl);
+  box-shadow: 0 0 15px var(--phosphor-glow);
 }
 
 .peer-label {
   font-size: 0.875rem;
-  color: var(--color-text-muted);
+  color: var(--term-text-dim);
 }
 
 .connected-peer-info code {
   font-size: 0.875rem;
-  color: var(--color-text);
+  color: var(--phosphor);
+  font-family: var(--font-mono);
+  text-shadow: 0 0 6px var(--phosphor-glow);
 }
 
 /* Error display */
 .wizard-error {
-  background-color: rgba(239, 68, 68, 0.1);
-  border: 1px solid var(--color-error);
-  color: var(--color-error);
+  background-color: var(--error-dark);
+  border: 1px solid var(--error-dim);
+  color: var(--error);
   padding: var(--spacing-md);
   border-radius: var(--radius-md);
   margin-bottom: var(--spacing-lg);
@@ -175,33 +185,38 @@
   border-radius: var(--radius-md);
   font-size: 1rem;
   font-weight: 500;
+  font-family: var(--font-mono);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .wizard-actions button.primary {
-  background-color: var(--color-primary);
-  color: white;
-  border: none;
+  background-color: var(--ui-green);
+  color: var(--term-black);
+  border: 1px solid var(--ui-green);
 }
 
 .wizard-actions button.primary:hover {
-  background-color: var(--color-primary-dark);
+  background-color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 15px var(--phosphor-glow);
 }
 
 .wizard-actions button.primary:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .wizard-actions button.secondary {
-  background-color: var(--color-bg-tertiary);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+  background-color: transparent;
+  color: var(--term-text);
+  border: 1px solid var(--term-border);
 }
 
 .wizard-actions button.secondary:hover {
-  background-color: var(--color-border);
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 /* Responsive */

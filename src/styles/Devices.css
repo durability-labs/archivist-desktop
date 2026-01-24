@@ -40,8 +40,9 @@
 }
 
 .device-card.this-device {
-  border-color: var(--color-primary);
-  background-color: var(--color-bg-tertiary);
+  border-color: var(--phosphor);
+  background-color: var(--term-panel);
+  box-shadow: 0 0 15px var(--phosphor-glow);
 }
 
 .device-card.offline {
@@ -50,11 +51,17 @@
 
 .device-icon {
   flex-shrink: 0;
-  color: var(--color-primary);
+  color: var(--ui-green);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.device-card:hover .device-icon {
+  color: var(--phosphor);
+  filter: drop-shadow(0 0 8px var(--phosphor-glow));
 }
 
 .device-icon.muted {
-  color: var(--color-text-muted);
+  color: var(--term-text-dim);
 }
 
 .device-info {
@@ -78,8 +85,10 @@
 }
 
 .device-badge.online {
-  background-color: rgba(34, 197, 94, 0.15);
-  color: var(--color-success);
+  background-color: rgba(0, 255, 65, 0.1);
+  color: var(--phosphor);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  text-shadow: 0 0 6px var(--phosphor-glow);
 }
 
 .device-badge.offline {
@@ -102,26 +111,32 @@
 .btn-small {
   padding: var(--spacing-xs) var(--spacing-sm);
   font-size: 0.875rem;
-  background-color: var(--color-primary);
-  color: white;
-  border: none;
+  font-family: var(--font-mono);
+  background-color: transparent;
+  color: var(--ui-green);
+  border: 1px solid var(--ui-green);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: all var(--duration-normal) var(--ease-out);
   text-decoration: none;
 }
 
 .btn-small:hover {
-  background-color: var(--color-primary-dark);
+  background-color: transparent;
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .btn-small.secondary {
-  background-color: var(--color-bg-tertiary);
-  color: var(--color-text);
+  background-color: transparent;
+  color: var(--term-text);
+  border-color: var(--term-border);
 }
 
 .btn-small.secondary:hover {
-  background-color: var(--color-border);
+  color: var(--term-text-bright);
+  border-color: var(--ui-green);
 }
 
 /* Device list */
@@ -157,7 +172,8 @@
 
 .address-item code {
   font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  color: var(--ui-green);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -168,15 +184,16 @@
   padding: var(--spacing-xs);
   background: none;
   border: none;
-  color: var(--color-text-muted);
+  color: var(--ui-green);
   cursor: pointer;
   border-radius: var(--radius-sm);
-  transition: all 0.15s ease;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .btn-icon:hover {
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text);
+  background-color: transparent;
+  color: var(--phosphor);
+  filter: drop-shadow(0 0 6px var(--phosphor-glow));
 }
 
 /* Empty state */

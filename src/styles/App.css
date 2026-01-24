@@ -55,7 +55,8 @@
 .logo-text {
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--phosphor);
+  text-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .nav {
@@ -69,20 +70,24 @@
 .nav-link {
   display: block;
   padding: var(--spacing-sm) var(--spacing-md);
-  color: var(--color-text-secondary);
+  color: var(--ui-green);
   text-decoration: none;
   border-radius: var(--radius-md);
-  transition: all 0.15s ease;
+  transition: all var(--duration-normal) var(--ease-out);
+  border: 1px solid transparent;
 }
 
 .nav-link:hover {
-  background-color: var(--color-bg-tertiary);
-  color: var(--color-text);
+  background-color: var(--term-panel);
+  color: var(--phosphor);
+  border-color: var(--term-border);
 }
 
 .nav-link.active {
-  background-color: var(--color-primary);
-  color: white;
+  background-color: transparent;
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .nav-divider,
@@ -174,32 +179,51 @@
   gap: var(--spacing-sm);
 }
 
-/* Buttons */
+/* Buttons - Terminal aesthetic with dim→bright pattern */
 button {
   padding: var(--spacing-sm) var(--spacing-md);
-  background-color: var(--color-primary);
-  color: white;
-  border: none;
+  background-color: transparent;
+  color: var(--ui-green);
+  border: 1px solid var(--ui-green);
   border-radius: var(--radius-md);
   font-size: 0.875rem;
   font-weight: 500;
+  font-family: var(--font-mono);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 button:hover:not(:disabled) {
-  background-color: var(--color-primary-dark);
+  background-color: transparent;
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 button:active:not(:disabled) {
   transform: scale(0.95);
-  background-color: var(--color-primary-dark);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  background-color: rgba(0, 255, 65, 0.1);
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
+  color: var(--term-muted);
+  border-color: var(--term-muted);
+}
+
+/* Primary button - filled style for CTAs */
+button.primary {
+  background-color: var(--ui-green);
+  color: var(--term-black);
+  border-color: var(--ui-green);
+}
+
+button.primary:hover:not(:disabled) {
+  background-color: var(--phosphor);
+  border-color: var(--phosphor);
+  color: var(--term-black);
+  box-shadow: 0 0 15px var(--phosphor-glow);
 }
 
 button.small {
@@ -211,71 +235,79 @@ button.small:active:not(:disabled) {
   transform: scale(0.92);
 }
 
+/* Danger button - dim→bright red */
 button.danger {
-  background-color: var(--color-error);
+  color: var(--error-dim);
+  border-color: var(--error-dim);
+  background-color: transparent;
 }
 
 button.danger:hover:not(:disabled) {
-  background-color: #dc2626;
+  color: var(--color-error);
+  border-color: var(--color-error);
+  background-color: transparent;
+  box-shadow: 0 0 10px var(--error-glow);
 }
 
 button.danger:active:not(:disabled) {
-  background-color: #b91c1c;
+  background-color: rgba(255, 68, 68, 0.1);
   transform: scale(0.95);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* Inputs */
+/* Inputs - Terminal aesthetic */
 input[type="text"],
 input[type="number"],
 select {
   padding: var(--spacing-sm) var(--spacing-md);
-  background-color: var(--color-bg-tertiary);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+  background-color: var(--term-panel);
+  color: var(--term-text-bright);
+  border: 1px solid var(--term-border);
   border-radius: var(--radius-md);
   font-size: 0.875rem;
+  font-family: var(--font-mono);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 input[type="text"]:focus,
 input[type="number"]:focus,
 select:focus {
-  border-color: var(--color-primary);
+  border-color: var(--phosphor);
   outline: none;
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
-/* Force high contrast for ALL select dropdowns */
+input[type="text"]::placeholder {
+  color: var(--term-text-dim);
+}
+
+/* Select dropdowns - terminal style */
 select {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--term-panel);
+  color: var(--term-text-bright);
   cursor: pointer;
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2388aa99' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
 }
 
 select option {
-  background-color: #ffffff !important;
-  color: #000000 !important;
-  padding: 0.5rem !important;
+  background-color: var(--term-panel);
+  color: var(--term-text-bright);
+  padding: 0.5rem;
 }
 
-/* Force dark mode high contrast */
-@media (prefers-color-scheme: dark) {
-  select {
-    background-color: #2d2d2d !important;
-    color: #ffffff !important;
-    border-color: #555 !important;
-  }
-
-  select option {
-    background-color: #2d2d2d !important;
-    color: #ffffff !important;
-  }
+select:hover {
+  border-color: var(--ui-green);
 }
 
 input[type="checkbox"] {
-  accent-color: var(--color-primary);
+  accent-color: var(--phosphor);
+  width: 16px;
+  height: 16px;
 }
 
 .input-group {
@@ -309,7 +341,7 @@ input[type="checkbox"] {
   margin-bottom: var(--spacing-xl);
 }
 
-/* Status indicators */
+/* Status indicators - Terminal aesthetic */
 .status-indicator {
   display: inline-flex;
   align-items: center;
@@ -317,28 +349,35 @@ input[type="checkbox"] {
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
   font-weight: 500;
+  font-family: var(--font-mono);
+  border: 1px solid transparent;
 }
 
 .status-indicator.running,
 .status-indicator.syncing {
-  background-color: rgba(34, 197, 94, 0.2);
-  color: var(--color-success);
+  background-color: rgba(0, 255, 65, 0.1);
+  color: var(--phosphor);
+  border-color: rgba(0, 255, 65, 0.3);
+  text-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .status-indicator.stopped,
 .status-indicator.idle {
-  background-color: rgba(163, 163, 163, 0.2);
-  color: var(--color-text-secondary);
+  background-color: rgba(74, 122, 90, 0.1);
+  color: var(--ui-green);
+  border-color: rgba(74, 122, 90, 0.3);
 }
 
 .status-indicator.error {
-  background-color: rgba(239, 68, 68, 0.2);
+  background-color: rgba(255, 68, 68, 0.1);
   color: var(--color-error);
+  border-color: rgba(255, 68, 68, 0.3);
 }
 
 .status-indicator.transitioning {
-  background-color: rgba(251, 191, 36, 0.2);
+  background-color: rgba(255, 170, 0, 0.1);
   color: var(--color-warning);
+  border-color: rgba(255, 170, 0, 0.3);
 }
 
 /* Big numbers */
@@ -348,19 +387,21 @@ input[type="checkbox"] {
   color: var(--color-text);
 }
 
-/* Storage bar */
+/* Storage bar - Terminal aesthetic */
 .storage-bar {
   height: 8px;
-  background-color: var(--color-bg-tertiary);
+  background-color: var(--term-panel);
   border-radius: 4px;
   overflow: hidden;
   margin-bottom: var(--spacing-sm);
+  border: 1px solid var(--term-border);
 }
 
 .storage-used {
   height: 100%;
-  background-color: var(--color-primary);
+  background: linear-gradient(90deg, var(--ui-green) 0%, var(--phosphor) 100%);
   transition: width 0.3s ease;
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 /* Tables */
@@ -400,20 +441,25 @@ tr:hover td {
 }
 
 .cid {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
-  background-color: var(--color-bg-tertiary);
+  background-color: var(--term-panel);
+  color: var(--ui-green);
   padding: var(--spacing-xs);
   border-radius: var(--radius-sm);
   cursor: pointer;
   word-break: break-all;
   display: inline-block;
   max-width: 200px;
+  border: 1px solid var(--term-border);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .cid:hover {
-  background-color: var(--color-primary);
-  color: white;
+  background-color: transparent;
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .cid-cell {
@@ -426,31 +472,33 @@ tr:hover td {
   padding: var(--spacing-xl);
 }
 
-/* Banners */
+/* Banners - Terminal aesthetic */
 .error-banner,
 .info-banner,
 .success-banner {
   padding: var(--spacing-md);
   border-radius: var(--radius-md);
   margin-bottom: var(--spacing-md);
+  font-family: var(--font-mono);
 }
 
 .error-banner {
-  background-color: rgba(239, 68, 68, 0.2);
+  background-color: var(--error-dark);
   color: var(--color-error);
-  border: 1px solid var(--color-error);
+  border: 1px solid var(--error-dim);
 }
 
 .info-banner {
-  background-color: rgba(59, 130, 246, 0.2);
+  background-color: rgba(74, 154, 154, 0.1);
   color: var(--color-info);
   border: 1px solid var(--color-info);
 }
 
 .success-banner {
-  background-color: rgba(34, 197, 94, 0.2);
-  color: var(--color-success);
-  border: 1px solid var(--color-success);
+  background-color: rgba(0, 255, 65, 0.05);
+  color: var(--phosphor);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  text-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 /* Lists */
@@ -701,17 +749,19 @@ tr:hover td {
 .copy-button {
   padding: var(--spacing-xs) var(--spacing-sm);
   font-size: 0.75rem;
-  background-color: var(--color-bg-tertiary);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+  background-color: transparent;
+  color: var(--ui-green);
+  border: 1px solid var(--term-border);
   white-space: nowrap;
   min-width: 50px;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .copy-button:hover:not(:disabled) {
-  background-color: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
+  background-color: transparent;
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .addresses-list {
@@ -1069,13 +1119,15 @@ tr:hover td {
 
 /* Settings page additional styles */
 button.secondary {
-  background-color: var(--color-bg-tertiary);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+  background-color: transparent;
+  color: var(--term-text);
+  border: 1px solid var(--term-border);
 }
 
 button.secondary:hover:not(:disabled) {
-  background-color: var(--color-bg-secondary);
+  background-color: transparent;
+  color: var(--term-text-bright);
+  border-color: var(--ui-green);
 }
 
 .input-with-button {
@@ -1225,18 +1277,18 @@ button.secondary:hover:not(:disabled) {
 }
 
 .diagnostic-item.success {
-  border-left-color: #10b981;
-  background: rgba(16, 185, 129, 0.05);
+  border-left-color: var(--phosphor);
+  background: rgba(0, 255, 65, 0.05);
 }
 
 .diagnostic-item.error {
-  border-left-color: #ef4444;
-  background: rgba(239, 68, 68, 0.05);
+  border-left-color: var(--color-error);
+  background: rgba(255, 68, 68, 0.05);
 }
 
 .diagnostic-item.warning {
-  border-left-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.05);
+  border-left-color: var(--color-warning);
+  background: rgba(255, 170, 0, 0.05);
 }
 
 .diagnostic-label {
@@ -1257,9 +1309,9 @@ button.secondary:hover:not(:disabled) {
 .diagnostic-tips {
   margin-top: 1.5rem;
   padding: 1rem;
-  background: rgba(59, 130, 246, 0.05);
+  background: rgba(0, 255, 65, 0.03);
   border-radius: 6px;
-  border-left: 3px solid #3b82f6;
+  border-left: 3px solid var(--ui-green);
 }
 
 .diagnostic-tips h4 {
@@ -1285,12 +1337,13 @@ button.secondary:hover:not(:disabled) {
 }
 
 .diagnostic-tips a {
-  color: #3b82f6;
+  color: var(--phosphor);
   text-decoration: none;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .diagnostic-tips a:hover {
-  text-decoration: underline;
+  text-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 /* View Mode Toggle */
@@ -1351,8 +1404,8 @@ button.secondary:hover:not(:disabled) {
 }
 
 .status-dot.running {
-  background-color: var(--color-success);
-  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  background-color: var(--phosphor);
+  box-shadow: 0 0 0 0 var(--phosphor-glow);
 }
 
 .status-dot.stopped {
@@ -1372,10 +1425,10 @@ button.secondary:hover:not(:disabled) {
 
 @keyframes pulse {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+    box-shadow: 0 0 0 0 var(--phosphor-glow);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+    box-shadow: 0 0 0 8px rgba(0, 255, 65, 0);
   }
 }
 
@@ -1441,9 +1494,9 @@ button.secondary:hover:not(:disabled) {
 }
 
 .quick-stat-card:hover {
-  border-color: var(--color-primary);
+  border-color: var(--phosphor);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 20px var(--phosphor-glow);
 }
 
 .quick-stat-icon {

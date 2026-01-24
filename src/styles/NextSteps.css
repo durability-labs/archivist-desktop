@@ -26,29 +26,30 @@
   gap: var(--spacing-md);
 }
 
-/* Individual step card */
+/* Individual step card - Terminal aesthetic */
 .next-step-card {
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
   padding: var(--spacing-md);
-  background-color: var(--color-bg-tertiary);
+  background-color: var(--term-panel);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  transition: all 0.15s ease;
+  border: 1px solid var(--term-border);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .next-step-card:hover {
-  border-color: var(--color-primary);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 15px var(--phosphor-glow);
 }
 
 .next-step-card.completed {
-  opacity: 0.6;
-  border-color: var(--color-success);
+  opacity: 0.7;
+  border-color: var(--ui-green);
 }
 
 .next-step-card.completed:hover {
-  border-color: var(--color-success);
+  border-color: var(--phosphor);
 }
 
 .next-step-icon {
@@ -79,8 +80,9 @@
 }
 
 .next-step-title .check-mark {
-  color: var(--color-success);
+  color: var(--phosphor);
   font-weight: 600;
+  text-shadow: 0 0 6px var(--phosphor-glow);
 }
 
 .next-step-description {
@@ -98,27 +100,32 @@
   padding: var(--spacing-xs) var(--spacing-md);
   font-size: 0.875rem;
   font-weight: 500;
-  background-color: var(--color-primary);
-  color: white;
-  border: none;
+  font-family: var(--font-mono);
+  background-color: transparent;
+  color: var(--ui-green);
+  border: 1px solid var(--ui-green);
   border-radius: var(--radius-md);
   text-decoration: none;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .btn-next-step:hover {
-  background-color: var(--color-primary-dark);
+  background-color: transparent;
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
 .btn-next-step.secondary {
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+  background-color: transparent;
+  color: var(--term-text);
+  border: 1px solid var(--term-border);
 }
 
 .btn-next-step.secondary:hover {
-  background-color: var(--color-border);
+  color: var(--term-text-bright);
+  border-color: var(--ui-green);
 }
 
 .next-step-card.completed .btn-next-step {

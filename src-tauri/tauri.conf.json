@@ -51,7 +51,9 @@
       "sidecars/archivist"
     ],
     "resources": {
-      "sidecars/*.dll": "./"
+      "sidecars/*.dll": "./",
+      "resources/intro.webm": "./",
+      "resources/intro.mp4": "./"
     },
     "icon": [
       "icons/32x32.png",
