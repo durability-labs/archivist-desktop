@@ -96,7 +96,7 @@ function App() {
 
             {/* Devices section */}
             <div className="nav-section-label">Devices</div>
-            <NavLink to="/devices" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            <NavLink to="/devices" end className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               My Devices
             </NavLink>
             <NavLink to="/devices/add" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
@@ -105,9 +105,6 @@ function App() {
 
             {/* Advanced section - collapsible */}
             <NavAccordion title="Advanced" storageKey="nav-advanced-open" defaultOpen={false}>
-              <NavLink to="/peers" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                Peers
-              </NavLink>
               <NavLink to="/logs" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
                 Logs
               </NavLink>

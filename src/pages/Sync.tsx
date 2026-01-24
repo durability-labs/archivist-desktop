@@ -221,15 +221,16 @@ function Sync() {
       </div>
 
       <div className="sync-info">
-        <h3>How Sync Works</h3>
+        <h3>How Backups Work</h3>
         <ol>
-          <li>Add folders you want to keep synced</li>
+          <li>Add folders you want to back up</li>
           <li>Files are automatically uploaded to your local node when created or modified</li>
-          <li>CIDs are generated for each file and stored locally</li>
-          <li>Connected peers can request and download your files</li>
+          <li>After enough changes, a manifest is generated listing all your files</li>
+          <li>Your backup server polls for new manifests and downloads the files</li>
         </ol>
         <p className="hint">
           Hidden files (starting with .) and temporary files (.tmp, ~) are automatically ignored.
+          Configure your backup server in Settings → Backup Server.
         </p>
       </div>
     </div>

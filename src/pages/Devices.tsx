@@ -6,8 +6,16 @@ import '../styles/Devices.css';
 
 function Devices() {
   const { status, isRunning } = useNode();
-  const { peerList } = usePeers();
+  const {
+    peerList,
+    loading,
+    connectPeer,
+    disconnectPeer,
+    removePeer,
+    refreshPeers
+  } = usePeers();
   const [copied, setCopied] = useState<string | null>(null);
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -19,16 +27,60 @@ function Devices() {
     }
   };
 
-  // Get connected peers count
+  const handleDisconnect = async (peerId: string) => {
+    setActionInProgress(`disconnect-${peerId}`);
+    try {
+      await disconnectPeer(peerId);
+    } catch (err) {
+      console.error('Failed to disconnect:', err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleReconnect = async (peer: PeerInfo) => {
+    const address = peer.addresses[0] || peer.id;
+    setActionInProgress(`reconnect-${peer.id}`);
+    try {
+      await connectPeer(address);
+    } catch (err) {
+      console.error('Failed to reconnect:', err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleRemove = async (peerId: string) => {
+    setActionInProgress(`remove-${peerId}`);
+    try {
+      await removePeer(peerId);
+    } catch (err) {
+      console.error('Failed to remove:', err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  // Get connected and saved (offline) peers
   const connectedPeers = peerList.peers.filter((p: PeerInfo) => p.connected);
+  const savedPeers = peerList.peers.filter((p: PeerInfo) => !p.connected);
 
   return (
     <div className="page devices-page">
       <div className="page-header">
         <h2>Devices</h2>
-        <Link to="/devices/add" className="btn-primary">
-          Add Device
-        </Link>
+        <div className="header-actions">
+          <button
+            className="btn-secondary"
+            onClick={refreshPeers}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+          <Link to="/devices/add" className="btn-primary">
+            Add Device
+          </Link>
+        </div>
       </div>
 
       {/* This Device */}
@@ -148,6 +200,9 @@ function Devices() {
                     {peer.addresses && peer.addresses.length > 0 && (
                       <span>{peer.addresses[0]}</span>
                     )}
+                    {peer.latencyMs && (
+                      <span className="latency">{peer.latencyMs}ms</span>
+                    )}
                   </div>
                 </div>
                 <div className="device-actions">
@@ -156,6 +211,13 @@ function Devices() {
                     onClick={() => copyToClipboard(peer.id, `peer-${peer.id}`)}
                   >
                     {copied === `peer-${peer.id}` ? 'Copied!' : 'Copy ID'}
+                  </button>
+                  <button
+                    className="btn-small danger"
+                    onClick={() => handleDisconnect(peer.id)}
+                    disabled={actionInProgress === `disconnect-${peer.id}`}
+                  >
+                    {actionInProgress === `disconnect-${peer.id}` ? 'Disconnecting...' : 'Disconnect'}
                   </button>
                 </div>
               </div>
@@ -170,6 +232,52 @@ function Devices() {
           </div>
         )}
       </section>
+
+      {/* Saved Devices (Offline) */}
+      {savedPeers.length > 0 && (
+        <section className="device-section">
+          <h3>Saved Devices ({savedPeers.length})</h3>
+          <div className="device-list">
+            {savedPeers.map((peer: PeerInfo) => (
+              <div key={peer.id} className="device-card peer offline">
+                <div className="device-icon muted">
+                  <svg viewBox="0 0 24 24" width="32" height="32">
+                    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <circle cx="12" cy="12" r="3" fill="currentColor" />
+                  </svg>
+                </div>
+                <div className="device-info">
+                  <div className="device-name">
+                    {peer.id.slice(0, 8)}...{peer.id.slice(-6)}
+                    <span className="device-badge offline">Offline</span>
+                  </div>
+                  <div className="device-meta">
+                    {peer.lastSeen && (
+                      <span>Last seen: {new Date(peer.lastSeen).toLocaleDateString()}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="device-actions">
+                  <button
+                    className="btn-small"
+                    onClick={() => handleReconnect(peer)}
+                    disabled={actionInProgress === `reconnect-${peer.id}` || peer.addresses.length === 0}
+                  >
+                    {actionInProgress === `reconnect-${peer.id}` ? 'Connecting...' : 'Reconnect'}
+                  </button>
+                  <button
+                    className="btn-small danger"
+                    onClick={() => handleRemove(peer.id)}
+                    disabled={actionInProgress === `remove-${peer.id}`}
+                  >
+                    {actionInProgress === `remove-${peer.id}` ? 'Removing...' : 'Remove'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

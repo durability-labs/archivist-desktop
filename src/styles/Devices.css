@@ -10,6 +10,33 @@
   margin-bottom: 0;
 }
 
+.devices-page .header-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.devices-page .btn-secondary {
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: 0.875rem;
+  font-family: var(--font-mono);
+  background-color: transparent;
+  color: var(--term-text);
+  border: 1px solid var(--term-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.devices-page .btn-secondary:hover:not(:disabled) {
+  color: var(--ui-green);
+  border-color: var(--ui-green);
+}
+
+.devices-page .btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .device-section {
   margin-bottom: var(--spacing-xl);
 }
@@ -100,6 +127,15 @@
   font-size: 0.875rem;
   color: var(--color-text-muted);
   margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.device-meta .latency {
+  color: var(--ui-green);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
 }
 
 .device-actions {
@@ -137,6 +173,27 @@
 .btn-small.secondary:hover {
   color: var(--term-text-bright);
   border-color: var(--ui-green);
+}
+
+.btn-small.danger {
+  color: var(--ui-red);
+  border-color: var(--ui-red);
+}
+
+.btn-small.danger:hover:not(:disabled) {
+  background-color: rgba(255, 77, 77, 0.1);
+  color: #ff6666;
+  border-color: #ff6666;
+  box-shadow: 0 0 10px rgba(255, 77, 77, 0.3);
+}
+
+.btn-small:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-small:disabled:hover {
+  box-shadow: none;
 }
 
 /* Device list */
