@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { resolveResource } from '@tauri-apps/api/path';
 import '../styles/IntroModal.css';
 
 const INTRO_SHOWN_KEY = 'archivist_intro_shown';
@@ -9,6 +11,7 @@ interface IntroModalProps {
 
 export function IntroModal({ onClose }: IntroModalProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -18,16 +21,30 @@ export function IntroModal({ onClose }: IntroModalProps) {
     if (!hasShown) {
       setIsVisible(true);
 
-      // Auto-play video when modal opens
-      if (videoRef.current) {
-        videoRef.current.play().catch((error) => {
-          console.error('Failed to auto-play intro video:', error);
+      // Resolve the video path for production builds
+      resolveResource('intro.mp4')
+        .then((resourcePath) => {
+          const src = convertFileSrc(resourcePath);
+          setVideoSrc(src);
+        })
+        .catch((error) => {
+          console.error('Failed to resolve intro video path:', error);
+          // Fallback to public path for dev mode
+          setVideoSrc('/intro.mp4');
         });
-      }
     } else {
       onClose();
     }
   }, [onClose]);
+
+  // Auto-play video when src is set
+  useEffect(() => {
+    if (videoSrc && videoRef.current) {
+      videoRef.current.play().catch((error) => {
+        console.error('Failed to auto-play intro video:', error);
+      });
+    }
+  }, [videoSrc]);
 
   const handleClose = () => {
     // Mark as shown
@@ -53,13 +70,18 @@ export function IntroModal({ onClose }: IntroModalProps) {
     return null;
   }
 
+  // Don't render until video source is ready
+  if (!videoSrc) {
+    return null;
+  }
+
   return (
     <div className="intro-modal-overlay" onClick={handleSkip}>
       <div className="intro-modal-content" onClick={(e) => e.stopPropagation()}>
         <video
           ref={videoRef}
           className="intro-video"
-          src="/intro.mp4"
+          src={videoSrc}
           onEnded={handleVideoEnd}
           controls
           autoPlay

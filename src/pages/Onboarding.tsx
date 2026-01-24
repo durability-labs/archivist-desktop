@@ -4,7 +4,6 @@ import { useSync } from '../hooks/useSync';
 import { useOnboarding, OnboardingStep } from '../hooks/useOnboarding';
 import { open } from '@tauri-apps/plugin-dialog';
 import { resolveResource } from '@tauri-apps/api/path';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import '../styles/Onboarding.css';
 
 interface OnboardingProps {
@@ -281,30 +280,32 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
       if (isTauri && isLinux) {
         // On Linux, WebKitGTK video playback is unreliable even with GStreamer
         // Use CSS fallback directly for a better, faster experience
-        console.log('SplashScreen: Linux detected, using CSS fallback (WebKitGTK video limitation)');
         setShowFallback(true);
         return;
       }
 
       if (!isTauri) {
         // Dev mode - use standard path
-        setVideoUrl('/intro.webm');
+        setVideoUrl('/intro.mp4');
         return;
       }
 
-      // Windows/macOS - try video playback
+      // Windows/macOS - load video via blob URL (asset:// protocol doesn't work for video)
       try {
-        const webmPath = await resolveResource('intro.webm');
-        const webmUrl = convertFileSrc(webmPath);
-        console.log('SplashScreen: Video URL:', webmUrl);
+        const mp4Path = await resolveResource('intro.mp4');
+        const { readFile } = await import('@tauri-apps/plugin-fs');
+        const fileData = await readFile(mp4Path);
+        const blob = new Blob([fileData], { type: 'video/mp4' });
+        const blobUrl = URL.createObjectURL(blob);
 
         if (!cancelled) {
-          setVideoUrl(webmUrl);
+          setVideoUrl(blobUrl);
         }
       } catch (error) {
-        console.error('SplashScreen: Failed to resolve video:', error);
+        console.error('Failed to load intro video:', error);
         if (!cancelled) {
-          setVideoUrl('/intro.webm');
+          // Fall back to CSS animation
+          setShowFallback(true);
         }
       }
     };
@@ -325,9 +326,14 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     };
   }, []);
 
+  // Handle video data loaded (first frame available)
+  const handleLoadedData = useCallback(() => {
+    setVideoLoaded(true);
+    lastProgressTime.current = Date.now();
+  }, []);
+
   // Handle video fully buffered and ready
   const handleCanPlayThrough = useCallback(() => {
-    console.log('SplashScreen: Video fully buffered, ready to play');
     setVideoLoaded(true);
     lastProgressTime.current = Date.now();
   }, []);
@@ -337,27 +343,8 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     lastProgressTime.current = Date.now();
   }, []);
 
-  // Handle video stall - might need to show fallback
-  const handleStalled = useCallback(() => {
-    console.log('SplashScreen: Video stalled, waiting for data...');
-  }, []);
-
-  // Handle video waiting for data
-  const handleWaiting = useCallback(() => {
-    console.log('SplashScreen: Video waiting for data...');
-  }, []);
-
   // Handle video error - show CSS fallback animation
-  const handleVideoError = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
-    const video = e.currentTarget;
-    const error = video.error;
-    console.log('SplashScreen: Video playback error:', {
-      code: error?.code,
-      message: error?.message,
-      networkState: video.networkState,
-      readyState: video.readyState,
-      currentSrc: video.currentSrc,
-    });
+  const handleVideoError = useCallback(() => {
     setShowFallback(true);
   }, []);
 
@@ -393,15 +380,13 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     }
   }, [showFallback, onComplete]);
 
-  // Timeout: if video hasn't loaded after 2 seconds, show fallback
-  // Reduced from 5s since Linux/WebKitGTK often can't play video
+  // Timeout: if video hasn't loaded after 10 seconds, show fallback
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (!videoLoaded && !showFallback) {
-        console.log('SplashScreen: Video load timeout (2s), showing fallback');
         setShowFallback(true);
       }
-    }, 2000);
+    }, 10000);
     return () => clearTimeout(timeout);
   }, [videoLoaded, showFallback]);
 
@@ -489,10 +474,9 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
         preload="auto"
         className="splash-video"
         onEnded={onComplete}
+        onLoadedData={handleLoadedData}
         onCanPlayThrough={handleCanPlayThrough}
         onTimeUpdate={handleTimeUpdate}
-        onStalled={handleStalled}
-        onWaiting={handleWaiting}
         onError={handleVideoError}
         src={videoUrl}
       />
