@@ -409,14 +409,14 @@ const { marketplaceEnabled, zkProofsEnabled } = useFeatures();
 
 ### Port Architecture
 
-The application uses **two separate ports** for P2P networking:
+The application uses **four ports** for P2P networking and backup functionality:
 
-#### Discovery Port (UDP - Default: 8090)
-- **Purpose**: Peer discovery via DHT (Distributed Hash Table) and mDNS
-- **Protocol**: UDP
-- **Command-line flag**: `--disc-port=8090`
-- **Used for**: Finding other nodes on the network, announcing presence
-- **Configuration**: `discovery_port` in NodeConfig/NodeSettings
+| Port | Protocol | Default | Purpose |
+|------|----------|---------|---------|
+| Listen Port | TCP | 8070 | P2P connections and file transfers |
+| Discovery Port | UDP | 8090 | DHT/mDNS peer discovery |
+| Manifest Server | TCP | 8085 | Exposes folder manifests for backup (Machine A) |
+| Backup Trigger | TCP | 8086 | Receives backup notifications (Machine B) |
 
 #### Listen Port (TCP - Default: 8070)
 - **Purpose**: Actual P2P data connections and file transfers
@@ -425,12 +425,35 @@ The application uses **two separate ports** for P2P networking:
 - **Used for**: Establishing connections, transferring files, syncing data
 - **Configuration**: `listen_port` in NodeConfig/NodeSettings
 
-#### Why Two Ports?
+#### Discovery Port (UDP - Default: 8090)
+- **Purpose**: Peer discovery via DHT (Distributed Hash Table) and mDNS
+- **Protocol**: UDP
+- **Command-line flag**: `--disc-port=8090`
+- **Used for**: Finding other nodes on the network, announcing presence
+- **Configuration**: `discovery_port` in NodeConfig/NodeSettings
+
+#### Manifest Server Port (TCP - Default: 8085)
+- **Purpose**: HTTP server exposing folder manifest CIDs for backup discovery
+- **Protocol**: TCP (HTTP)
+- **Used for**: Backup server polling for new manifests from source peers
+- **Configuration**: Settings → Manifest Server → Port
+- **Security**: IP whitelist restricts access to authorized backup servers
+- **Required on**: Machine A (source/primary) only
+
+#### Backup Trigger Port (TCP - Default: 8086)
+- **Purpose**: Receives backup trigger notifications from source peers
+- **Protocol**: TCP (HTTP)
+- **Used for**: Immediate backup notification when new manifest available
+- **Configuration**: Settings → Backup Server
+- **Required on**: Machine B (backup server) only
+
+#### Why Multiple Ports?
 
 1. **Protocol Separation**: UDP for lightweight discovery, TCP for reliable data transfer
 2. **Network Flexibility**: Some networks may treat UDP and TCP differently
 3. **Firewall Optimization**: Allows granular control over discovery vs data traffic
 4. **Port Forwarding**: Can forward only the listen port for direct connections while using discovery locally
+5. **Backup Architecture**: Separate ports for manifest discovery (8085) and backup triggering (8086)
 
 #### Multiaddr Format
 
@@ -873,16 +896,25 @@ A diagnostics panel is available on the Dashboard:
 
 ### Firewall Configuration
 
-Open **both ports** in your firewall for full P2P functionality:
+Open the following ports in your firewall for full functionality:
+
+**Core P2P (All Machines):**
+- **Port 8070 (TCP)**: P2P connections and file transfers
 - **Port 8090 (UDP)**: Discovery/DHT
-- **Port 8070 (TCP)**: P2P connections
+
+**Backup System (Optional):**
+- **Port 8085 (TCP)**: Manifest server (Machine A/Source only)
+- **Port 8086 (TCP)**: Backup trigger (Machine B/Backup Server only)
 
 #### Linux (UFW)
 ```bash
-# Discovery port (UDP)
-sudo ufw allow 8090/udp
-# Listen port (TCP)
-sudo ufw allow 8070/tcp
+# Core P2P ports (all machines)
+sudo ufw allow 8070/tcp  # P2P connections
+sudo ufw allow 8090/udp  # Discovery
+
+# Backup ports (optional - based on role)
+sudo ufw allow 8085/tcp  # Machine A: Manifest server
+sudo ufw allow 8086/tcp  # Machine B: Backup trigger
 ```
 
 #### macOS
@@ -891,20 +923,29 @@ System Preferences → Security & Privacy → Firewall → Allow Archivist Deskt
 #### Windows
 ```powershell
 # Run as Administrator
-# Discovery port (UDP)
-netsh advfirewall firewall add rule name="Archivist Discovery" dir=in action=allow protocol=udp localport=8090
-# Listen port (TCP)
+# Core P2P ports (all machines)
 netsh advfirewall firewall add rule name="Archivist P2P" dir=in action=allow protocol=tcp localport=8070
+netsh advfirewall firewall add rule name="Archivist Discovery" dir=in action=allow protocol=udp localport=8090
+
+# Backup ports (optional - based on role)
+netsh advfirewall firewall add rule name="Archivist Manifest" dir=in action=allow protocol=tcp localport=8085
+netsh advfirewall firewall add rule name="Archivist Backup" dir=in action=allow protocol=tcp localport=8086
 ```
 
 ### Cross-Network Testing
 
 For internet connections, configure port forwarding on your router:
-1. Forward **both ports** to your machine's local IP:
-   - Port 8090 (UDP) - Discovery
+
+**All Machines:**
+1. Forward core P2P ports to your machine's local IP:
    - Port 8070 (TCP) - P2P connections
+   - Port 8090 (UDP) - Discovery
 2. Find your public IP: `curl ifconfig.me`
 3. Your multiaddr uses the **listen port** (TCP): `/ip4/YOUR_PUBLIC_IP/tcp/8070/p2p/YOUR_PEER_ID`
+
+**Backup System (if using):**
+- **Machine A (Source):** Also forward port 8085 (TCP) for manifest server
+- **Machine B (Backup Server):** Also forward port 8086 (TCP) for backup trigger
 
 **Note**: The multiaddr only includes the listen port (8070). The discovery port (8090) is used automatically by DHT and doesn't appear in multiaddrs.
 
