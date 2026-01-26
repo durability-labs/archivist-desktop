@@ -68,7 +68,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Configuration
 config = "0.14"
-toml = "0.8"
+toml = "0.9"
 
 # V2 Marketplace dependencies (optional)
 ethers = { version = "2.0", optional = true }
