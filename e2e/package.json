@@ -1,0 +1,14 @@
+{
+  "name": "archivist-desktop-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end tests for Archivist Desktop via CDP (WebView2)",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "test:debug": "npx playwright test --debug"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}
