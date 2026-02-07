@@ -51,7 +51,6 @@
       "sidecars/archivist"
     ],
     "resources": {
-      "sidecars/*.dll": "./",
       "resources/intro.webm": "./",
       "resources/intro.mp4": "./"
     },
