@@ -18,7 +18,9 @@ pub async fn upload_file(
     path: String,
 ) -> Result<UploadResult> {
     let mut files = state.files.write().await;
-    files.upload_file_with_progress(&path, Some(&app_handle)).await
+    files
+        .upload_file_with_progress(&path, Some(&app_handle))
+        .await
 }
 
 /// Download a file by CID to a destination path

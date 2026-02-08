@@ -348,11 +348,7 @@ impl FileService {
                 // Network download: trigger fetch via POST then stream from local to file
                 self.api_client.request_network_download(cid).await?;
                 self.api_client.download_file_to_path(cid, dest).await?;
-                log::info!(
-                    "Downloaded file {} from network to {}",
-                    cid,
-                    destination
-                );
+                log::info!("Downloaded file {} from network to {}", cid, destination);
             }
         }
 

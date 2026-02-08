@@ -477,7 +477,9 @@ impl BackupDaemon {
                     "Manifest {} not in local storage, fetching from network",
                     manifest_cid
                 );
-                self.api_client.request_network_download(manifest_cid).await?;
+                self.api_client
+                    .request_network_download(manifest_cid)
+                    .await?;
                 self.api_client.download_file(manifest_cid).await?
             }
         };
