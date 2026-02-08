@@ -64,7 +64,7 @@
     "category": "Utility",
     "shortDescription": "Decentralized File Storage",
     "longDescription": "Archivist is a decentralized file storage and P2P sync application for secure, distributed data management.",
-    "copyright": "Copyright © 2024 Durability Labs",
+    "copyright": "Copyright © 2026 Durability Labs",
     "linux": {
       "appimage": {
         "bundleMediaFramework": true
