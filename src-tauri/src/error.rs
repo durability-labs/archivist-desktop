@@ -33,6 +33,12 @@ pub enum ArchivistError {
     #[error("API request failed: {0}")]
     ApiError(String),
 
+    #[error("Media download error: {0}")]
+    MediaDownloadError(String),
+
+    #[error("Binary not found: {0}")]
+    BinaryNotFound(String),
+
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 

@@ -2,9 +2,11 @@
 
 pub mod backup;
 pub mod backup_daemon;
+pub mod binary_manager;
 pub mod config;
 pub mod files;
 pub mod manifest_server;
+pub mod media_download;
 pub mod node;
 pub mod peers;
 pub mod sync;
@@ -14,6 +16,7 @@ pub use backup_daemon::BackupDaemon;
 pub use config::ConfigService;
 pub use files::FileService;
 pub use manifest_server::{ManifestRegistry, ManifestServer, ManifestServerConfig};
+pub use media_download::MediaDownloadService;
 pub use node::NodeService;
 pub use peers::PeerService;
 pub use sync::SyncService;
