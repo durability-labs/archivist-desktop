@@ -34,6 +34,7 @@ archivist-desktop/
 │   │   ├── useSync.ts           # Folder watching + sync queue
 │   │   ├── usePeers.ts          # Peer connections
 │   │   ├── useFeatures.ts       # Feature flag detection
+│   │   ├── useMediaDownload.ts  # yt-dlp media download
 │   │   └── useWallet.ts         # V2 wallet (stub)
 │   ├── pages/                    # Route components
 │   │   ├── Dashboard.tsx        # Main status overview
@@ -41,6 +42,7 @@ archivist-desktop/
 │   │   ├── Sync.tsx             # Watched folder management
 │   │   ├── Peers.tsx            # P2P network view
 │   │   ├── Logs.tsx             # Node logs viewer
+│   │   ├── MediaDownload.tsx    # yt-dlp media download UI
 │   │   └── Settings.tsx         # App configuration
 │   ├── lib/                      # Utilities and types
 │   │   ├── api.ts               # TypeScript interfaces
@@ -63,6 +65,7 @@ archivist-desktop/
 │   │   │   ├── files.rs         # upload/download/list/delete
 │   │   │   ├── sync.rs          # watch folders, sync queue
 │   │   │   ├── peers.rs         # connect/disconnect/list
+│   │   │   ├── media.rs         # yt-dlp media download
 │   │   │   └── system.rs        # config, platform info
 │   │   └── services/            # Business logic
 │   │       ├── node.rs          # Sidecar process management
@@ -71,7 +74,9 @@ archivist-desktop/
 │   │       ├── peers.rs         # Peer management
 │   │       ├── config.rs        # Settings persistence
 │   │       ├── backup_daemon.rs # Backup daemon (polls source peers)
-│   │       └── manifest_server.rs # HTTP manifest discovery server
+│   │       ├── manifest_server.rs # HTTP manifest discovery server
+│   │       ├── binary_manager.rs # yt-dlp/ffmpeg binary management
+│   │       └── media_download.rs # Media download queue + progress
 │   ├── sidecars/                # archivist-node binaries (gitignored)
 │   ├── Cargo.toml               # Rust dependencies
 │   └── tauri.conf.json          # Tauri configuration
@@ -230,6 +235,15 @@ const status = await invoke<NodeStatus>('get_node_status');
 | `get_peers` | List connected peers |
 | `connect_peer` / `disconnect_peer` | Peer management |
 | `get_features` | Runtime feature flags |
+| `check_media_binaries` | Check yt-dlp/ffmpeg install status |
+| `install_yt_dlp` / `install_ffmpeg` | Download and install binaries |
+| `update_yt_dlp` | Update yt-dlp to latest version |
+| `fetch_media_metadata` | Fetch video/audio metadata from URL |
+| `queue_media_download` | Queue a media download task |
+| `cancel_media_download` | Cancel an active download |
+| `remove_media_task` | Remove task from queue |
+| `clear_completed_downloads` | Clear all completed/failed tasks |
+| `get_download_queue` | Get current download queue state |
 
 ## Feature Flags
 
@@ -414,11 +428,37 @@ Config in `NotificationSettings` struct (`services/config.rs`): master toggle, p
 
 ### Navigation Structure
 
-- **Primary**: Dashboard, Backups (renamed from Sync), Restore (renamed from Files)
+- **Primary**: Dashboard, Backups (renamed from Sync), Restore (renamed from Files), Media Download
 - **Devices**: My Devices, Add Device
 - **Advanced**: Collapsible accordion (Logs, Backup Server, Settings)
 - Peers page consolidated into Devices page (route kept at `/peers` for backwards compat)
 - Dashboard uses `usePeers` hook for actual connected peer count (not `status.peerCount` which is never populated)
+
+### Media Download (yt-dlp Integration)
+
+**Files:** `src/pages/MediaDownload.tsx`, `src/hooks/useMediaDownload.ts`, `src/styles/MediaDownload.css`, `src-tauri/src/services/binary_manager.rs`, `src-tauri/src/services/media_download.rs`, `src-tauri/src/commands/media.rs`
+
+Download video/audio from hundreds of sites (YouTube, etc.) using yt-dlp and ffmpeg. Binaries are downloaded at runtime on first use (not bundled), keeping the installer small.
+
+**Key patterns:**
+- **Binary management**: `BinaryManager` downloads yt-dlp/ffmpeg to `~/.local/share/archivist/bin/`. Platform-specific binary names and download URLs from GitHub releases. Emits `binary-download-progress` events for UI feedback.
+- **Metadata fetch**: Spawns `yt-dlp -j --no-playlist --no-warnings <url>`, parses JSON into `MediaMetadata` with `formats` array. Quality labels computed from resolution/bitrate.
+- **Download queue**: `MediaDownloadService` manages concurrent downloads (default max 3). Background loop in `lib.rs` calls `process_queue()` every 1s. Each download spawns `yt-dlp` with `--newline` flag and monitors stdout for progress (`[download] XX.X% of ~YYY at ZZZ ETA MM:SS`).
+- **Cancellation**: Stores PIDs in `HashMap<String, u32>`. Uses `libc::kill` (Unix) or `taskkill /F /PID` (Windows) for cross-platform process termination.
+- **Audio extraction**: `yt-dlp -x --audio-format <fmt>` with ffmpeg for MP3/M4A/OPUS/WAV.
+- **Events**: `media-download-progress` (progress/speed/eta), `media-download-state-changed` (state transitions).
+- **Config**: `MediaDownloadSettings` in `services/config.rs` — `max_concurrent_downloads` (3), `default_video_format` ("best"), `default_audio_format` ("mp3").
+- **State**: `Arc<RwLock<MediaDownloadService>>` in `AppState`, same pattern as other services.
+
+**UI sections:**
+1. Setup banner (if yt-dlp not installed) with install button
+2. URL input + metadata preview (thumbnail, title, duration, format selector, audio-only toggle)
+3. Download queue with progress bars, state badges, cancel/remove/clear buttons
+
+**Binary locations:**
+- Linux: `~/.local/share/archivist/bin/yt-dlp`, `~/.local/share/archivist/bin/ffmpeg`
+- macOS: `~/Library/Application Support/archivist/bin/yt-dlp_macos`, `~/Library/Application Support/archivist/bin/ffmpeg`
+- Windows: `%APPDATA%\archivist\bin\yt-dlp.exe`, `%APPDATA%\archivist\bin\ffmpeg.exe`
 
 ## Backup System
 
@@ -443,6 +483,9 @@ Manifest-based backup from source peer(s) to a designated backup server. Full ar
 | `src-tauri/src/services/config.rs` | Settings persistence and configuration |
 | `src-tauri/src/services/backup_daemon.rs` | Backup daemon that polls source peers for manifests |
 | `src-tauri/src/services/manifest_server.rs` | HTTP manifest discovery server with IP whitelist |
+| `src-tauri/src/services/binary_manager.rs` | yt-dlp/ffmpeg binary download and version management |
+| `src-tauri/src/services/media_download.rs` | Media download queue, progress tracking, metadata |
+| `src-tauri/src/commands/media.rs` | Media download Tauri commands |
 | `src-tauri/src/commands/node.rs` | Node control commands including diagnostics and logs |
 | `src-tauri/src/commands/files.rs` | File upload/download commands with event emissions |
 | `src-tauri/src/commands/peers.rs` | Peer connection commands with event emissions |
@@ -459,6 +502,9 @@ Manifest-based backup from source peer(s) to a designated backup server. Full ar
 | `src/pages/AddDevice.tsx` | Step-by-step device pairing wizard |
 | `src/pages/Logs.tsx` | Real-time node logs viewer |
 | `src/pages/Settings.tsx` | App configuration with notification settings |
+| `src/pages/MediaDownload.tsx` | Media download UI (URL input, metadata, queue) |
+| `src/hooks/useMediaDownload.ts` | Media download state management and polling |
+| `src/styles/MediaDownload.css` | Media download terminal aesthetic styling |
 | `src/pages/BackupServer.tsx` | Backup daemon monitoring dashboard |
 | `src/components/NextSteps.tsx` | Post-onboarding guidance cards |
 | `src/components/NavAccordion.tsx` | Collapsible navigation section |
@@ -479,6 +525,8 @@ pub enum ArchivistError {
     FileNotFound(String),
     ApiError(String),
     SyncError(String),
+    MediaDownloadError(String),
+    BinaryNotFound(String),
     // ... etc
 }
 ```
