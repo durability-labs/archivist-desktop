@@ -25,6 +25,10 @@ pub struct AppConfig {
     #[serde(default)]
     pub manifest_server: ManifestServerSettings,
 
+    // Media download settings (yt-dlp integration)
+    #[serde(default)]
+    pub media_download: MediaDownloadSettings,
+
     // V2 Marketplace settings (optional)
     #[cfg(feature = "marketplace")]
     pub blockchain: Option<BlockchainSettings>,
@@ -138,6 +142,24 @@ pub struct ManifestServerSettings {
     pub allowed_ips: Vec<String>,
 }
 
+/// Media download settings for yt-dlp integration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MediaDownloadSettings {
+    pub max_concurrent_downloads: u32,
+    pub default_video_format: String,
+    pub default_audio_format: String,
+}
+
+impl Default for MediaDownloadSettings {
+    fn default() -> Self {
+        Self {
+            max_concurrent_downloads: 3,
+            default_video_format: "best".to_string(),
+            default_audio_format: "mp3".to_string(),
+        }
+    }
+}
+
 impl Default for ManifestServerSettings {
     fn default() -> Self {
         Self {
@@ -226,6 +248,7 @@ impl Default for AppConfig {
                 source_peers: Vec::new(),
             },
             manifest_server: ManifestServerSettings::default(),
+            media_download: MediaDownloadSettings::default(),
             #[cfg(feature = "marketplace")]
             blockchain: None,
             #[cfg(feature = "marketplace")]

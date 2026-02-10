@@ -1,6 +1,7 @@
 // Tauri command handlers
 
 pub mod files;
+pub mod media;
 pub mod node;
 pub mod peers;
 pub mod sync;
@@ -8,6 +9,7 @@ pub mod system;
 
 // Re-export all commands for registration
 pub use files::*;
+pub use media::*;
 pub use node::*;
 pub use peers::*;
 pub use sync::*;

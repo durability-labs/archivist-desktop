@@ -14,6 +14,7 @@ import BackupServer from './pages/BackupServer';
 import Settings from './pages/Settings';
 import Devices from './pages/Devices';
 import AddDevice from './pages/AddDevice';
+import MediaDownload from './pages/MediaDownload';
 import logoSvg from './assets/logo.svg';
 import './styles/App.css';
 
@@ -93,6 +94,9 @@ function App() {
             <NavLink to="/files" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Restore
             </NavLink>
+            <NavLink to="/media" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Media Download
+            </NavLink>
 
             {/* Devices section */}
             <div className="nav-section-label">Devices</div>
@@ -143,6 +147,7 @@ function App() {
             <Route path="/peers" element={<Peers />} />
             <Route path="/logs" element={<Logs />} />
             <Route path="/backup-server" element={<BackupServer />} />
+            <Route path="/media" element={<MediaDownload />} />
             <Route path="/settings" element={<Settings />} />
 
             {/* V2 routes - placeholder for marketplace */}

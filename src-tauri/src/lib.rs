@@ -26,6 +26,7 @@ pub fn run() {
     let config_service = app_state.config.clone();
     let manifest_registry = app_state.manifest_registry.clone();
     let manifest_server = app_state.manifest_server.clone();
+    let media_service = app_state.media.clone();
 
     let mut builder = tauri::Builder::default()
         .plugin(
@@ -107,6 +108,17 @@ pub fn run() {
             commands::connect_peer,
             commands::disconnect_peer,
             commands::remove_peer,
+            // Media download commands
+            commands::check_media_binaries,
+            commands::install_yt_dlp,
+            commands::install_ffmpeg,
+            commands::fetch_media_metadata,
+            commands::queue_media_download,
+            commands::cancel_media_download,
+            commands::remove_media_task,
+            commands::clear_completed_downloads,
+            commands::get_download_queue,
+            commands::update_yt_dlp,
             // System commands
             commands::get_config,
             commands::save_config,
@@ -223,6 +235,20 @@ pub fn run() {
                 "Backup daemon initialized (trigger server on port {})",
                 trigger_port
             );
+
+            // Start media download queue processor
+            let media_service_clone = media_service.clone();
+            let app_handle_media = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    {
+                        let mut media = media_service_clone.write().await;
+                        media.process_queue(&app_handle_media).await;
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
+            });
+            log::info!("Media download queue processor started");
 
             Ok(())
         })
