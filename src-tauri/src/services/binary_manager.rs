@@ -483,7 +483,7 @@ impl BinaryManager {
     }
 
     /// Get yt-dlp download URL for current platform
-    fn yt_dlp_download_url() -> String {
+    pub(crate) fn yt_dlp_download_url() -> String {
         let base = "https://github.com/yt-dlp/yt-dlp/releases/latest/download";
 
         #[cfg(target_os = "linux")]
@@ -501,7 +501,7 @@ impl BinaryManager {
     }
 
     /// Get ffmpeg download URL and archive type for current platform
-    fn ffmpeg_download_url() -> (String, &'static str) {
+    pub(crate) fn ffmpeg_download_url() -> (String, &'static str) {
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         {
             (
@@ -547,4 +547,117 @@ fn walkdir(dir: &std::path::Path) -> Vec<std::fs::DirEntry> {
         }
     }
     results
+}
+
+#[cfg(test)]
+impl BinaryManager {
+    /// Test-only constructor that allows pointing at a custom bin directory
+    pub fn with_bin_dir(bin_dir: PathBuf) -> Self {
+        Self { bin_dir }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_bin_dir_under_data_dir() {
+        let mgr = BinaryManager::new();
+        let path = mgr.bin_dir.to_string_lossy();
+        assert!(
+            path.contains("archivist") && path.ends_with("bin"),
+            "Expected bin_dir under archivist/bin, got: {}",
+            path
+        );
+    }
+
+    #[test]
+    fn test_yt_dlp_path_has_correct_name() {
+        let mgr = BinaryManager::new();
+        let path = mgr.yt_dlp_path();
+        let name = path.file_name().unwrap().to_string_lossy();
+        #[cfg(not(target_os = "windows"))]
+        assert_eq!(name, "yt-dlp");
+        #[cfg(target_os = "windows")]
+        assert_eq!(name, "yt-dlp.exe");
+    }
+
+    #[test]
+    fn test_ffmpeg_path_has_correct_name() {
+        let mgr = BinaryManager::new();
+        let path = mgr.ffmpeg_path();
+        let name = path.file_name().unwrap().to_string_lossy();
+        #[cfg(not(target_os = "windows"))]
+        assert_eq!(name, "ffmpeg");
+        #[cfg(target_os = "windows")]
+        assert_eq!(name, "ffmpeg.exe");
+    }
+
+    #[test]
+    fn test_not_installed_by_default() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mgr = BinaryManager::with_bin_dir(tmp.path().join("nonexistent"));
+        assert!(!mgr.is_yt_dlp_installed());
+        assert!(!mgr.is_ffmpeg_installed());
+    }
+
+    #[test]
+    fn test_yt_dlp_installed_when_file_exists() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mgr = BinaryManager::with_bin_dir(tmp.path().to_path_buf());
+
+        // Create the yt-dlp file
+        let yt_dlp_path = mgr.yt_dlp_path();
+        std::fs::write(&yt_dlp_path, b"fake binary").unwrap();
+
+        assert!(mgr.is_yt_dlp_installed());
+    }
+
+    #[test]
+    fn test_ffmpeg_installed_when_file_exists() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mgr = BinaryManager::with_bin_dir(tmp.path().to_path_buf());
+
+        let ffmpeg_path = mgr.ffmpeg_path();
+        std::fs::write(&ffmpeg_path, b"fake binary").unwrap();
+
+        assert!(mgr.is_ffmpeg_installed());
+    }
+
+    #[test]
+    fn test_yt_dlp_download_url_format() {
+        let url = BinaryManager::yt_dlp_download_url();
+        assert!(url.starts_with("https://github.com/yt-dlp/yt-dlp/releases/"));
+        #[cfg(target_os = "linux")]
+        assert!(url.ends_with("/yt-dlp"));
+        #[cfg(target_os = "macos")]
+        assert!(url.ends_with("/yt-dlp_macos"));
+        #[cfg(target_os = "windows")]
+        assert!(url.ends_with("/yt-dlp.exe"));
+    }
+
+    #[test]
+    fn test_ffmpeg_download_url_format() {
+        let (url, archive_type) = BinaryManager::ffmpeg_download_url();
+        assert!(url.contains("ffmpeg"));
+        assert!(url.contains("github.com"));
+        #[cfg(not(target_os = "windows"))]
+        assert_eq!(archive_type, "tar.xz");
+        #[cfg(target_os = "windows")]
+        assert_eq!(archive_type, "zip");
+    }
+
+    #[tokio::test]
+    async fn test_check_binaries_when_not_installed() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mgr = BinaryManager::with_bin_dir(tmp.path().join("empty"));
+        let status = mgr.check_binaries().await;
+        assert!(!status.yt_dlp_installed);
+        assert!(!status.ffmpeg_installed);
+        assert!(status.yt_dlp_version.is_none());
+        assert!(status.ffmpeg_version.is_none());
+        assert!(status.yt_dlp_path.is_none());
+        assert!(status.ffmpeg_path.is_none());
+    }
 }

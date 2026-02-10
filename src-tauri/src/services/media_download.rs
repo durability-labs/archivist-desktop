@@ -487,6 +487,70 @@ impl MediaDownloadService {
     }
 }
 
+/// Parsed progress information from a yt-dlp output line
+#[derive(Debug, Clone)]
+pub(crate) struct ProgressInfo {
+    pub percent: f32,
+    pub speed: Option<String>,
+    pub eta: Option<String>,
+}
+
+/// Result of parsing a single yt-dlp stdout line
+#[derive(Debug)]
+pub(crate) enum LineParseResult {
+    /// Progress update with percent, optional speed and ETA
+    Progress(ProgressInfo),
+    /// Destination file path
+    Destination(String),
+    /// Merged output file path
+    Merge(String),
+    /// File was already downloaded
+    AlreadyDownloaded(String),
+    /// Line didn't match any known pattern
+    Other,
+}
+
+/// Parse a single line of yt-dlp stdout output into a structured result
+pub(crate) fn parse_yt_dlp_line(line: &str) -> LineParseResult {
+    let progress_re =
+        Regex::new(r"\[download\]\s+([\d.]+)%\s+of\s+~?([\d.]+\w+)\s+at\s+([\d.]+\w+/s)\s+ETA\s+(\S+)")
+            .unwrap();
+    let progress_simple_re = Regex::new(r"\[download\]\s+([\d.]+)%").unwrap();
+    let dest_re = Regex::new(r"\[download\]\s+Destination:\s+(.+)").unwrap();
+    let merge_re = Regex::new(r#"\[Merger\]\s+Merging formats into\s+"(.+)""#).unwrap();
+    let already_re = Regex::new(r"\[download\]\s+(.+)\s+has already been downloaded").unwrap();
+
+    if let Some(caps) = dest_re.captures(line) {
+        return LineParseResult::Destination(caps[1].to_string());
+    }
+
+    if let Some(caps) = merge_re.captures(line) {
+        return LineParseResult::Merge(caps[1].to_string());
+    }
+
+    if let Some(caps) = already_re.captures(line) {
+        return LineParseResult::AlreadyDownloaded(caps[1].to_string());
+    }
+
+    if let Some(caps) = progress_re.captures(line) {
+        let percent: f32 = caps[1].parse().unwrap_or(0.0);
+        let speed = caps.get(3).map(|m| m.as_str().to_string());
+        let eta = caps.get(4).map(|m| m.as_str().to_string());
+        return LineParseResult::Progress(ProgressInfo { percent, speed, eta });
+    }
+
+    if let Some(caps) = progress_simple_re.captures(line) {
+        let percent: f32 = caps[1].parse().unwrap_or(0.0);
+        return LineParseResult::Progress(ProgressInfo {
+            percent,
+            speed: None,
+            eta: None,
+        });
+    }
+
+    LineParseResult::Other
+}
+
 /// Monitor a running yt-dlp process, emitting progress events
 async fn monitor_download(mut child: tokio::process::Child, task_id: String, app_handle: AppHandle) {
     use tokio::io::{AsyncBufReadExt, BufReader};
@@ -511,58 +575,33 @@ async fn monitor_download(mut child: tokio::process::Child, task_id: String, app
     let reader = BufReader::new(stdout);
     let mut lines = reader.lines();
 
-    let progress_re =
-        Regex::new(r"\[download\]\s+([\d.]+)%\s+of\s+~?([\d.]+\w+)\s+at\s+([\d.]+\w+/s)\s+ETA\s+(\S+)")
-            .unwrap();
-    let progress_simple_re = Regex::new(r"\[download\]\s+([\d.]+)%").unwrap();
-    let dest_re = Regex::new(r"\[download\]\s+Destination:\s+(.+)").unwrap();
-    let merge_re = Regex::new(r#"\[Merger\]\s+Merging formats into\s+"(.+)""#).unwrap();
-    let already_re = Regex::new(r"\[download\]\s+(.+)\s+has already been downloaded").unwrap();
-
     let mut output_path: Option<String> = None;
 
     while let Ok(Some(line)) = lines.next_line().await {
         log::debug!("yt-dlp [{}]: {}", task_id, line);
 
-        // Parse destination path
-        if let Some(caps) = dest_re.captures(&line) {
-            output_path = Some(caps[1].to_string());
-        }
-
-        // Parse merge output path
-        if let Some(caps) = merge_re.captures(&line) {
-            output_path = Some(caps[1].to_string());
-        }
-
-        // Parse "already downloaded" path
-        if let Some(caps) = already_re.captures(&line) {
-            output_path = Some(caps[1].to_string());
-        }
-
-        // Parse progress with full details
-        if let Some(caps) = progress_re.captures(&line) {
-            let percent: f32 = caps[1].parse().unwrap_or(0.0);
-            let speed = caps.get(3).map(|m| m.as_str().to_string());
-            let eta = caps.get(4).map(|m| m.as_str().to_string());
-
-            let _ = app_handle.emit(
-                "media-download-progress",
-                serde_json::json!({
-                    "taskId": &task_id,
-                    "percent": percent,
-                    "speed": speed,
-                    "eta": eta,
-                }),
-            );
-        } else if let Some(caps) = progress_simple_re.captures(&line) {
-            let percent: f32 = caps[1].parse().unwrap_or(0.0);
-            let _ = app_handle.emit(
-                "media-download-progress",
-                serde_json::json!({
-                    "taskId": &task_id,
-                    "percent": percent,
-                }),
-            );
+        match parse_yt_dlp_line(&line) {
+            LineParseResult::Destination(path) => {
+                output_path = Some(path);
+            }
+            LineParseResult::Merge(path) => {
+                output_path = Some(path);
+            }
+            LineParseResult::AlreadyDownloaded(path) => {
+                output_path = Some(path);
+            }
+            LineParseResult::Progress(info) => {
+                let _ = app_handle.emit(
+                    "media-download-progress",
+                    serde_json::json!({
+                        "taskId": &task_id,
+                        "percent": info.percent,
+                        "speed": info.speed,
+                        "eta": info.eta,
+                    }),
+                );
+            }
+            LineParseResult::Other => {}
         }
     }
 
@@ -764,5 +803,415 @@ fn kill_process(pid: u32) {
         let _ = std::process::Command::new("taskkill")
             .args(["/PID", &pid.to_string(), "/F"])
             .output();
+    }
+}
+
+#[cfg(test)]
+impl MediaDownloadService {
+    /// Test helper to directly set a task's state
+    pub fn set_task_state_for_test(&mut self, task_id: &str, state: DownloadState) {
+        if let Some(task) = self.tasks.get_mut(task_id) {
+            task.state = state;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// Helper to create default DownloadOptions for tests
+    fn test_options(url: &str) -> DownloadOptions {
+        DownloadOptions {
+            url: url.to_string(),
+            format_id: None,
+            audio_only: false,
+            audio_format: None,
+            output_directory: "/tmp".to_string(),
+            filename: None,
+        }
+    }
+
+    // =========================================================================
+    // parse_yt_dlp_metadata tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_metadata_basic() {
+        let json = json!({
+            "title": "Test Video",
+            "thumbnail": "https://example.com/thumb.jpg",
+            "duration": 120.5,
+            "uploader": "Test Channel",
+            "description": "A test video description",
+            "formats": []
+        });
+        let result = parse_yt_dlp_metadata(&json, "https://example.com/video").unwrap();
+        assert_eq!(result.title, "Test Video");
+        assert_eq!(result.url, "https://example.com/video");
+        assert_eq!(result.thumbnail, Some("https://example.com/thumb.jpg".to_string()));
+        assert!((result.duration_seconds.unwrap() - 120.5).abs() < f64::EPSILON);
+        assert_eq!(result.uploader, Some("Test Channel".to_string()));
+        assert_eq!(result.description, Some("A test video description".to_string()));
+        assert!(result.formats.is_empty());
+    }
+
+    #[test]
+    fn test_parse_metadata_missing_title() {
+        let json = json!({ "formats": [] });
+        let result = parse_yt_dlp_metadata(&json, "https://example.com").unwrap();
+        assert_eq!(result.title, "Unknown Title");
+    }
+
+    #[test]
+    fn test_parse_metadata_description_truncated() {
+        let long_desc = "a".repeat(600);
+        let json = json!({
+            "title": "Test",
+            "description": long_desc,
+            "formats": []
+        });
+        let result = parse_yt_dlp_metadata(&json, "https://example.com").unwrap();
+        assert_eq!(result.description.unwrap().len(), 500);
+    }
+
+    #[test]
+    fn test_parse_metadata_optional_fields_none() {
+        let json = json!({ "title": "Test", "formats": [] });
+        let result = parse_yt_dlp_metadata(&json, "https://example.com").unwrap();
+        assert!(result.thumbnail.is_none());
+        assert!(result.duration_seconds.is_none());
+        assert!(result.uploader.is_none());
+        assert!(result.description.is_none());
+    }
+
+    #[test]
+    fn test_parse_format_video_and_audio() {
+        let json = json!({
+            "title": "Test",
+            "formats": [{
+                "format_id": "22",
+                "ext": "mp4",
+                "vcodec": "avc1.64001F",
+                "acodec": "mp4a.40.2",
+                "height": 1080,
+                "tbr": 2500.0
+            }]
+        });
+        let result = parse_yt_dlp_metadata(&json, "https://example.com").unwrap();
+        assert_eq!(result.formats.len(), 1);
+        let fmt = &result.formats[0];
+        assert!(fmt.has_video);
+        assert!(fmt.has_audio);
+        assert_eq!(fmt.quality_label, "1080p (video+audio)");
+        assert_eq!(fmt.format_id, "22");
+        assert_eq!(fmt.ext, "mp4");
+    }
+
+    #[test]
+    fn test_parse_format_video_only() {
+        let json = json!({
+            "title": "Test",
+            "formats": [{
+                "format_id": "137",
+                "ext": "mp4",
+                "vcodec": "avc1.640028",
+                "acodec": "none",
+                "height": 720
+            }]
+        });
+        let result = parse_yt_dlp_metadata(&json, "https://example.com").unwrap();
+        let fmt = &result.formats[0];
+        assert!(fmt.has_video);
+        assert!(!fmt.has_audio);
+        assert_eq!(fmt.quality_label, "720p (video only)");
+    }
+
+    #[test]
+    fn test_parse_format_audio_only() {
+        let json = json!({
+            "title": "Test",
+            "formats": [{
+                "format_id": "251",
+                "ext": "webm",
+                "vcodec": "none",
+                "acodec": "opus",
+                "abr": 128.0
+            }]
+        });
+        let result = parse_yt_dlp_metadata(&json, "https://example.com").unwrap();
+        let fmt = &result.formats[0];
+        assert!(!fmt.has_video);
+        assert!(fmt.has_audio);
+        assert_eq!(fmt.quality_label, "128kbps (audio)");
+    }
+
+    #[test]
+    fn test_parse_formats_skips_mhtml() {
+        let json = json!({
+            "title": "Test",
+            "formats": [
+                { "format_id": "sb0", "ext": "mhtml", "vcodec": "none", "acodec": "none" },
+                { "format_id": "22", "ext": "mp4", "vcodec": "avc1", "acodec": "mp4a", "height": 720 }
+            ]
+        });
+        let result = parse_yt_dlp_metadata(&json, "https://example.com").unwrap();
+        assert_eq!(result.formats.len(), 1);
+        assert_eq!(result.formats[0].format_id, "22");
+    }
+
+    #[test]
+    fn test_parse_formats_skips_no_format_id() {
+        let json = json!({
+            "title": "Test",
+            "formats": [
+                { "ext": "mp4", "vcodec": "avc1", "acodec": "mp4a" },
+                { "format_id": "22", "ext": "mp4", "vcodec": "avc1", "acodec": "mp4a" }
+            ]
+        });
+        let result = parse_yt_dlp_metadata(&json, "https://example.com").unwrap();
+        assert_eq!(result.formats.len(), 1);
+        assert_eq!(result.formats[0].format_id, "22");
+    }
+
+    #[test]
+    fn test_parse_formats_sorting() {
+        let json = json!({
+            "title": "Test",
+            "formats": [
+                { "format_id": "1", "ext": "webm", "vcodec": "none", "acodec": "opus", "abr": 128.0, "tbr": 128.0 },
+                { "format_id": "2", "ext": "mp4", "vcodec": "avc1", "acodec": "none", "height": 1080, "tbr": 3000.0 },
+                { "format_id": "3", "ext": "mp4", "vcodec": "avc1", "acodec": "mp4a", "height": 720, "tbr": 1500.0 },
+                { "format_id": "4", "ext": "mp4", "vcodec": "avc1", "acodec": "mp4a", "height": 1080, "tbr": 2500.0 }
+            ]
+        });
+        let result = parse_yt_dlp_metadata(&json, "https://example.com").unwrap();
+        assert_eq!(result.formats.len(), 4);
+        // video+audio sorted by tbr descending first
+        assert_eq!(result.formats[0].format_id, "4"); // 2500 tbr, video+audio
+        assert_eq!(result.formats[1].format_id, "3"); // 1500 tbr, video+audio
+        // then video-only
+        assert_eq!(result.formats[2].format_id, "2"); // video only
+        // then audio-only
+        assert_eq!(result.formats[3].format_id, "1"); // audio only
+    }
+
+    // =========================================================================
+    // Queue management tests
+    // =========================================================================
+
+    #[test]
+    fn test_queue_download_creates_task() {
+        let mut svc = MediaDownloadService::new(3);
+        let id = svc.queue_download(
+            test_options("https://example.com/video"),
+            "Test Video".to_string(),
+            None,
+        ).unwrap();
+
+        assert!(!id.is_empty());
+        let state = svc.get_queue_state();
+        assert_eq!(state.tasks.len(), 1);
+        assert_eq!(state.tasks[0].id, id);
+        assert_eq!(state.tasks[0].state, DownloadState::Queued);
+        assert_eq!(state.tasks[0].title, "Test Video");
+        assert!((state.tasks[0].progress_percent - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_queue_download_preserves_order() {
+        let mut svc = MediaDownloadService::new(3);
+        let id1 = svc.queue_download(test_options("https://a.com"), "First".to_string(), None).unwrap();
+        let id2 = svc.queue_download(test_options("https://b.com"), "Second".to_string(), None).unwrap();
+        let id3 = svc.queue_download(test_options("https://c.com"), "Third".to_string(), None).unwrap();
+
+        let state = svc.get_queue_state();
+        assert_eq!(state.tasks[0].id, id1);
+        assert_eq!(state.tasks[1].id, id2);
+        assert_eq!(state.tasks[2].id, id3);
+    }
+
+    #[test]
+    fn test_queue_state_counts() {
+        let mut svc = MediaDownloadService::new(3);
+        let id1 = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+        let id2 = svc.queue_download(test_options("https://b.com"), "B".to_string(), None).unwrap();
+        let _id3 = svc.queue_download(test_options("https://c.com"), "C".to_string(), None).unwrap();
+
+        svc.set_task_state_for_test(&id1, DownloadState::Downloading);
+        svc.mark_completed(&id2, Some("/tmp/b.mp4".to_string()));
+        // _id3 stays Queued
+
+        let state = svc.get_queue_state();
+        assert_eq!(state.active_count, 1);
+        assert_eq!(state.queued_count, 1);
+        assert_eq!(state.completed_count, 1);
+    }
+
+    #[test]
+    fn test_cancel_download_sets_cancelled() {
+        let mut svc = MediaDownloadService::new(3);
+        let id = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+
+        svc.cancel_download(&id).unwrap();
+
+        let state = svc.get_queue_state();
+        assert_eq!(state.tasks[0].state, DownloadState::Cancelled);
+    }
+
+    #[test]
+    fn test_cancel_nonexistent_ok() {
+        let mut svc = MediaDownloadService::new(3);
+        let result = svc.cancel_download("nonexistent-id");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_remove_task() {
+        let mut svc = MediaDownloadService::new(3);
+        let id = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+
+        svc.remove_task(&id).unwrap();
+
+        let state = svc.get_queue_state();
+        assert!(state.tasks.is_empty());
+    }
+
+    #[test]
+    fn test_clear_completed() {
+        let mut svc = MediaDownloadService::new(3);
+        let id1 = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+        let id2 = svc.queue_download(test_options("https://b.com"), "B".to_string(), None).unwrap();
+        let id3 = svc.queue_download(test_options("https://c.com"), "C".to_string(), None).unwrap();
+        let id4 = svc.queue_download(test_options("https://d.com"), "D".to_string(), None).unwrap();
+        let id5 = svc.queue_download(test_options("https://e.com"), "E".to_string(), None).unwrap();
+
+        // id1 stays Queued
+        svc.set_task_state_for_test(&id2, DownloadState::Downloading);
+        svc.mark_completed(&id3, None);
+        svc.mark_failed(&id4, "error".to_string());
+        svc.cancel_download(&id5).unwrap();
+
+        svc.clear_completed();
+
+        let state = svc.get_queue_state();
+        assert_eq!(state.tasks.len(), 2);
+        assert_eq!(state.tasks[0].id, id1); // Queued preserved
+        assert_eq!(state.tasks[1].id, id2); // Downloading preserved
+    }
+
+    #[test]
+    fn test_mark_completed() {
+        let mut svc = MediaDownloadService::new(3);
+        let id = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+
+        svc.mark_completed(&id, Some("/tmp/video.mp4".to_string()));
+
+        let state = svc.get_queue_state();
+        let task = &state.tasks[0];
+        assert_eq!(task.state, DownloadState::Completed);
+        assert!((task.progress_percent - 100.0).abs() < f32::EPSILON);
+        assert_eq!(task.output_path, Some("/tmp/video.mp4".to_string()));
+        assert!(task.completed_at.is_some());
+    }
+
+    #[test]
+    fn test_mark_failed() {
+        let mut svc = MediaDownloadService::new(3);
+        let id = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+
+        svc.mark_failed(&id, "network error".to_string());
+
+        let state = svc.get_queue_state();
+        let task = &state.tasks[0];
+        assert_eq!(task.state, DownloadState::Failed);
+        assert_eq!(task.error, Some("network error".to_string()));
+    }
+
+    #[test]
+    fn test_update_task_progress() {
+        let mut svc = MediaDownloadService::new(3);
+        let id = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+
+        svc.update_task_progress(&id, 42.5, Some("5.2MiB/s".to_string()), Some("00:30".to_string()));
+
+        let state = svc.get_queue_state();
+        let task = &state.tasks[0];
+        assert!((task.progress_percent - 42.5).abs() < f32::EPSILON);
+        assert_eq!(task.speed, Some("5.2MiB/s".to_string()));
+        assert_eq!(task.eta, Some("00:30".to_string()));
+    }
+
+    // =========================================================================
+    // Progress line parsing tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_full_progress() {
+        let line = "[download]  45.2% of ~150.00MiB at 5.50MiB/s ETA 00:15";
+        match parse_yt_dlp_line(line) {
+            LineParseResult::Progress(info) => {
+                assert!((info.percent - 45.2).abs() < f32::EPSILON);
+                assert_eq!(info.speed, Some("5.50MiB/s".to_string()));
+                assert_eq!(info.eta, Some("00:15".to_string()));
+            }
+            other => panic!("Expected Progress, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_simple_progress() {
+        let line = "[download] 100%";
+        match parse_yt_dlp_line(line) {
+            LineParseResult::Progress(info) => {
+                assert!((info.percent - 100.0).abs() < f32::EPSILON);
+                assert!(info.speed.is_none());
+                assert!(info.eta.is_none());
+            }
+            other => panic!("Expected Progress, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_destination() {
+        let line = "[download] Destination: /home/user/Downloads/video.mp4";
+        match parse_yt_dlp_line(line) {
+            LineParseResult::Destination(path) => {
+                assert_eq!(path, "/home/user/Downloads/video.mp4");
+            }
+            other => panic!("Expected Destination, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_merger() {
+        let line = r#"[Merger] Merging formats into "/home/user/Downloads/video.mp4""#;
+        match parse_yt_dlp_line(line) {
+            LineParseResult::Merge(path) => {
+                assert_eq!(path, "/home/user/Downloads/video.mp4");
+            }
+            other => panic!("Expected Merge, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_already_downloaded() {
+        let line = "[download] /home/user/Downloads/video.mp4 has already been downloaded";
+        match parse_yt_dlp_line(line) {
+            LineParseResult::AlreadyDownloaded(path) => {
+                assert_eq!(path, "/home/user/Downloads/video.mp4");
+            }
+            other => panic!("Expected AlreadyDownloaded, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_unrecognized_line() {
+        let line = "[info] Writing video metadata";
+        match parse_yt_dlp_line(line) {
+            LineParseResult::Other => {}
+            other => panic!("Expected Other, got {:?}", other),
+        }
     }
 }

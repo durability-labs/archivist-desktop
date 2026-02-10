@@ -211,6 +211,16 @@ export const SEL = {
   peerAddressInput: '#peer-address',
   connectBtn: '.primary',
   wizardError: '.wizard-error',
+
+  // Media Download
+  mediaDownloadPage: '.media-download-page',
+  mediaDownloadHeader: '.media-download-page h1',
+  urlInput: '.url-input-row input[type="text"]',
+  fetchBtn: '.fetch-btn',
+  setupBanner: '.setup-banner',
+  downloadQueue: '.download-queue',
+  queueEmpty: '.queue-empty',
+  binaryInfo: '.binary-info',
 } as const;
 
 // ---------------------------------------------------------------------------
