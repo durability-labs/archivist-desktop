@@ -1,6 +1,6 @@
 use crate::error::{ArchivistError, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
 /// Status of external binaries (yt-dlp, ffmpeg)
@@ -157,11 +157,10 @@ impl BinaryManager {
         log::info!("Downloading yt-dlp from {} to {:?}", url, dest);
 
         let client = reqwest::Client::new();
-        let response = client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| ArchivistError::MediaDownloadError(format!("Download failed: {}", e)))?;
+        let response =
+            client.get(&url).send().await.map_err(|e| {
+                ArchivistError::MediaDownloadError(format!("Download failed: {}", e))
+            })?;
 
         if !response.status().is_success() {
             return Err(ArchivistError::MediaDownloadError(format!(
@@ -187,9 +186,9 @@ impl BinaryManager {
                 ArchivistError::MediaDownloadError(format!("Download stream error: {}", e))
             })?;
             downloaded += data.len() as u64;
-            file.write_all(&data).await.map_err(|e| {
-                ArchivistError::MediaDownloadError(format!("Write error: {}", e))
-            })?;
+            file.write_all(&data)
+                .await
+                .map_err(|e| ArchivistError::MediaDownloadError(format!("Write error: {}", e)))?;
 
             let _ = app_handle.emit(
                 "binary-download-progress",
@@ -201,9 +200,9 @@ impl BinaryManager {
             );
         }
 
-        file.flush().await.map_err(|e| {
-            ArchivistError::MediaDownloadError(format!("Flush error: {}", e))
-        })?;
+        file.flush()
+            .await
+            .map_err(|e| ArchivistError::MediaDownloadError(format!("Flush error: {}", e)))?;
         drop(file);
 
         // Set executable permission on Unix
@@ -211,12 +210,7 @@ impl BinaryManager {
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755)).map_err(
-                |e| {
-                    ArchivistError::MediaDownloadError(format!(
-                        "Failed to set permissions: {}",
-                        e
-                    ))
-                },
+                |e| ArchivistError::MediaDownloadError(format!("Failed to set permissions: {}", e)),
             )?;
         }
 
@@ -245,11 +239,10 @@ impl BinaryManager {
         log::info!("Downloading ffmpeg from {} to {:?}", url, dest);
 
         let client = reqwest::Client::new();
-        let response = client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| ArchivistError::MediaDownloadError(format!("Download failed: {}", e)))?;
+        let response =
+            client.get(&url).send().await.map_err(|e| {
+                ArchivistError::MediaDownloadError(format!("Download failed: {}", e))
+            })?;
 
         if !response.status().is_success() {
             return Err(ArchivistError::MediaDownloadError(format!(
@@ -262,7 +255,9 @@ impl BinaryManager {
         let mut downloaded: u64 = 0;
 
         // Download archive to temp file
-        let temp_archive = self.bin_dir.join(format!("ffmpeg-download.{}", archive_type));
+        let temp_archive = self
+            .bin_dir
+            .join(format!("ffmpeg-download.{}", archive_type));
         let mut file = tokio::fs::File::create(&temp_archive).await.map_err(|e| {
             ArchivistError::MediaDownloadError(format!("Failed to create temp file: {}", e))
         })?;
@@ -276,9 +271,9 @@ impl BinaryManager {
                 ArchivistError::MediaDownloadError(format!("Download stream error: {}", e))
             })?;
             downloaded += data.len() as u64;
-            file.write_all(&data).await.map_err(|e| {
-                ArchivistError::MediaDownloadError(format!("Write error: {}", e))
-            })?;
+            file.write_all(&data)
+                .await
+                .map_err(|e| ArchivistError::MediaDownloadError(format!("Write error: {}", e)))?;
 
             let _ = app_handle.emit(
                 "binary-download-progress",
@@ -290,17 +285,20 @@ impl BinaryManager {
             );
         }
 
-        file.flush().await.map_err(|e| {
-            ArchivistError::MediaDownloadError(format!("Flush error: {}", e))
-        })?;
+        file.flush()
+            .await
+            .map_err(|e| ArchivistError::MediaDownloadError(format!("Flush error: {}", e)))?;
         drop(file);
 
         // Extract ffmpeg binary from archive
-        self.extract_ffmpeg(&temp_archive, &dest, archive_type)
-            .await?;
+        let extract_result = self
+            .extract_ffmpeg(&temp_archive, &dest, archive_type)
+            .await;
 
-        // Clean up temp archive
+        // Clean up temp archive regardless of extraction result
         let _ = tokio::fs::remove_file(&temp_archive).await;
+
+        extract_result?;
 
         log::info!("ffmpeg installed successfully at {:?}", dest);
 
@@ -318,8 +316,8 @@ impl BinaryManager {
     /// Extract ffmpeg binary from downloaded archive
     async fn extract_ffmpeg(
         &self,
-        archive_path: &PathBuf,
-        dest: &PathBuf,
+        archive_path: &Path,
+        dest: &Path,
         archive_type: &str,
     ) -> Result<()> {
         match archive_type {
@@ -333,13 +331,9 @@ impl BinaryManager {
     }
 
     /// Extract ffmpeg from a zip archive (Windows)
-    async fn extract_ffmpeg_from_zip(
-        &self,
-        archive_path: &PathBuf,
-        dest: &PathBuf,
-    ) -> Result<()> {
-        let archive_path = archive_path.clone();
-        let dest = dest.clone();
+    async fn extract_ffmpeg_from_zip(&self, archive_path: &Path, dest: &Path) -> Result<()> {
+        let archive_path = archive_path.to_path_buf();
+        let dest = dest.to_path_buf();
 
         tokio::task::spawn_blocking(move || {
             let file = std::fs::File::open(&archive_path).map_err(|e| {
@@ -361,7 +355,10 @@ impl BinaryManager {
                     ArchivistError::MediaDownloadError(format!("Zip entry error: {}", e))
                 })?;
                 let name = entry.name().to_string();
-                if name.ends_with(ffmpeg_name) && !name.contains("ffplay") && !name.contains("ffprobe") {
+                if name.ends_with(ffmpeg_name)
+                    && !name.contains("ffplay")
+                    && !name.contains("ffprobe")
+                {
                     let mut outfile = std::fs::File::create(&dest).map_err(|e| {
                         ArchivistError::MediaDownloadError(format!(
                             "Failed to create ffmpeg file: {}",
@@ -375,10 +372,8 @@ impl BinaryManager {
                     #[cfg(unix)]
                     {
                         use std::os::unix::fs::PermissionsExt;
-                        let _ = std::fs::set_permissions(
-                            &dest,
-                            std::fs::Permissions::from_mode(0o755),
-                        );
+                        let _ =
+                            std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755));
                     }
 
                     return Ok(());
@@ -394,19 +389,13 @@ impl BinaryManager {
     }
 
     /// Extract ffmpeg from a tar.xz archive (Linux/macOS)
-    async fn extract_ffmpeg_from_tar_xz(
-        &self,
-        archive_path: &PathBuf,
-        dest: &PathBuf,
-    ) -> Result<()> {
-        // Use system tar for extraction since it handles xz natively
+    async fn extract_ffmpeg_from_tar_xz(&self, archive_path: &Path, dest: &Path) -> Result<()> {
+        // Extract full archive — --wildcards is unreliable across tar versions
+        // (GNU tar 1.34 silently matches nothing and exits 0)
         let output = tokio::process::Command::new("tar")
             .args([
                 "xf",
                 &archive_path.to_string_lossy(),
-                "--wildcards",
-                "*/ffmpeg",
-                "--strip-components=2",
                 "-C",
                 &self.bin_dir.to_string_lossy(),
             ])
@@ -414,44 +403,28 @@ impl BinaryManager {
             .stderr(std::process::Stdio::piped())
             .output()
             .await
-            .map_err(|e| {
-                ArchivistError::MediaDownloadError(format!("Failed to extract: {}", e))
-            })?;
+            .map_err(|e| ArchivistError::MediaDownloadError(format!("Failed to extract: {}", e)))?;
 
         if !output.status.success() {
-            // Try without --wildcards (macOS tar doesn't support it)
-            let output2 = tokio::process::Command::new("tar")
-                .args([
-                    "xf",
-                    &archive_path.to_string_lossy(),
-                    "-C",
-                    &self.bin_dir.to_string_lossy(),
-                ])
-                .output()
-                .await
-                .map_err(|e| {
-                    ArchivistError::MediaDownloadError(format!("Failed to extract: {}", e))
-                })?;
-
-            if !output2.status.success() {
-                let stderr = String::from_utf8_lossy(&output2.stderr);
-                return Err(ArchivistError::MediaDownloadError(format!(
-                    "tar extraction failed: {}",
-                    stderr
-                )));
-            }
-
-            // Find and move the ffmpeg binary to the expected location
-            self.find_and_move_ffmpeg(dest).await?;
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(ArchivistError::MediaDownloadError(format!(
+                "tar extraction failed: {}",
+                stderr
+            )));
         }
+
+        // Find the ffmpeg binary in the extracted tree and move it to bin_dir
+        self.find_and_move_ffmpeg(dest).await?;
+
+        // Clean up extracted directories (e.g. ffmpeg-master-latest-linux64-gpl/)
+        self.cleanup_extracted_dirs().await;
 
         // Ensure executable permissions
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             if dest.exists() {
-                let _ =
-                    std::fs::set_permissions(dest, std::fs::Permissions::from_mode(0o755));
+                let _ = std::fs::set_permissions(dest, std::fs::Permissions::from_mode(0o755));
             }
         }
 
@@ -465,21 +438,30 @@ impl BinaryManager {
     }
 
     /// Find extracted ffmpeg binary and move it to the expected location
-    async fn find_and_move_ffmpeg(&self, dest: &PathBuf) -> Result<()> {
+    async fn find_and_move_ffmpeg(&self, dest: &Path) -> Result<()> {
         // Walk the bin_dir looking for an ffmpeg binary in subdirectories
         for entry in walkdir(&self.bin_dir) {
             let path = entry.path();
             if path.file_name().map(|n| n == "ffmpeg").unwrap_or(false) && path != *dest {
                 tokio::fs::rename(path, dest).await.map_err(|e| {
-                    ArchivistError::MediaDownloadError(format!(
-                        "Failed to move ffmpeg: {}",
-                        e
-                    ))
+                    ArchivistError::MediaDownloadError(format!("Failed to move ffmpeg: {}", e))
                 })?;
                 return Ok(());
             }
         }
         Ok(())
+    }
+
+    /// Remove extracted subdirectories from bin_dir (leaves only binaries)
+    async fn cleanup_extracted_dirs(&self) {
+        if let Ok(entries) = std::fs::read_dir(&self.bin_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let _ = tokio::fs::remove_dir_all(&path).await;
+                }
+            }
+        }
     }
 
     /// Get yt-dlp download URL for current platform

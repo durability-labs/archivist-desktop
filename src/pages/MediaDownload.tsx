@@ -30,7 +30,9 @@ export default function MediaDownload() {
     queueState,
     binaryStatus,
     loading,
+    installError,
     installingBinary,
+    installProgress,
     fetchMetadata,
     queueDownload,
     cancelDownload,
@@ -40,6 +42,18 @@ export default function MediaDownload() {
     installFfmpeg,
     updateYtDlp,
   } = useMediaDownload();
+
+  const installButtonLabel = (binary: string, defaultLabel: string) => {
+    if (installingBinary !== binary) return defaultLabel;
+    if (installProgress && installProgress.total) {
+      const pct = Math.round((installProgress.downloaded / installProgress.total) * 100);
+      return `Installing... ${pct}%`;
+    }
+    if (installProgress) {
+      return `Installing... ${formatBytes(installProgress.downloaded)}`;
+    }
+    return 'Installing...';
+  };
 
   const [url, setUrl] = useState('');
   const [metadata, setMetadata] = useState<MediaMetadata | null>(null);
@@ -163,9 +177,12 @@ export default function MediaDownload() {
               onClick={installYtDlp}
               disabled={installingBinary === 'yt-dlp'}
             >
-              {installingBinary === 'yt-dlp' ? 'Installing...' : 'Install yt-dlp'}
+              {installButtonLabel('yt-dlp', 'Install yt-dlp')}
             </button>
           </div>
+          {installError && installingBinary === null && (
+            <p className="install-error">{installError}</p>
+          )}
         </div>
       )}
 
@@ -183,12 +200,15 @@ export default function MediaDownload() {
               onClick={installFfmpeg}
               disabled={installingBinary === 'ffmpeg'}
             >
-              {installingBinary === 'ffmpeg' ? 'Installing...' : 'Install ffmpeg'}
+              {installButtonLabel('ffmpeg', 'Install ffmpeg')}
             </button>
             {binaryStatus.ytDlpVersion && (
               <span className="binary-info">yt-dlp {binaryStatus.ytDlpVersion}</span>
             )}
           </div>
+          {installError && installingBinary === null && (
+            <p className="install-error">{installError}</p>
+          )}
         </div>
       )}
 

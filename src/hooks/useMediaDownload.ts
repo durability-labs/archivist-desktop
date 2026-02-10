@@ -83,12 +83,20 @@ export interface BinaryStatus {
   ffmpegPath: string | null;
 }
 
+export interface InstallProgress {
+  binary: string;
+  downloaded: number;
+  total: number | null;
+}
+
 export function useMediaDownload() {
   const [queueState, setQueueState] = useState<DownloadQueueState | null>(null);
   const [binaryStatus, setBinaryStatus] = useState<BinaryStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [installingBinary, setInstallingBinary] = useState<string | null>(null);
+  const [installProgress, setInstallProgress] = useState<InstallProgress | null>(null);
+  const [installError, setInstallError] = useState<string | null>(null);
 
   const refreshQueue = useCallback(async () => {
     try {
@@ -140,32 +148,48 @@ export function useMediaDownload() {
 
   const installYtDlp = useCallback(async () => {
     setInstallingBinary('yt-dlp');
+    setInstallProgress(null);
+    setInstallError(null);
     try {
       await invoke('install_yt_dlp');
       await checkBinaries();
       await refreshQueue();
+    } catch (e) {
+      setInstallError(typeof e === 'string' ? e : (e instanceof Error ? e.message : 'Failed to install yt-dlp'));
     } finally {
       setInstallingBinary(null);
+      setInstallProgress(null);
     }
   }, [checkBinaries, refreshQueue]);
 
   const installFfmpeg = useCallback(async () => {
     setInstallingBinary('ffmpeg');
+    setInstallProgress(null);
+    setInstallError(null);
     try {
       await invoke('install_ffmpeg');
       await checkBinaries();
+      await refreshQueue();
+    } catch (e) {
+      setInstallError(typeof e === 'string' ? e : (e instanceof Error ? e.message : 'Failed to install ffmpeg'));
     } finally {
       setInstallingBinary(null);
+      setInstallProgress(null);
     }
-  }, [checkBinaries]);
+  }, [checkBinaries, refreshQueue]);
 
   const updateYtDlp = useCallback(async () => {
     setInstallingBinary('yt-dlp');
+    setInstallProgress(null);
+    setInstallError(null);
     try {
       await invoke('update_yt_dlp');
       await checkBinaries();
+    } catch (e) {
+      setInstallError(typeof e === 'string' ? e : (e instanceof Error ? e.message : 'Failed to update yt-dlp'));
     } finally {
       setInstallingBinary(null);
+      setInstallProgress(null);
     }
   }, [checkBinaries]);
 
@@ -235,9 +259,23 @@ export function useMediaDownload() {
       });
     });
 
+    // Listen to binary download progress events (yt-dlp/ffmpeg install)
+    const unlistenBinaryProgress = listen<{
+      binary: string;
+      downloaded: number;
+      total: number | null;
+    }>('binary-download-progress', (event) => {
+      setInstallProgress({
+        binary: event.payload.binary,
+        downloaded: event.payload.downloaded,
+        total: event.payload.total,
+      });
+    });
+
     return () => {
       unlistenProgress.then(fn => fn());
       unlistenState.then(fn => fn());
+      unlistenBinaryProgress.then(fn => fn());
     };
   }, []);
 
@@ -246,7 +284,9 @@ export function useMediaDownload() {
     binaryStatus,
     loading,
     error,
+    installError,
     installingBinary,
+    installProgress,
     fetchMetadata,
     queueDownload,
     cancelDownload,

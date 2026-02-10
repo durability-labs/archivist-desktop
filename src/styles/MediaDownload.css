@@ -65,6 +65,12 @@
   font-size: 0.75rem;
 }
 
+.setup-banner .install-error {
+  color: #ff6b6b;
+  font-size: 0.8rem;
+  margin: 0.75rem 0 0 0;
+}
+
 /* URL Input Section */
 .url-input-section {
   background: var(--term-panel);

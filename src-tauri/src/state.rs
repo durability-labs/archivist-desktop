@@ -92,9 +92,8 @@ impl AppState {
         let manifest_server = Arc::new(RwLock::new(manifest_server));
 
         // Create media download service
-        let media_service = MediaDownloadService::new(
-            app_config.media_download.max_concurrent_downloads,
-        );
+        let media_service =
+            MediaDownloadService::new(app_config.media_download.max_concurrent_downloads);
 
         Self {
             node: Arc::new(RwLock::new(NodeService::with_config(node_config))),
