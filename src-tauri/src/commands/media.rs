@@ -13,10 +13,7 @@ pub async fn check_media_binaries(state: State<'_, AppState>) -> Result<BinarySt
 
 /// Install yt-dlp binary (downloads from GitHub)
 #[tauri::command]
-pub async fn install_yt_dlp(
-    app_handle: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<()> {
+pub async fn install_yt_dlp(app_handle: AppHandle, state: State<'_, AppState>) -> Result<()> {
     let media = state.media.read().await;
     media.binary_manager().install_yt_dlp(&app_handle).await?;
     drop(media);
@@ -29,10 +26,7 @@ pub async fn install_yt_dlp(
 
 /// Install ffmpeg binary
 #[tauri::command]
-pub async fn install_ffmpeg(
-    app_handle: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<()> {
+pub async fn install_ffmpeg(app_handle: AppHandle, state: State<'_, AppState>) -> Result<()> {
     let media = state.media.read().await;
     media.binary_manager().install_ffmpeg(&app_handle).await
 }
@@ -61,20 +55,14 @@ pub async fn queue_media_download(
 
 /// Cancel an active download
 #[tauri::command]
-pub async fn cancel_media_download(
-    state: State<'_, AppState>,
-    task_id: String,
-) -> Result<()> {
+pub async fn cancel_media_download(state: State<'_, AppState>, task_id: String) -> Result<()> {
     let mut media = state.media.write().await;
     media.cancel_download(&task_id)
 }
 
 /// Remove a completed/failed/cancelled task from the queue
 #[tauri::command]
-pub async fn remove_media_task(
-    state: State<'_, AppState>,
-    task_id: String,
-) -> Result<()> {
+pub async fn remove_media_task(state: State<'_, AppState>, task_id: String) -> Result<()> {
     let mut media = state.media.write().await;
     media.remove_task(&task_id)
 }
@@ -96,10 +84,7 @@ pub async fn get_download_queue(state: State<'_, AppState>) -> Result<DownloadQu
 
 /// Update yt-dlp to the latest version
 #[tauri::command]
-pub async fn update_yt_dlp(
-    app_handle: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<()> {
+pub async fn update_yt_dlp(app_handle: AppHandle, state: State<'_, AppState>) -> Result<()> {
     // Re-download (overwrites existing)
     let media = state.media.read().await;
     media.binary_manager().install_yt_dlp(&app_handle).await?;

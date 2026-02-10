@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// State of a download task
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -512,9 +512,10 @@ pub(crate) enum LineParseResult {
 
 /// Parse a single line of yt-dlp stdout output into a structured result
 pub(crate) fn parse_yt_dlp_line(line: &str) -> LineParseResult {
-    let progress_re =
-        Regex::new(r"\[download\]\s+([\d.]+)%\s+of\s+~?([\d.]+\w+)\s+at\s+([\d.]+\w+/s)\s+ETA\s+(\S+)")
-            .unwrap();
+    let progress_re = Regex::new(
+        r"\[download\]\s+([\d.]+)%\s+of\s+~?([\d.]+\w+)\s+at\s+([\d.]+\w+/s)\s+ETA\s+(\S+)",
+    )
+    .unwrap();
     let progress_simple_re = Regex::new(r"\[download\]\s+([\d.]+)%").unwrap();
     let dest_re = Regex::new(r"\[download\]\s+Destination:\s+(.+)").unwrap();
     let merge_re = Regex::new(r#"\[Merger\]\s+Merging formats into\s+"(.+)""#).unwrap();
@@ -536,7 +537,11 @@ pub(crate) fn parse_yt_dlp_line(line: &str) -> LineParseResult {
         let percent: f32 = caps[1].parse().unwrap_or(0.0);
         let speed = caps.get(3).map(|m| m.as_str().to_string());
         let eta = caps.get(4).map(|m| m.as_str().to_string());
-        return LineParseResult::Progress(ProgressInfo { percent, speed, eta });
+        return LineParseResult::Progress(ProgressInfo {
+            percent,
+            speed,
+            eta,
+        });
     }
 
     if let Some(caps) = progress_simple_re.captures(line) {
@@ -552,7 +557,11 @@ pub(crate) fn parse_yt_dlp_line(line: &str) -> LineParseResult {
 }
 
 /// Monitor a running yt-dlp process, emitting progress events
-async fn monitor_download(mut child: tokio::process::Child, task_id: String, app_handle: AppHandle) {
+async fn monitor_download(
+    mut child: tokio::process::Child,
+    task_id: String,
+    app_handle: AppHandle,
+) {
     use tokio::io::{AsyncBufReadExt, BufReader};
 
     let stdout = match child.stdout.take() {
@@ -600,6 +609,16 @@ async fn monitor_download(mut child: tokio::process::Child, task_id: String, app
                         "eta": info.eta,
                     }),
                 );
+                // Sync progress to backend so polling returns current values
+                if let Some(state) = app_handle.try_state::<crate::state::AppState>() {
+                    let mut media = state.media.write().await;
+                    media.update_task_progress(
+                        &task_id,
+                        info.percent,
+                        info.speed.clone(),
+                        info.eta.clone(),
+                    );
+                }
             }
             LineParseResult::Other => {}
         }
@@ -632,6 +651,11 @@ async fn monitor_download(mut child: tokio::process::Child, task_id: String, app
                     "outputPath": output_path,
                 }),
             );
+            // Update backend state so polling returns correct state
+            if let Some(state) = app_handle.try_state::<crate::state::AppState>() {
+                let mut media = state.media.write().await;
+                media.mark_completed(&task_id, output_path);
+            }
             log::info!("Download completed for task {}", task_id);
         }
         Ok(status) => {
@@ -645,20 +669,31 @@ async fn monitor_download(mut child: tokio::process::Child, task_id: String, app
                 serde_json::json!({
                     "taskId": &task_id,
                     "state": "failed",
-                    "error": error,
+                    "error": &error,
                 }),
             );
+            // Update backend state so polling returns correct state
+            if let Some(state) = app_handle.try_state::<crate::state::AppState>() {
+                let mut media = state.media.write().await;
+                media.mark_failed(&task_id, error.clone());
+            }
             log::warn!("Download failed for task {}: {}", task_id, error);
         }
         Err(e) => {
+            let error = format!("Process error: {}", e);
             let _ = app_handle.emit(
                 "media-download-state-changed",
                 serde_json::json!({
                     "taskId": &task_id,
                     "state": "failed",
-                    "error": format!("Process error: {}", e),
+                    "error": &error,
                 }),
             );
+            // Update backend state so polling returns correct state
+            if let Some(state) = app_handle.try_state::<crate::state::AppState>() {
+                let mut media = state.media.write().await;
+                media.mark_failed(&task_id, error);
+            }
         }
     }
 }
@@ -690,14 +725,8 @@ fn parse_yt_dlp_metadata(json: &serde_json::Value, url: &str) -> Result<MediaMet
             let vcodec = f["vcodec"].as_str().map(|s| s.to_string());
             let acodec = f["acodec"].as_str().map(|s| s.to_string());
 
-            let has_video = vcodec
-                .as_ref()
-                .map(|v| v != "none")
-                .unwrap_or(false);
-            let has_audio = acodec
-                .as_ref()
-                .map(|a| a != "none")
-                .unwrap_or(false);
+            let has_video = vcodec.as_ref().map(|v| v != "none").unwrap_or(false);
+            let has_audio = acodec.as_ref().map(|a| a != "none").unwrap_or(false);
 
             let resolution = f["resolution"].as_str().map(|s| s.to_string());
             let height = f["height"].as_u64();
@@ -713,7 +742,9 @@ fn parse_yt_dlp_metadata(json: &serde_json::Value, url: &str) -> Result<MediaMet
             let quality_label = if has_video && has_audio {
                 match height {
                     Some(h) => format!("{}p (video+audio)", h),
-                    None => format_note.clone().unwrap_or_else(|| "video+audio".to_string()),
+                    None => format_note
+                        .clone()
+                        .unwrap_or_else(|| "video+audio".to_string()),
                 }
             } else if has_video {
                 match height {
@@ -775,7 +806,9 @@ fn parse_yt_dlp_metadata(json: &serde_json::Value, url: &str) -> Result<MediaMet
         b_score.cmp(&a_score).then_with(|| {
             let a_tbr = a.tbr.unwrap_or(0.0);
             let b_tbr = b.tbr.unwrap_or(0.0);
-            b_tbr.partial_cmp(&a_tbr).unwrap_or(std::cmp::Ordering::Equal)
+            b_tbr
+                .partial_cmp(&a_tbr)
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
     });
 
@@ -850,10 +883,16 @@ mod tests {
         let result = parse_yt_dlp_metadata(&json, "https://example.com/video").unwrap();
         assert_eq!(result.title, "Test Video");
         assert_eq!(result.url, "https://example.com/video");
-        assert_eq!(result.thumbnail, Some("https://example.com/thumb.jpg".to_string()));
+        assert_eq!(
+            result.thumbnail,
+            Some("https://example.com/thumb.jpg".to_string())
+        );
         assert!((result.duration_seconds.unwrap() - 120.5).abs() < f64::EPSILON);
         assert_eq!(result.uploader, Some("Test Channel".to_string()));
-        assert_eq!(result.description, Some("A test video description".to_string()));
+        assert_eq!(
+            result.description,
+            Some("A test video description".to_string())
+        );
         assert!(result.formats.is_empty());
     }
 
@@ -991,9 +1030,9 @@ mod tests {
         // video+audio sorted by tbr descending first
         assert_eq!(result.formats[0].format_id, "4"); // 2500 tbr, video+audio
         assert_eq!(result.formats[1].format_id, "3"); // 1500 tbr, video+audio
-        // then video-only
+                                                      // then video-only
         assert_eq!(result.formats[2].format_id, "2"); // video only
-        // then audio-only
+                                                      // then audio-only
         assert_eq!(result.formats[3].format_id, "1"); // audio only
     }
 
@@ -1004,11 +1043,13 @@ mod tests {
     #[test]
     fn test_queue_download_creates_task() {
         let mut svc = MediaDownloadService::new(3);
-        let id = svc.queue_download(
-            test_options("https://example.com/video"),
-            "Test Video".to_string(),
-            None,
-        ).unwrap();
+        let id = svc
+            .queue_download(
+                test_options("https://example.com/video"),
+                "Test Video".to_string(),
+                None,
+            )
+            .unwrap();
 
         assert!(!id.is_empty());
         let state = svc.get_queue_state();
@@ -1022,9 +1063,15 @@ mod tests {
     #[test]
     fn test_queue_download_preserves_order() {
         let mut svc = MediaDownloadService::new(3);
-        let id1 = svc.queue_download(test_options("https://a.com"), "First".to_string(), None).unwrap();
-        let id2 = svc.queue_download(test_options("https://b.com"), "Second".to_string(), None).unwrap();
-        let id3 = svc.queue_download(test_options("https://c.com"), "Third".to_string(), None).unwrap();
+        let id1 = svc
+            .queue_download(test_options("https://a.com"), "First".to_string(), None)
+            .unwrap();
+        let id2 = svc
+            .queue_download(test_options("https://b.com"), "Second".to_string(), None)
+            .unwrap();
+        let id3 = svc
+            .queue_download(test_options("https://c.com"), "Third".to_string(), None)
+            .unwrap();
 
         let state = svc.get_queue_state();
         assert_eq!(state.tasks[0].id, id1);
@@ -1035,9 +1082,15 @@ mod tests {
     #[test]
     fn test_queue_state_counts() {
         let mut svc = MediaDownloadService::new(3);
-        let id1 = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
-        let id2 = svc.queue_download(test_options("https://b.com"), "B".to_string(), None).unwrap();
-        let _id3 = svc.queue_download(test_options("https://c.com"), "C".to_string(), None).unwrap();
+        let id1 = svc
+            .queue_download(test_options("https://a.com"), "A".to_string(), None)
+            .unwrap();
+        let id2 = svc
+            .queue_download(test_options("https://b.com"), "B".to_string(), None)
+            .unwrap();
+        let _id3 = svc
+            .queue_download(test_options("https://c.com"), "C".to_string(), None)
+            .unwrap();
 
         svc.set_task_state_for_test(&id1, DownloadState::Downloading);
         svc.mark_completed(&id2, Some("/tmp/b.mp4".to_string()));
@@ -1052,7 +1105,9 @@ mod tests {
     #[test]
     fn test_cancel_download_sets_cancelled() {
         let mut svc = MediaDownloadService::new(3);
-        let id = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+        let id = svc
+            .queue_download(test_options("https://a.com"), "A".to_string(), None)
+            .unwrap();
 
         svc.cancel_download(&id).unwrap();
 
@@ -1070,7 +1125,9 @@ mod tests {
     #[test]
     fn test_remove_task() {
         let mut svc = MediaDownloadService::new(3);
-        let id = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+        let id = svc
+            .queue_download(test_options("https://a.com"), "A".to_string(), None)
+            .unwrap();
 
         svc.remove_task(&id).unwrap();
 
@@ -1081,11 +1138,21 @@ mod tests {
     #[test]
     fn test_clear_completed() {
         let mut svc = MediaDownloadService::new(3);
-        let id1 = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
-        let id2 = svc.queue_download(test_options("https://b.com"), "B".to_string(), None).unwrap();
-        let id3 = svc.queue_download(test_options("https://c.com"), "C".to_string(), None).unwrap();
-        let id4 = svc.queue_download(test_options("https://d.com"), "D".to_string(), None).unwrap();
-        let id5 = svc.queue_download(test_options("https://e.com"), "E".to_string(), None).unwrap();
+        let id1 = svc
+            .queue_download(test_options("https://a.com"), "A".to_string(), None)
+            .unwrap();
+        let id2 = svc
+            .queue_download(test_options("https://b.com"), "B".to_string(), None)
+            .unwrap();
+        let id3 = svc
+            .queue_download(test_options("https://c.com"), "C".to_string(), None)
+            .unwrap();
+        let id4 = svc
+            .queue_download(test_options("https://d.com"), "D".to_string(), None)
+            .unwrap();
+        let id5 = svc
+            .queue_download(test_options("https://e.com"), "E".to_string(), None)
+            .unwrap();
 
         // id1 stays Queued
         svc.set_task_state_for_test(&id2, DownloadState::Downloading);
@@ -1104,7 +1171,9 @@ mod tests {
     #[test]
     fn test_mark_completed() {
         let mut svc = MediaDownloadService::new(3);
-        let id = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+        let id = svc
+            .queue_download(test_options("https://a.com"), "A".to_string(), None)
+            .unwrap();
 
         svc.mark_completed(&id, Some("/tmp/video.mp4".to_string()));
 
@@ -1119,7 +1188,9 @@ mod tests {
     #[test]
     fn test_mark_failed() {
         let mut svc = MediaDownloadService::new(3);
-        let id = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+        let id = svc
+            .queue_download(test_options("https://a.com"), "A".to_string(), None)
+            .unwrap();
 
         svc.mark_failed(&id, "network error".to_string());
 
@@ -1132,9 +1203,16 @@ mod tests {
     #[test]
     fn test_update_task_progress() {
         let mut svc = MediaDownloadService::new(3);
-        let id = svc.queue_download(test_options("https://a.com"), "A".to_string(), None).unwrap();
+        let id = svc
+            .queue_download(test_options("https://a.com"), "A".to_string(), None)
+            .unwrap();
 
-        svc.update_task_progress(&id, 42.5, Some("5.2MiB/s".to_string()), Some("00:30".to_string()));
+        svc.update_task_progress(
+            &id,
+            42.5,
+            Some("5.2MiB/s".to_string()),
+            Some("00:30".to_string()),
+        );
 
         let state = svc.get_queue_state();
         let task = &state.tasks[0];

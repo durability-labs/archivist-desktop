@@ -9,15 +9,16 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 // Store event listener callbacks for manual triggering
-const eventListeners: Record<string, Function> = {};
-const mockListen = vi.fn((event: string, cb: Function) => {
+type EventCallback = (...args: unknown[]) => void;
+const eventListeners: Record<string, EventCallback> = {};
+const mockListen = vi.fn((event: string, cb: EventCallback) => {
   eventListeners[event] = cb;
   return Promise.resolve(() => {
     delete eventListeners[event];
   });
 });
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: (...args: unknown[]) => mockListen(...(args as [string, Function])),
+  listen: (...args: unknown[]) => mockListen(...(args as [string, EventCallback])),
 }));
 
 // ---- Import after mocks ----
