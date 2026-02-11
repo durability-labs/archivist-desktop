@@ -182,6 +182,11 @@ function Onboarding({ onComplete, onSkip }: OnboardingProps) {
 
   // Handle splash screen completion (video ended or skip)
   const handleSplashComplete = useCallback(() => {
+    setStep('disclaimer');
+  }, [setStep]);
+
+  // Handle disclaimer acknowledgment
+  const handleDisclaimerAccept = useCallback(() => {
     setStep('welcome');
   }, [setStep]);
 
@@ -190,6 +195,8 @@ function Onboarding({ onComplete, onSkip }: OnboardingProps) {
     switch (currentStep) {
       case 'splash':
         return <SplashScreen onComplete={handleSplashComplete} onSkip={handleSplashComplete} />;
+      case 'disclaimer':
+        return <DisclaimerScreen onAccept={handleDisclaimerAccept} />;
       case 'welcome':
         return <WelcomeScreen onGetStarted={handleGetStarted} onSkip={handleSkip} />;
       case 'node-starting':
@@ -238,7 +245,7 @@ interface StepIndicatorProps {
 }
 
 function StepIndicator({ currentStep }: StepIndicatorProps) {
-  const steps: OnboardingStep[] = ['welcome', 'node-starting', 'folder-select', 'syncing'];
+  const steps: OnboardingStep[] = ['disclaimer', 'welcome', 'node-starting', 'folder-select', 'syncing'];
   const currentIndex = steps.indexOf(currentStep);
 
   return (
@@ -483,6 +490,54 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
       <button className="splash-skip" onClick={onSkip}>
         Skip
       </button>
+    </div>
+  );
+}
+
+// Disclaimer screen component
+interface DisclaimerScreenProps {
+  onAccept: () => void;
+}
+
+function DisclaimerScreen({ onAccept }: DisclaimerScreenProps) {
+  return (
+    <div className="onboarding-screen disclaimer-screen">
+      <div className="disclaimer-warning-icon">
+        <svg viewBox="0 0 24 24" width="48" height="48">
+          <path d="M12 2L1 21h22L12 2z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+          <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="12" cy="17" r="1" fill="currentColor" />
+        </svg>
+      </div>
+      <h2 className="disclaimer-heading">Alpha Software — Pilot Program</h2>
+
+      <div className="disclaimer-encryption-notice">
+        <strong>No Encryption:</strong> The P2P protocol does not yet have basic encryption.
+        Data stored and transferred on the network is not encrypted and may be accessible to other network participants.
+      </div>
+
+      <div className="disclaimer-content">
+        <p>
+          This software is in alpha stage and is part of the pilot program.
+          Do not use this for mission-critical data or personal files that you cannot afford to lose.
+        </p>
+        <ul>
+          <li>Data loss may occur due to bugs, incomplete features, or network issues</li>
+          <li>There is no guarantee of data persistence or recovery</li>
+          <li>Always maintain separate backups of important files</li>
+          <li>This software is provided "as-is" without warranty of any kind</li>
+        </ul>
+      </div>
+
+      <p className="disclaimer-acknowledgment">
+        By using this software, you acknowledge and accept these risks.
+      </p>
+
+      <div className="welcome-actions">
+        <button className="btn-primary btn-large" onClick={onAccept}>
+          I Understand &amp; Accept
+        </button>
+      </div>
     </div>
   );
 }
