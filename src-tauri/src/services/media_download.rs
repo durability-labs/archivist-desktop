@@ -279,6 +279,15 @@ impl MediaDownloadService {
         }
     }
 
+    /// Get completed downloads with output paths (for streaming library)
+    pub fn get_completed_media(&self) -> Vec<DownloadTask> {
+        self.task_order
+            .iter()
+            .filter_map(|id| self.tasks.get(id).cloned())
+            .filter(|t| t.state == DownloadState::Completed && t.output_path.is_some())
+            .collect()
+    }
+
     /// Process the download queue — start new downloads if slots available
     /// Called by background loop every ~1 second
     pub async fn process_queue(&mut self, app_handle: &AppHandle) {

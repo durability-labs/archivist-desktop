@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import MediaDownload from '../pages/MediaDownload';
 import { useMediaDownload } from '../hooks/useMediaDownload';
@@ -73,7 +74,7 @@ describe('MediaDownload', () => {
 
   it('renders loading state', () => {
     mockHookReturn({ loading: true });
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 
@@ -92,7 +93,7 @@ describe('MediaDownload', () => {
         ffmpegPath: null,
       },
     });
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     expect(screen.getByText('Setup Required')).toBeInTheDocument();
     expect(screen.getByText('Install yt-dlp')).toBeInTheDocument();
   });
@@ -108,14 +109,14 @@ describe('MediaDownload', () => {
         ffmpegPath: null,
       },
     });
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     expect(screen.getByText('Recommended: Install ffmpeg')).toBeInTheDocument();
     expect(screen.getByText('Install ffmpeg')).toBeInTheDocument();
   });
 
   it('renders version info when both binaries installed', () => {
     mockHookReturn(); // defaults have both installed
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     expect(screen.getByText(/yt-dlp 2024\.01\.01/)).toBeInTheDocument();
     expect(screen.getByText(/ffmpeg 6\.0/)).toBeInTheDocument();
   });
@@ -131,7 +132,7 @@ describe('MediaDownload', () => {
         ffmpegPath: null,
       },
     });
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     const btn = screen.getByText('Install yt-dlp');
     await userEvent.click(btn);
     expect(mocks.installYtDlp).toHaveBeenCalledOnce();
@@ -152,7 +153,7 @@ describe('MediaDownload', () => {
         ffmpegPath: null,
       },
     });
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     const input = screen.getByPlaceholderText(/youtube\.com/i);
     expect(input).toBeDisabled();
   });
@@ -169,7 +170,7 @@ describe('MediaDownload', () => {
     });
     mockHookReturn({ fetchMetadata: mockFetch });
 
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     const input = screen.getByPlaceholderText(/youtube\.com/i);
     await userEvent.type(input, 'https://www.youtube.com/watch?v=test123');
     const fetchBtn = screen.getByText('Fetch Info');
@@ -183,7 +184,7 @@ describe('MediaDownload', () => {
 
   it('shows empty queue placeholder text', () => {
     mockHookReturn({ queueState: { tasks: [], activeCount: 0, queuedCount: 0, completedCount: 0, maxConcurrent: 3, ytDlpAvailable: true, ffmpegAvailable: true, ytDlpVersion: null } });
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     expect(screen.getByText(/No downloads yet/)).toBeInTheDocument();
   });
 
@@ -217,7 +218,7 @@ describe('MediaDownload', () => {
         ytDlpVersion: null,
       },
     });
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     expect(screen.getByText('Downloading Video')).toBeInTheDocument();
     expect(screen.getByText('downloading')).toBeInTheDocument();
     expect(screen.getByText('50.0%')).toBeInTheDocument();
@@ -254,7 +255,7 @@ describe('MediaDownload', () => {
         ytDlpVersion: null,
       },
     });
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     expect(screen.getByText('Finished Video')).toBeInTheDocument();
     expect(screen.getByText('completed')).toBeInTheDocument();
     // Clear completed button should be visible
@@ -263,13 +264,13 @@ describe('MediaDownload', () => {
 
   it('renders page header', () => {
     mockHookReturn();
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     expect(screen.getByText('Media Download')).toBeInTheDocument();
   });
 
   it('shows Downloads heading', () => {
     mockHookReturn();
-    render(<MediaDownload />);
+    render(<MemoryRouter><MediaDownload /></MemoryRouter>);
     expect(screen.getByText('Downloads')).toBeInTheDocument();
   });
 });

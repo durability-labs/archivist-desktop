@@ -27,6 +27,7 @@ pub fn run() {
     let manifest_registry = app_state.manifest_registry.clone();
     let manifest_server = app_state.manifest_server.clone();
     let media_service = app_state.media.clone();
+    let media_streaming = app_state.media_streaming.clone();
 
     let mut builder = tauri::Builder::default()
         .plugin(
@@ -119,6 +120,11 @@ pub fn run() {
             commands::clear_completed_downloads,
             commands::get_download_queue,
             commands::update_yt_dlp,
+            // Streaming server commands
+            commands::get_streaming_server_url,
+            commands::start_streaming_server,
+            commands::stop_streaming_server,
+            commands::get_media_library,
             // System commands
             commands::get_config,
             commands::save_config,
@@ -249,6 +255,21 @@ pub fn run() {
                 }
             });
             log::info!("Media download queue processor started");
+
+            // Auto-start media streaming server if enabled in config
+            let media_streaming_clone = media_streaming.clone();
+            let config_for_streaming = config_service.clone();
+            tauri::async_runtime::spawn(async move {
+                let config = config_for_streaming.read().await;
+                if config.get().media_streaming.enabled {
+                    let mut server = media_streaming_clone.write().await;
+                    if let Err(e) = server.start().await {
+                        log::error!("Failed to start media streaming server: {}", e);
+                    }
+                } else {
+                    log::info!("Media streaming server auto-start disabled");
+                }
+            });
 
             Ok(())
         })

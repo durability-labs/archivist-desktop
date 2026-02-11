@@ -479,6 +479,17 @@
   border-color: var(--error-dim);
 }
 
+.task-action-btn.play {
+  color: var(--phosphor);
+  font-size: 0.7rem;
+}
+
+.task-action-btn.play:hover {
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+  box-shadow: 0 0 8px var(--phosphor-glow);
+}
+
 /* Loading states */
 .fetch-loading {
   display: flex;

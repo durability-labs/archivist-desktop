@@ -4,6 +4,7 @@ pub mod files;
 pub mod media;
 pub mod node;
 pub mod peers;
+pub mod streaming;
 pub mod sync;
 pub mod system;
 
@@ -12,6 +13,7 @@ pub use files::*;
 pub use media::*;
 pub use node::*;
 pub use peers::*;
+pub use streaming::*;
 pub use sync::*;
 pub use system::*;
 

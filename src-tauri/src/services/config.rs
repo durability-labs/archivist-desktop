@@ -29,6 +29,10 @@ pub struct AppConfig {
     #[serde(default)]
     pub media_download: MediaDownloadSettings,
 
+    // Media streaming server settings
+    #[serde(default)]
+    pub media_streaming: MediaStreamingSettings,
+
     // V2 Marketplace settings (optional)
     #[cfg(feature = "marketplace")]
     pub blockchain: Option<BlockchainSettings>,
@@ -160,6 +164,25 @@ impl Default for MediaDownloadSettings {
     }
 }
 
+/// Media streaming server settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MediaStreamingSettings {
+    pub enabled: bool,
+    pub port: u16,
+    #[serde(default)]
+    pub allowed_ips: Vec<String>,
+}
+
+impl Default for MediaStreamingSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            port: 8087,
+            allowed_ips: Vec::new(),
+        }
+    }
+}
+
 impl Default for ManifestServerSettings {
     fn default() -> Self {
         Self {
@@ -249,6 +272,7 @@ impl Default for AppConfig {
             },
             manifest_server: ManifestServerSettings::default(),
             media_download: MediaDownloadSettings::default(),
+            media_streaming: MediaStreamingSettings::default(),
             #[cfg(feature = "marketplace")]
             blockchain: None,
             #[cfg(feature = "marketplace")]

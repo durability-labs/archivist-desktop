@@ -65,6 +65,13 @@ interface ManifestServerSettings {
   allowed_ips: string[];
 }
 
+// Media streaming server settings
+interface MediaStreamingSettings {
+  enabled: boolean;
+  port: number;
+  allowed_ips: string[];
+}
+
 interface AppConfig {
   theme: 'light' | 'dark' | 'system';
   language: string;
@@ -75,6 +82,7 @@ interface AppConfig {
   notifications: NotificationSettings;
   backup_server: BackupServerSettings;
   manifest_server: ManifestServerSettings;
+  media_streaming: MediaStreamingSettings;
 }
 
 const defaultConfig: AppConfig = {
@@ -124,6 +132,11 @@ const defaultConfig: AppConfig = {
   manifest_server: {
     enabled: false,
     port: 8085,
+    allowed_ips: [],
+  },
+  media_streaming: {
+    enabled: false,
+    port: 8087,
     allowed_ips: [],
   },
 };
@@ -1014,6 +1027,50 @@ function Settings() {
             </div>
           </>
         )}
+      </div>
+
+      {/* Media Streaming Settings */}
+      <div className="settings-section">
+        <h3>Media Streaming</h3>
+        <p className="hint" style={{ marginBottom: '16px' }}>
+          Streams downloaded media for the built-in player and mobile browser access on your LAN.
+        </p>
+
+        <div className="setting-item">
+          <label>
+            <input
+              type="checkbox"
+              checked={config.media_streaming.enabled}
+              onChange={(e) =>
+                setConfig((prev) => ({
+                  ...prev,
+                  media_streaming: { ...prev.media_streaming, enabled: e.target.checked },
+                }))
+              }
+            />
+            Auto-start streaming server on launch
+          </label>
+          <span className="hint">
+            The server starts automatically when you click Play, even if this is off
+          </span>
+        </div>
+
+        <div className="setting-item">
+          <label>Port</label>
+          <input
+            type="number"
+            value={config.media_streaming.port}
+            onChange={(e) =>
+              setConfig((prev) => ({
+                ...prev,
+                media_streaming: { ...prev.media_streaming, port: parseInt(e.target.value) || 8087 },
+              }))
+            }
+            min={1024}
+            max={65535}
+          />
+          <span className="hint">Port for the media streaming HTTP server (default: 8087)</span>
+        </div>
       </div>
 
       {/* Backup Server Settings (Machine B - receives backups by polling source peers) */}

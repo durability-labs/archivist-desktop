@@ -15,6 +15,7 @@ import Settings from './pages/Settings';
 import Devices from './pages/Devices';
 import AddDevice from './pages/AddDevice';
 import MediaDownload from './pages/MediaDownload';
+import MediaPlayer from './pages/MediaPlayer';
 import logoSvg from './assets/logo.svg';
 import './styles/App.css';
 
@@ -148,6 +149,7 @@ function App() {
             <Route path="/logs" element={<Logs />} />
             <Route path="/backup-server" element={<BackupServer />} />
             <Route path="/media" element={<MediaDownload />} />
+            <Route path="/media/player/:taskId" element={<MediaPlayer />} />
             <Route path="/settings" element={<Settings />} />
 
             {/* V2 routes - placeholder for marketplace */}

@@ -39,6 +39,9 @@ pub enum ArchivistError {
     #[error("Binary not found: {0}")]
     BinaryNotFound(String),
 
+    #[error("Streaming server error: {0}")]
+    StreamingError(String),
+
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 

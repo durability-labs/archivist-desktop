@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { save } from '@tauri-apps/plugin-dialog';
 import { downloadDir } from '@tauri-apps/api/path';
 import {
@@ -26,6 +27,7 @@ function formatBytes(bytes: number | null): string {
 }
 
 export default function MediaDownload() {
+  const navigate = useNavigate();
   const {
     queueState,
     binaryStatus,
@@ -390,6 +392,7 @@ export default function MediaDownload() {
               task={task}
               onCancel={cancelDownload}
               onRemove={removeTask}
+              onPlay={(id) => navigate(`/media/player/${id}`)}
             />
           ))
         )}
@@ -402,10 +405,12 @@ function TaskItem({
   task,
   onCancel,
   onRemove,
+  onPlay,
 }: {
   task: DownloadTask;
   onCancel: (id: string) => void;
   onRemove: (id: string) => void;
+  onPlay: (id: string) => void;
 }) {
   const isActive = task.state === 'downloading' || task.state === 'postProcessing';
   const isDone = task.state === 'completed' || task.state === 'failed' || task.state === 'cancelled';
@@ -445,6 +450,15 @@ function TaskItem({
       )}
 
       <div className="task-actions">
+        {task.state === 'completed' && task.outputPath && !task.options.audioOnly && (
+          <button
+            className="task-action-btn play"
+            onClick={() => onPlay(task.id)}
+            title="Play"
+          >
+            {'▶'}
+          </button>
+        )}
         {isActive && (
           <button
             className="task-action-btn cancel"
