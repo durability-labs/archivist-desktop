@@ -6,6 +6,7 @@ const ONBOARDING_STEP_KEY = 'archivist_onboarding_step';
 
 export type OnboardingStep =
   | 'splash'
+  | 'disclaimer'
   | 'welcome'
   | 'node-starting'
   | 'folder-select'
