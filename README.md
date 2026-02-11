@@ -104,7 +104,34 @@ A cross-platform desktop application for decentralized file storage, built with 
 - Node.js 20+
 - pnpm v10+
 - Rust 1.77.2+ stable
-- Platform-specific dependencies for Tauri (see [Tauri Prerequisites](https://tauri.app/start/prerequisites/))
+- Platform-specific build dependencies (see below)
+
+#### System Dependencies
+
+Tauri requires platform-specific system libraries. Install them before running `pnpm setup`:
+
+**Linux (Fedora/RHEL)**
+```bash
+sudo dnf install gcc gcc-c++ gtk3-devel webkit2gtk4.1-devel glib2-devel \
+  libappindicator-gtk3-devel librsvg2-devel pango-devel openssl-devel
+```
+
+**Linux (Debian/Ubuntu)**
+```bash
+sudo apt install build-essential libgtk-3-dev libwebkit2gtk-4.1-dev \
+  libayatana-appindicator3-dev librsvg2-dev libssl-dev
+```
+
+**macOS**
+```bash
+xcode-select --install
+```
+
+**Windows**
+- Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload
+- WebView2 is included with Windows 10 (version 1803+) and Windows 11
+
+> For the full list of Tauri system dependencies, see the [Tauri Prerequisites](https://tauri.app/start/prerequisites/) docs.
 
 ### Setup
 
