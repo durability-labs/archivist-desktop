@@ -50,7 +50,7 @@ mime_guess = "2.0"
 # Networking
 reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
 urlencoding = "2.1"
-warp = "0.3"
+warp = { version = "0.3", features = ["tls"] }
 
 # Web scraping / archiving
 scraper = "0.20"
@@ -66,6 +66,18 @@ bs58 = "0.5"
 
 # Regex for parsing yt-dlp progress output
 regex = "1.10"
+
+# Chat / crypto
+async-trait = "0.1"
+vodozemac = "0.7"
+rustls = "0.23"
+rustls-pemfile = "2"
+rcgen = "0.13"
+tokio-rustls = "0.26"
+zeroize = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+aes-gcm = "0.10"
+rand = "0.8"
 
 # Zip archive support for ffmpeg extraction (Windows)
 zip = "2.2"

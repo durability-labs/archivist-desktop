@@ -17,8 +17,11 @@ import AddDevice from './pages/AddDevice';
 import MediaDownload from './pages/MediaDownload';
 import MediaPlayer from './pages/MediaPlayer';
 import WebArchive from './pages/WebArchive';
+import Chat from './pages/Chat';
+import { ChatProvider, useChatContext } from './contexts/ChatContext';
 import logoSvg from './assets/logo.svg';
 import './styles/App.css';
+import './styles/Chat.css';
 
 const REDIRECT_AFTER_ONBOARDING_KEY = 'archivist_redirect_to_dashboard';
 
@@ -41,40 +44,9 @@ function OnboardingRedirect() {
   return null;
 }
 
-function App() {
+function AppInner() {
   const { marketplaceEnabled } = useFeatures();
-  useSoundNotifications(); // Enable sound notifications globally
-  const { showOnboarding, loading, completeOnboarding, skipOnboarding } = useOnboarding();
-
-  // Wrapper for completeOnboarding that sets redirect flag
-  const handleCompleteOnboarding = () => {
-    localStorage.setItem(REDIRECT_AFTER_ONBOARDING_KEY, 'true');
-    completeOnboarding();
-  };
-
-  // Wrapper for skipOnboarding that sets redirect flag
-  const handleSkipOnboarding = () => {
-    localStorage.setItem(REDIRECT_AFTER_ONBOARDING_KEY, 'true');
-    skipOnboarding();
-  };
-
-  // Show loading state while checking onboarding status
-  if (loading) {
-    return (
-      <div className="app-loading">
-        <div className="loading-spinner" />
-      </div>
-    );
-  }
-
-  // Show onboarding for first-run users
-  if (showOnboarding) {
-    return (
-      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Onboarding onComplete={handleCompleteOnboarding} onSkip={handleSkipOnboarding} />
-      </Router>
-    );
-  }
+  const { totalUnread } = useChatContext();
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -101,6 +73,10 @@ function App() {
             </NavLink>
             <NavLink to="/web-archive" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Web Archive
+            </NavLink>
+            <NavLink to="/chat" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Chat
+              {totalUnread > 0 && <span className="nav-chat-badge">{totalUnread}</span>}
             </NavLink>
 
             {/* Devices section */}
@@ -155,6 +131,8 @@ function App() {
             <Route path="/media" element={<MediaDownload />} />
             <Route path="/media/player/:taskId" element={<MediaPlayer />} />
             <Route path="/web-archive" element={<WebArchive />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/chat/:conversationId" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />
 
             {/* V2 routes - placeholder for marketplace */}
@@ -169,6 +147,47 @@ function App() {
         </main>
       </div>
     </Router>
+  );
+}
+
+function App() {
+  useSoundNotifications(); // Enable sound notifications globally
+  const { showOnboarding, loading, completeOnboarding, skipOnboarding } = useOnboarding();
+
+  // Wrapper for completeOnboarding that sets redirect flag
+  const handleCompleteOnboarding = () => {
+    localStorage.setItem(REDIRECT_AFTER_ONBOARDING_KEY, 'true');
+    completeOnboarding();
+  };
+
+  // Wrapper for skipOnboarding that sets redirect flag
+  const handleSkipOnboarding = () => {
+    localStorage.setItem(REDIRECT_AFTER_ONBOARDING_KEY, 'true');
+    skipOnboarding();
+  };
+
+  // Show loading state while checking onboarding status
+  if (loading) {
+    return (
+      <div className="app-loading">
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
+
+  // Show onboarding for first-run users
+  if (showOnboarding) {
+    return (
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Onboarding onComplete={handleCompleteOnboarding} onSkip={handleSkipOnboarding} />
+      </Router>
+    );
+  }
+
+  return (
+    <ChatProvider>
+      <AppInner />
+    </ChatProvider>
   );
 }
 

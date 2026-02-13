@@ -33,7 +33,16 @@ pub async fn start_node(app_handle: AppHandle, state: State<'_, AppState>) -> Re
         }
     }
 
-    Ok(node.get_status())
+    let status = node.get_status();
+    drop(node);
+
+    // Update chat service with the real peer ID
+    if let Some(ref peer_id) = status.peer_id {
+        let mut chat = state.chat.write().await;
+        chat.update_peer_id(peer_id);
+    }
+
+    Ok(status)
 }
 
 #[tauri::command]
@@ -47,7 +56,25 @@ pub async fn stop_node(state: State<'_, AppState>) -> Result<NodeStatus> {
 pub async fn restart_node(app_handle: AppHandle, state: State<'_, AppState>) -> Result<NodeStatus> {
     let mut node = state.node.write().await;
     node.restart(&app_handle).await?;
-    Ok(node.get_status())
+
+    // Wait for the node's REST API to be ready after restart
+    for _ in 0..30 {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        if node.health_check().await.unwrap_or(false) {
+            break;
+        }
+    }
+
+    let status = node.get_status();
+    drop(node);
+
+    // Update chat service with the real peer ID
+    if let Some(ref peer_id) = status.peer_id {
+        let mut chat = state.chat.write().await;
+        chat.update_peer_id(peer_id);
+    }
+
+    Ok(status)
 }
 
 #[tauri::command]

@@ -431,6 +431,45 @@ impl PeerService {
             "Could not extract addresses from SPR".to_string(),
         ))
     }
+
+    /// Extract IP address from a multiaddr string (e.g., "/ip4/192.168.1.5/tcp/8070/p2p/16Uiu...")
+    pub fn extract_ip_from_multiaddr(multiaddr: &str) -> Option<String> {
+        let parts: Vec<&str> = multiaddr.split('/').collect();
+        for (i, part) in parts.iter().enumerate() {
+            if *part == "ip4" {
+                if let Some(ip) = parts.get(i + 1) {
+                    return Some(ip.to_string());
+                }
+            }
+        }
+        None
+    }
+
+    /// Get the chat-reachable IP address for a peer from saved peer addresses.
+    pub fn get_peer_chat_address(&self, peer_id: &str) -> Option<String> {
+        self.saved_peers
+            .iter()
+            .find(|p| p.peer_id == peer_id && p.connected)
+            .and_then(|p| {
+                p.addresses
+                    .iter()
+                    .find_map(|addr| Self::extract_ip_from_multiaddr(addr))
+            })
+    }
+
+    /// Bulk lookup of chat addresses for multiple peers.
+    pub fn get_peer_chat_addresses(
+        &self,
+        peer_ids: &[String],
+    ) -> std::collections::HashMap<String, String> {
+        let mut result = std::collections::HashMap::new();
+        for pid in peer_ids {
+            if let Some(addr) = self.get_peer_chat_address(pid) {
+                result.insert(pid.clone(), addr);
+            }
+        }
+        result
+    }
 }
 
 impl Default for PeerService {

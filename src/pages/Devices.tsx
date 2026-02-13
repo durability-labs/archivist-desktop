@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNode } from '../hooks/useNode';
 import { usePeers, PeerInfo } from '../hooks/usePeers';
-import { Link } from 'react-router-dom';
+import { useChatContext } from '../contexts/ChatContext';
+import { Link, useNavigate } from 'react-router-dom';
 import '../styles/Devices.css';
 
 function Devices() {
@@ -14,6 +15,8 @@ function Devices() {
     removePeer,
     refreshPeers
   } = usePeers();
+  const { initiateSession } = useChatContext();
+  const navigate = useNavigate();
   const [copied, setCopied] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
@@ -45,6 +48,22 @@ function Devices() {
       await connectPeer(address);
     } catch (err) {
       console.error('Failed to reconnect:', err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleStartChat = async (peer: PeerInfo) => {
+    setActionInProgress(`chat-${peer.id}`);
+    try {
+      // Extract IP from multiaddr (e.g., "/ip4/192.168.1.5/tcp/8070/p2p/...")
+      const addrStr = peer.addresses[0] || '';
+      const ipMatch = addrStr.match(/\/ip4\/([^/]+)\//);
+      const ip = ipMatch ? ipMatch[1] : '';
+      const conversationId = await initiateSession(peer.id, ip);
+      navigate(`/chat/${encodeURIComponent(conversationId)}`);
+    } catch (err) {
+      console.error('Failed to start chat:', err);
     } finally {
       setActionInProgress(null);
     }
@@ -206,6 +225,13 @@ function Devices() {
                   </div>
                 </div>
                 <div className="device-actions">
+                  <button
+                    className="btn-small"
+                    onClick={() => handleStartChat(peer)}
+                    disabled={actionInProgress === `chat-${peer.id}`}
+                  >
+                    {actionInProgress === `chat-${peer.id}` ? 'Opening...' : 'Chat'}
+                  </button>
                   <button
                     className="btn-small secondary"
                     onClick={() => copyToClipboard(peer.id, `peer-${peer.id}`)}

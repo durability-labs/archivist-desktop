@@ -37,6 +37,10 @@ pub struct AppConfig {
     #[serde(default)]
     pub web_archive: WebArchiveSettings,
 
+    // Chat settings (P2P encrypted messaging)
+    #[serde(default)]
+    pub chat: ChatSettings,
+
     // V2 Marketplace settings (optional)
     #[cfg(feature = "marketplace")]
     pub blockchain: Option<BlockchainSettings>,
@@ -93,6 +97,8 @@ pub struct NotificationSettings {
     pub sound_on_startup: bool,
     pub sound_on_peer_connect: bool,
     pub sound_on_download: bool,
+    #[serde(default = "default_true")]
+    pub sound_on_chat_message: bool,
     pub sound_volume: f32, // 0.0 to 1.0
     #[serde(default)]
     pub custom_startup_sound: Option<String>,
@@ -100,6 +106,10 @@ pub struct NotificationSettings {
     pub custom_peer_connect_sound: Option<String>,
     #[serde(default)]
     pub custom_download_sound: Option<String>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -242,6 +252,30 @@ pub struct MarketplaceSettings {
     pub max_price_per_gb: Option<f64>,
 }
 
+/// Chat settings for P2P encrypted messaging
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatSettings {
+    pub enabled: bool,
+    pub port: u16,
+    pub max_message_size: usize,
+    pub message_retention_days: u32,
+    pub store_history: bool,
+    pub notify_on_message: bool,
+}
+
+impl Default for ChatSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            port: 8089,
+            max_message_size: 65536,
+            message_retention_days: 0, // 0 = forever
+            store_history: true,
+            notify_on_message: true,
+        }
+    }
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         let data_dir = dirs::data_dir()
@@ -289,6 +323,7 @@ impl Default for AppConfig {
                 sound_on_startup: true,
                 sound_on_peer_connect: true,
                 sound_on_download: true,
+                sound_on_chat_message: true,
                 sound_volume: 0.5,
                 custom_startup_sound: None,
                 custom_peer_connect_sound: None,
@@ -307,6 +342,7 @@ impl Default for AppConfig {
             media_download: MediaDownloadSettings::default(),
             media_streaming: MediaStreamingSettings::default(),
             web_archive: WebArchiveSettings::default(),
+            chat: ChatSettings::default(),
             #[cfg(feature = "marketplace")]
             blockchain: None,
             #[cfg(feature = "marketplace")]

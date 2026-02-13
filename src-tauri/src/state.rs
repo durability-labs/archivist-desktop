@@ -2,12 +2,14 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use crate::crypto::key_store::KeyStore;
 use crate::node_api::NodeApiClient;
 use crate::services::node::NodeConfig;
 use crate::services::{
-    ArchiveViewerServer, BackupDaemon, BackupService, ConfigService, FileService, ManifestRegistry,
-    ManifestServer, ManifestServerConfig, MediaDownloadService, MediaStreamingConfig,
-    MediaStreamingServer, NodeService, PeerService, SyncService, WebArchiveService,
+    ArchiveViewerServer, BackupDaemon, BackupService, ChatServer, ChatService, ConfigService,
+    FileService, ManifestRegistry, ManifestServer, ManifestServerConfig, MediaDownloadService,
+    MediaStreamingConfig, MediaStreamingServer, NodeService, PeerService, SyncService,
+    WebArchiveService,
 };
 
 /// Global application state managed by Tauri
@@ -25,6 +27,8 @@ pub struct AppState {
     pub media_streaming: Arc<RwLock<MediaStreamingServer>>,
     pub web_archive: Arc<RwLock<WebArchiveService>>,
     pub archive_viewer: Arc<RwLock<ArchiveViewerServer>>,
+    pub chat: Arc<RwLock<ChatService>>,
+    pub chat_server: Arc<RwLock<ChatServer>>,
 }
 
 impl AppState {
@@ -121,6 +125,39 @@ impl AppState {
             app_config.node.api_port,
         )));
 
+        // Create chat service (crypto + messaging)
+        let chat_base_dir = dirs::data_dir()
+            .map(|p| p.join("archivist").join("chat"))
+            .unwrap_or_else(|| std::path::PathBuf::from(".archivist/chat"));
+
+        let chat_port = app_config.chat.port;
+        let key_store =
+            Arc::new(KeyStore::new(&chat_base_dir).expect("Failed to initialize chat key store"));
+
+        // Load or create TLS identity
+        let tls_identity = crate::services::chat_tls::load_or_create_tls_identity(
+            &key_store.cert_path(),
+            &key_store.key_path(),
+            "pending-peer-id", // Will be updated when node starts
+        )
+        .expect("Failed to initialize chat TLS identity");
+
+        let chat_service = ChatService::new(
+            key_store.clone(),
+            "pending-peer-id".to_string(),
+            tls_identity.fingerprint.clone(),
+            &app_config.chat,
+        )
+        .expect("Failed to initialize chat service");
+
+        let chat = Arc::new(RwLock::new(chat_service));
+
+        let chat_server = Arc::new(RwLock::new(ChatServer::new(
+            chat_port,
+            key_store.cert_path().to_string_lossy().to_string(),
+            key_store.key_path().to_string_lossy().to_string(),
+        )));
+
         Self {
             node: Arc::new(RwLock::new(NodeService::with_config(node_config))),
             files: Arc::new(RwLock::new(FileService::new())),
@@ -135,6 +172,8 @@ impl AppState {
             media_streaming,
             web_archive,
             archive_viewer,
+            chat,
+            chat_server,
         }
     }
 }

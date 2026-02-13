@@ -8,6 +8,7 @@ interface NotificationSettings {
   sound_on_startup: boolean;
   sound_on_peer_connect: boolean;
   sound_on_download: boolean;
+  sound_on_chat_message: boolean;
   sound_volume: number;
   custom_startup_sound?: string | null;
   custom_peer_connect_sound?: string | null;
@@ -72,7 +73,7 @@ function playCustomSound(audioBuffer: AudioBuffer, volume: number) {
 }
 
 // Simple notification sounds using Web Audio API (fallback if no custom sound)
-function playDefaultSound(type: 'startup' | 'peer-connect' | 'download', volume: number) {
+function playDefaultSound(type: 'startup' | 'peer-connect' | 'download' | 'chat-message', volume: number) {
   const ctx = getAudioContext();
 
   // Different frequencies for different notification types
@@ -80,6 +81,7 @@ function playDefaultSound(type: 'startup' | 'peer-connect' | 'download', volume:
     'startup': [523.25, 659.25, 783.99], // C5, E5, G5 (major chord)
     'peer-connect': [440, 554.37], // A4, C#5 (two notes)
     'download': [880, 987.77], // A5, B5 (high two notes)
+    'chat-message': [587.33, 739.99], // D5, F#5 (notification)
   };
 
   const notes = frequencies[type];
@@ -110,7 +112,7 @@ function playDefaultSound(type: 'startup' | 'peer-connect' | 'download', volume:
 }
 
 // Play notification sound (custom or default)
-async function playNotificationSound(type: 'startup' | 'peer-connect' | 'download', volume: number, customSoundPath?: string | null) {
+async function playNotificationSound(type: 'startup' | 'peer-connect' | 'download' | 'chat-message', volume: number, customSoundPath?: string | null) {
   // Try to play custom sound first
   if (customSoundPath) {
     const audioBuffer = await loadCustomSound(customSoundPath);
@@ -148,6 +150,7 @@ export function useSoundNotifications() {
             sound_on_startup: true,
             sound_on_peer_connect: true,
             sound_on_download: true,
+            sound_on_chat_message: true,
             sound_volume: 0.5,
           };
         }
@@ -185,12 +188,21 @@ export function useSoundNotifications() {
         }
       });
 
+      // Chat message received event
+      const unlistenChat = await listen('chat-message-received', async () => {
+        const settings = settingsRef.current || await getSettings();
+        if (settings.sound_enabled && settings.sound_on_chat_message) {
+          playNotificationSound('chat-message', settings.sound_volume);
+        }
+      });
+
       // Cleanup function
       return () => {
         clearInterval(settingsRefreshInterval);
         unlistenStartup();
         unlistenPeer();
         unlistenDownload();
+        unlistenChat();
       };
     };
 
