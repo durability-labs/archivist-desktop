@@ -265,6 +265,70 @@ export const SEL = {
   safetyNumberModal: '.safety-number-modal',
   safetyNumberGrid: '.safety-number-grid',
   navChatBadge: '.nav-chat-badge',
+
+  // Streaming TV hub
+  streamingPage: '.streaming-page',
+  streamingHeader: '.streaming-page h1',
+  streamingTabs: '.streaming-tabs',
+  tabDiscover: '.streaming-tab[data-tab="discover"]',
+  tabIptv: '.streaming-tab[data-tab="iptv"]',
+  tabAddons: '.streaming-tab[data-tab="addons"]',
+  tabSettings: '.streaming-tab[data-tab="settings"]',
+  tabActive: '.streaming-tab.active',
+
+  // Addon manager
+  addonUrlInput: '.addon-url-input input[type="text"]',
+  addonInstallBtn: '.addon-install-btn',
+  addonList: '.addon-list',
+  addonItem: '.addon-item',
+  addonToggle: '.addon-toggle',
+  addonRemoveBtn: '.addon-remove-btn',
+  addonSuggestions: '.addon-suggestions',
+
+  // Catalog / Discover
+  catalogGrid: '.catalog-grid',
+  catalogCard: '.catalog-card',
+  catalogCardTitle: '.catalog-card-title',
+  catalogTypeFilter: '.catalog-type-filter',
+  catalogSearch: '.catalog-search input',
+  catalogEmpty: '.catalog-empty',
+
+  // Content detail
+  contentDetail: '.content-detail',
+  contentTitle: '.content-detail .content-title',
+  contentPoster: '.content-detail .content-poster',
+  contentDescription: '.content-detail .content-description',
+  streamList: '.stream-list',
+  streamItem: '.stream-item',
+  streamPlayBtn: '.stream-play-btn',
+  cachedBadge: '.cached-badge',
+  notCachedBadge: '.not-cached-badge',
+
+  // IPTV
+  iptvPlaylistInput: '.iptv-playlist-url input',
+  iptvPlaylistName: '.iptv-playlist-name input',
+  iptvAddPlaylistBtn: '.iptv-add-playlist-btn',
+  iptvPlaylistList: '.iptv-playlist-list',
+  iptvPlaylistItem: '.iptv-playlist-item',
+  iptvRefreshBtn: '.iptv-refresh-btn',
+  iptvRemoveBtn: '.iptv-remove-btn',
+  iptvGroupSidebar: '.iptv-group-sidebar',
+  iptvGroupItem: '.iptv-group-item',
+  iptvChannelGrid: '.iptv-channel-grid',
+  iptvChannelCard: '.iptv-channel-card',
+  iptvChannelSearch: '.iptv-channel-search input',
+  iptvEmpty: '.iptv-empty',
+
+  // Debrid settings
+  debridProviderSelect: '.debrid-provider-select',
+  debridTokenInput: '.debrid-token-input input',
+  debridValidateBtn: '.debrid-validate-btn',
+  debridStatus: '.debrid-status',
+  debridClearBtn: '.debrid-clear-btn',
+
+  // Player (extended)
+  liveBadge: '.live-badge',
+  playerSubtitleBtn: '.subtitle-btn',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -288,4 +352,15 @@ export async function navigateTo(page: Page, label: string): Promise<void> {
 
   await page.locator(`.sidebar .nav-link:has-text("${label}")`).click();
   await page.waitForLoadState('networkidle');
+}
+
+/** Navigate to a streaming tab. Navigates to Streaming TV first, then clicks the tab. */
+export async function navigateToStreamingTab(
+  page: Page,
+  tab: 'discover' | 'iptv' | 'addons' | 'settings',
+): Promise<void> {
+  await navigateTo(page, 'Streaming TV');
+  await page.waitForTimeout(500);
+  await page.locator(`.streaming-tab[data-tab="${tab}"]`).click();
+  await page.waitForTimeout(300);
 }

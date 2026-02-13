@@ -301,6 +301,35 @@
   margin-top: 0.15rem;
 }
 
+/* Live badge */
+.live-badge {
+  background: #e53e3e;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.hls-loading-badge {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  font-style: italic;
+}
+
+.live-time {
+  color: #e53e3e;
+  font-weight: 700;
+}
+
 /* Empty and loading states */
 .player-empty {
   display: flex;

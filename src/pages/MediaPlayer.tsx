@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMediaStreaming, MediaLibraryItem } from '../hooks/useMediaStreaming';
+import Hls from 'hls.js';
 import '../styles/MediaPlayer.css';
 
 function formatTime(seconds: number): string {
@@ -19,12 +20,24 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+function isHlsUrl(url: string): boolean {
+  return url.includes('.m3u8');
+}
+
 export default function MediaPlayer() {
   const { taskId } = useParams<{ taskId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { serverUrl, library, loading, ensureServerRunning, refreshLibrary } = useMediaStreaming();
 
+  // External stream mode via query params
+  const externalUrl = searchParams.get('url');
+  const externalTitle = searchParams.get('title');
+  const isLive = searchParams.get('live') === 'true';
+  const isExternalMode = !!externalUrl;
+
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const [currentItem, setCurrentItem] = useState<MediaLibraryItem | null>(null);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -32,15 +45,30 @@ export default function MediaPlayer() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [showPlaylist, setShowPlaylist] = useState(true);
+  const [showPlaylist, setShowPlaylist] = useState(!isExternalMode);
   const [serverReady, setServerReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hlsLoading, setHlsLoading] = useState(false);
 
   // Filter to video items only for the playlist
   const videoItems = library.filter(item => !item.audioOnly);
 
-  // Ensure streaming server is running on mount
+  // Cleanup HLS on unmount
   useEffect(() => {
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, []);
+
+  // Ensure streaming server is running on mount (only for library mode)
+  useEffect(() => {
+    if (isExternalMode) {
+      setServerReady(true);
+      return;
+    }
     async function init() {
       const url = await ensureServerRunning();
       if (url) {
@@ -51,10 +79,19 @@ export default function MediaPlayer() {
       await refreshLibrary();
     }
     init();
-  }, [ensureServerRunning, refreshLibrary]);
+  }, [ensureServerRunning, refreshLibrary, isExternalMode]);
 
-  // Set current item and stream URL when taskId or library changes
+  // Handle external URL mode
   useEffect(() => {
+    if (isExternalMode && externalUrl) {
+      setStreamUrl(decodeURIComponent(externalUrl));
+      setError(null);
+    }
+  }, [isExternalMode, externalUrl]);
+
+  // Set current item and stream URL when taskId or library changes (library mode)
+  useEffect(() => {
+    if (isExternalMode) return;
     if (!serverUrl || !taskId || library.length === 0) return;
     const item = library.find(i => i.id === taskId);
     if (item) {
@@ -64,7 +101,47 @@ export default function MediaPlayer() {
     } else {
       setError('Media item not found in library.');
     }
-  }, [taskId, library, serverUrl]);
+  }, [taskId, library, serverUrl, isExternalMode]);
+
+  // Attach HLS.js when stream URL changes (for .m3u8 URLs)
+  useEffect(() => {
+    if (!streamUrl || !videoRef.current) return;
+
+    // Cleanup previous HLS instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (isHlsUrl(streamUrl)) {
+      if (Hls.isSupported()) {
+        setHlsLoading(true);
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: isLive,
+        });
+        hlsRef.current = hls;
+        hls.loadSource(streamUrl);
+        hls.attachMedia(videoRef.current);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          setHlsLoading(false);
+          videoRef.current?.play().catch(() => {});
+        });
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) {
+            setHlsLoading(false);
+            setError(`HLS playback error: ${data.details}`);
+          }
+        });
+      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS support (Safari)
+        videoRef.current.src = streamUrl;
+      } else {
+        setError('HLS playback is not supported in this browser.');
+      }
+    }
+    // For non-HLS URLs, the video element handles it via src attribute
+  }, [streamUrl, isLive]);
 
   // Update time display
   const handleTimeUpdate = useCallback(() => {
@@ -83,6 +160,7 @@ export default function MediaPlayer() {
   const handlePause = useCallback(() => setIsPlaying(false), []);
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
+    if (isExternalMode) return;
     // Auto-play next in playlist
     if (currentItem && videoItems.length > 1) {
       const currentIndex = videoItems.findIndex(i => i.id === currentItem.id);
@@ -91,7 +169,7 @@ export default function MediaPlayer() {
         navigate(`/media/player/${next.id}`, { replace: true });
       }
     }
-  }, [currentItem, videoItems, navigate]);
+  }, [currentItem, videoItems, navigate, isExternalMode]);
 
   const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
@@ -132,6 +210,18 @@ export default function MediaPlayer() {
     navigate(`/media/player/${item.id}`, { replace: true });
   }, [navigate]);
 
+  const handleBack = useCallback(() => {
+    if (isExternalMode) {
+      navigate('/streaming');
+    } else {
+      navigate('/media');
+    }
+  }, [navigate, isExternalMode]);
+
+  const displayTitle = isExternalMode
+    ? (externalTitle ? decodeURIComponent(externalTitle) : 'Stream')
+    : (currentItem?.title ?? 'Media Player');
+
   if (loading && !serverReady) {
     return (
       <div className="media-player-page">
@@ -147,7 +237,7 @@ export default function MediaPlayer() {
     return (
       <div className="media-player-page">
         <div className="player-header">
-          <button className="player-back-btn" onClick={() => navigate('/media')}>
+          <button className="player-back-btn" onClick={handleBack}>
             Back
           </button>
           <h1>Media Player</h1>
@@ -158,20 +248,24 @@ export default function MediaPlayer() {
   }
 
   return (
-    <div className={`media-player-page ${showPlaylist ? 'with-playlist' : ''}`}>
+    <div className={`media-player-page ${showPlaylist && !isExternalMode ? 'with-playlist' : ''}`}>
       {/* Header */}
       <div className="player-header">
-        <button className="player-back-btn" onClick={() => navigate('/media')}>
+        <button className="player-back-btn" onClick={handleBack}>
           Back
         </button>
-        <h1 className="player-title">{currentItem?.title ?? 'Media Player'}</h1>
-        <button
-          className={`playlist-toggle-btn ${showPlaylist ? 'active' : ''}`}
-          onClick={() => setShowPlaylist(!showPlaylist)}
-          title="Toggle playlist"
-        >
-          Playlist ({videoItems.length})
-        </button>
+        <h1 className="player-title">{displayTitle}</h1>
+        {isLive && <span className="live-badge">LIVE</span>}
+        {hlsLoading && <span className="hls-loading-badge">Loading HLS...</span>}
+        {!isExternalMode && (
+          <button
+            className={`playlist-toggle-btn ${showPlaylist ? 'active' : ''}`}
+            onClick={() => setShowPlaylist(!showPlaylist)}
+            title="Toggle playlist"
+          >
+            Playlist ({videoItems.length})
+          </button>
+        )}
       </div>
 
       <div className="player-body">
@@ -182,7 +276,7 @@ export default function MediaPlayer() {
               <div className="video-container" onClick={togglePlay}>
                 <video
                   ref={videoRef}
-                  src={streamUrl}
+                  src={isHlsUrl(streamUrl) ? undefined : streamUrl}
                   autoPlay
                   onTimeUpdate={handleTimeUpdate}
                   onLoadedMetadata={handleLoadedMetadata}
@@ -199,19 +293,29 @@ export default function MediaPlayer() {
                   {isPlaying ? 'II' : '>>'}
                 </button>
 
-                <span className="time-display">
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </span>
+                {!isLive && (
+                  <>
+                    <span className="time-display">
+                      {formatTime(currentTime)} / {formatTime(duration)}
+                    </span>
 
-                <input
-                  type="range"
-                  className="seek-bar"
-                  min={0}
-                  max={duration || 0}
-                  step={0.1}
-                  value={currentTime}
-                  onChange={handleSeek}
-                />
+                    <input
+                      type="range"
+                      className="seek-bar"
+                      min={0}
+                      max={duration || 0}
+                      step={0.1}
+                      value={currentTime}
+                      onChange={handleSeek}
+                    />
+                  </>
+                )}
+
+                {isLive && (
+                  <span className="time-display live-time">
+                    LIVE
+                  </span>
+                )}
 
                 <button className="control-btn mute-btn" onClick={toggleMute}>
                   {isMuted ? 'Mx' : 'V'}
@@ -235,8 +339,8 @@ export default function MediaPlayer() {
           )}
         </div>
 
-        {/* Playlist sidebar */}
-        {showPlaylist && (
+        {/* Playlist sidebar (library mode only) */}
+        {showPlaylist && !isExternalMode && (
           <aside className="playlist-sidebar">
             <div className="playlist-header">
               <h3>Library</h3>

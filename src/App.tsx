@@ -19,6 +19,8 @@ import MediaPlayer from './pages/MediaPlayer';
 import WebArchive from './pages/WebArchive';
 import Chat from './pages/Chat';
 import { ChatProvider, useChatContext } from './contexts/ChatContext';
+import Streaming from './pages/Streaming';
+import ContentDetail from './pages/ContentDetail';
 import logoSvg from './assets/logo.svg';
 import './styles/App.css';
 import './styles/Chat.css';
@@ -78,6 +80,9 @@ function AppInner() {
               Chat
               {totalUnread > 0 && <span className="nav-chat-badge">{totalUnread}</span>}
             </NavLink>
+            <NavLink to="/streaming" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Streaming TV
+            </NavLink>
 
             {/* Devices section */}
             <div className="nav-section-label">Devices</div>
@@ -133,6 +138,9 @@ function AppInner() {
             <Route path="/web-archive" element={<WebArchive />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/chat/:conversationId" element={<Chat />} />
+            <Route path="/streaming" element={<Streaming />} />
+            <Route path="/streaming/content/:type/:id" element={<ContentDetail />} />
+            <Route path="/streaming/play" element={<MediaPlayer />} />
             <Route path="/settings" element={<Settings />} />
 
             {/* V2 routes - placeholder for marketplace */}
