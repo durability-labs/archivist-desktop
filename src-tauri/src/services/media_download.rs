@@ -500,8 +500,8 @@ impl MediaDownloadService {
 #[derive(Debug, Clone)]
 pub(crate) struct ProgressInfo {
     pub percent: f32,
+    pub total_size: Option<String>,
     pub speed: Option<String>,
-    pub eta: Option<String>,
 }
 
 /// Result of parsing a single yt-dlp stdout line
@@ -517,6 +517,111 @@ pub(crate) enum LineParseResult {
     AlreadyDownloaded(String),
     /// Line didn't match any known pattern
     Other,
+}
+
+/// Parse a size string like "150.00MiB" or "5.50MiB/s" into bytes.
+/// Strips trailing "/s" so it works for both file sizes and speed values.
+fn parse_size_string(s: &str) -> Option<f64> {
+    let s = s.strip_suffix("/s").unwrap_or(s);
+    // Match suffixes longest-first to avoid "B" matching before "GiB" etc.
+    let suffixes: &[(&str, f64)] = &[
+        ("GiB", 1024.0 * 1024.0 * 1024.0),
+        ("MiB", 1024.0 * 1024.0),
+        ("KiB", 1024.0),
+        ("GB", 1_000_000_000.0),
+        ("MB", 1_000_000.0),
+        ("KB", 1_000.0),
+        ("B", 1.0),
+    ];
+    for (suffix, multiplier) in suffixes {
+        if let Some(num_str) = s.strip_suffix(suffix) {
+            return num_str.trim().parse::<f64>().ok().map(|n| n * multiplier);
+        }
+    }
+    None
+}
+
+/// Format bytes/sec back to yt-dlp style speed string (e.g. "5.50MiB/s").
+fn format_speed(bytes_per_sec: f64) -> String {
+    if bytes_per_sec >= 1024.0 * 1024.0 * 1024.0 {
+        format!("{:.2}GiB/s", bytes_per_sec / (1024.0 * 1024.0 * 1024.0))
+    } else if bytes_per_sec >= 1024.0 * 1024.0 {
+        format!("{:.2}MiB/s", bytes_per_sec / (1024.0 * 1024.0))
+    } else if bytes_per_sec >= 1024.0 {
+        format!("{:.2}KiB/s", bytes_per_sec / 1024.0)
+    } else {
+        format!("{:.0}B/s", bytes_per_sec)
+    }
+}
+
+/// Format seconds into MM:SS or HH:MM:SS matching yt-dlp ETA style.
+fn format_eta(seconds: f64) -> String {
+    let secs = seconds.ceil() as u64;
+    let h = secs / 3600;
+    let m = (secs % 3600) / 60;
+    let s = secs % 60;
+    if h > 0 {
+        format!("{:02}:{:02}:{:02}", h, m, s)
+    } else {
+        format!("{:02}:{:02}", m, s)
+    }
+}
+
+/// Exponential Moving Average smoother for download speed and ETA.
+/// Local to each download — instantiated in `monitor_download`.
+struct SpeedSmoother {
+    smoothed_speed: Option<f64>,
+    prev_percent: f32,
+    alpha: f64,
+}
+
+impl SpeedSmoother {
+    fn new(alpha: f64) -> Self {
+        Self {
+            smoothed_speed: None,
+            prev_percent: 0.0,
+            alpha,
+        }
+    }
+
+    /// Update with raw values from yt-dlp, return smoothed (speed, eta) strings.
+    fn update(
+        &mut self,
+        raw_speed_str: Option<&str>,
+        total_size_str: Option<&str>,
+        percent: f32,
+    ) -> (Option<String>, Option<String>) {
+        // Phase reset: if percent drops significantly, we're in a new download phase
+        // (e.g. video finished, now downloading audio for merge)
+        if percent < self.prev_percent - 5.0 {
+            self.smoothed_speed = None;
+        }
+        self.prev_percent = percent;
+
+        // Parse raw speed and apply EMA
+        if let Some(raw_bytes) = raw_speed_str.and_then(parse_size_string) {
+            self.smoothed_speed = Some(match self.smoothed_speed {
+                Some(prev) => self.alpha * raw_bytes + (1.0 - self.alpha) * prev,
+                None => raw_bytes, // First sample passes through unsmoothed
+            });
+        }
+
+        let speed_str = self.smoothed_speed.map(format_speed);
+
+        // Recompute ETA from smoothed speed and total size
+        let eta_str = match (
+            self.smoothed_speed,
+            total_size_str.and_then(parse_size_string),
+        ) {
+            (Some(speed), Some(total)) if speed > 0.0 => {
+                let remaining = total * (1.0 - percent as f64 / 100.0);
+                Some(format_eta(remaining / speed))
+            }
+            _ => None,
+        };
+
+        (speed_str, eta_str)
+    }
 }
 
 /// Parse a single line of yt-dlp stdout output into a structured result
@@ -544,12 +649,12 @@ pub(crate) fn parse_yt_dlp_line(line: &str) -> LineParseResult {
 
     if let Some(caps) = progress_re.captures(line) {
         let percent: f32 = caps[1].parse().unwrap_or(0.0);
+        let total_size = caps.get(2).map(|m| m.as_str().to_string());
         let speed = caps.get(3).map(|m| m.as_str().to_string());
-        let eta = caps.get(4).map(|m| m.as_str().to_string());
         return LineParseResult::Progress(ProgressInfo {
             percent,
+            total_size,
             speed,
-            eta,
         });
     }
 
@@ -557,8 +662,8 @@ pub(crate) fn parse_yt_dlp_line(line: &str) -> LineParseResult {
         let percent: f32 = caps[1].parse().unwrap_or(0.0);
         return LineParseResult::Progress(ProgressInfo {
             percent,
+            total_size: None,
             speed: None,
-            eta: None,
         });
     }
 
@@ -594,6 +699,7 @@ async fn monitor_download(
     let mut lines = reader.lines();
 
     let mut output_path: Option<String> = None;
+    let mut smoother = SpeedSmoother::new(0.3);
 
     while let Ok(Some(line)) = lines.next_line().await {
         log::debug!("yt-dlp [{}]: {}", task_id, line);
@@ -609,13 +715,18 @@ async fn monitor_download(
                 output_path = Some(path);
             }
             LineParseResult::Progress(info) => {
+                let (smoothed_speed, smoothed_eta) = smoother.update(
+                    info.speed.as_deref(),
+                    info.total_size.as_deref(),
+                    info.percent,
+                );
                 let _ = app_handle.emit(
                     "media-download-progress",
                     serde_json::json!({
                         "taskId": &task_id,
                         "percent": info.percent,
-                        "speed": info.speed,
-                        "eta": info.eta,
+                        "speed": smoothed_speed,
+                        "eta": smoothed_eta,
                     }),
                 );
                 // Sync progress to backend so polling returns current values
@@ -624,8 +735,8 @@ async fn monitor_download(
                     media.update_task_progress(
                         &task_id,
                         info.percent,
-                        info.speed.clone(),
-                        info.eta.clone(),
+                        smoothed_speed.clone(),
+                        smoothed_eta.clone(),
                     );
                 }
             }
@@ -1240,8 +1351,8 @@ mod tests {
         match parse_yt_dlp_line(line) {
             LineParseResult::Progress(info) => {
                 assert!((info.percent - 45.2).abs() < f32::EPSILON);
+                assert_eq!(info.total_size, Some("150.00MiB".to_string()));
                 assert_eq!(info.speed, Some("5.50MiB/s".to_string()));
-                assert_eq!(info.eta, Some("00:15".to_string()));
             }
             other => panic!("Expected Progress, got {:?}", other),
         }
@@ -1253,8 +1364,8 @@ mod tests {
         match parse_yt_dlp_line(line) {
             LineParseResult::Progress(info) => {
                 assert!((info.percent - 100.0).abs() < f32::EPSILON);
+                assert!(info.total_size.is_none());
                 assert!(info.speed.is_none());
-                assert!(info.eta.is_none());
             }
             other => panic!("Expected Progress, got {:?}", other),
         }
@@ -1300,5 +1411,237 @@ mod tests {
             LineParseResult::Other => {}
             other => panic!("Expected Other, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_parse_progress_total_size_with_tilde() {
+        let line = "[download]  10.0% of ~250.50MiB at 3.00MiB/s ETA 01:15";
+        match parse_yt_dlp_line(line) {
+            LineParseResult::Progress(info) => {
+                assert_eq!(info.total_size, Some("250.50MiB".to_string()));
+            }
+            other => panic!("Expected Progress, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_progress_total_size_without_tilde() {
+        let line = "[download]  10.0% of 250.50MiB at 3.00MiB/s ETA 01:15";
+        match parse_yt_dlp_line(line) {
+            LineParseResult::Progress(info) => {
+                assert_eq!(info.total_size, Some("250.50MiB".to_string()));
+            }
+            other => panic!("Expected Progress, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_simple_progress_no_total_size() {
+        let line = "[download]  75.0%";
+        match parse_yt_dlp_line(line) {
+            LineParseResult::Progress(info) => {
+                assert!((info.percent - 75.0).abs() < f32::EPSILON);
+                assert!(info.total_size.is_none());
+            }
+            other => panic!("Expected Progress, got {:?}", other),
+        }
+    }
+
+    // =========================================================================
+    // parse_size_string tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_size_mib() {
+        let result = parse_size_string("150.00MiB");
+        assert!((result.unwrap() - 150.0 * 1024.0 * 1024.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_parse_size_gib() {
+        let result = parse_size_string("1.50GiB");
+        assert!((result.unwrap() - 1.5 * 1024.0 * 1024.0 * 1024.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_parse_size_kib() {
+        let result = parse_size_string("512.00KiB");
+        assert!((result.unwrap() - 512.0 * 1024.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_parse_size_bytes() {
+        let result = parse_size_string("100B");
+        assert!((result.unwrap() - 100.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_parse_size_speed_suffix() {
+        // Should strip /s and parse the size part
+        let result = parse_size_string("5.50MiB/s");
+        assert!((result.unwrap() - 5.5 * 1024.0 * 1024.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_parse_size_decimal_mb() {
+        let result = parse_size_string("10.00MB");
+        assert!((result.unwrap() - 10_000_000.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_parse_size_invalid() {
+        assert!(parse_size_string("invalid").is_none());
+        assert!(parse_size_string("").is_none());
+        assert!(parse_size_string("MiB").is_none());
+    }
+
+    // =========================================================================
+    // format_speed tests
+    // =========================================================================
+
+    #[test]
+    fn test_format_speed_gib() {
+        let s = format_speed(1.5 * 1024.0 * 1024.0 * 1024.0);
+        assert_eq!(s, "1.50GiB/s");
+    }
+
+    #[test]
+    fn test_format_speed_mib() {
+        let s = format_speed(5.5 * 1024.0 * 1024.0);
+        assert_eq!(s, "5.50MiB/s");
+    }
+
+    #[test]
+    fn test_format_speed_kib() {
+        let s = format_speed(512.0 * 1024.0);
+        assert_eq!(s, "512.00KiB/s");
+    }
+
+    #[test]
+    fn test_format_speed_bytes() {
+        let s = format_speed(100.0);
+        assert_eq!(s, "100B/s");
+    }
+
+    // =========================================================================
+    // format_eta tests
+    // =========================================================================
+
+    #[test]
+    fn test_format_eta_seconds_only() {
+        assert_eq!(format_eta(45.0), "00:45");
+    }
+
+    #[test]
+    fn test_format_eta_minutes() {
+        assert_eq!(format_eta(125.0), "02:05");
+    }
+
+    #[test]
+    fn test_format_eta_hours() {
+        assert_eq!(format_eta(3661.0), "01:01:01");
+    }
+
+    #[test]
+    fn test_format_eta_zero() {
+        assert_eq!(format_eta(0.0), "00:00");
+    }
+
+    #[test]
+    fn test_format_eta_fractional_rounds_up() {
+        assert_eq!(format_eta(0.1), "00:01");
+        assert_eq!(format_eta(59.1), "01:00");
+    }
+
+    // =========================================================================
+    // SpeedSmoother tests
+    // =========================================================================
+
+    #[test]
+    fn test_smoother_first_sample_passthrough() {
+        let mut smoother = SpeedSmoother::new(0.3);
+        let (speed, _) = smoother.update(Some("5.00MiB/s"), Some("100.00MiB"), 10.0);
+        // First sample should pass through unsmoothed
+        assert_eq!(speed, Some("5.00MiB/s".to_string()));
+    }
+
+    #[test]
+    fn test_smoother_ema_convergence() {
+        let mut smoother = SpeedSmoother::new(0.3);
+        // Feed constant speed — should converge to same value
+        for i in 0..20 {
+            smoother.update(Some("10.00MiB/s"), Some("100.00MiB"), i as f32 * 5.0);
+        }
+        let (speed, _) = smoother.update(Some("10.00MiB/s"), Some("100.00MiB"), 99.0);
+        assert_eq!(speed, Some("10.00MiB/s".to_string()));
+    }
+
+    #[test]
+    fn test_smoother_spike_dampening() {
+        let mut smoother = SpeedSmoother::new(0.3);
+        // Establish baseline at 5 MiB/s
+        smoother.update(Some("5.00MiB/s"), Some("100.00MiB"), 10.0);
+        smoother.update(Some("5.00MiB/s"), Some("100.00MiB"), 20.0);
+
+        // Spike to 20 MiB/s — should be dampened
+        let (speed, _) = smoother.update(Some("20.00MiB/s"), Some("100.00MiB"), 30.0);
+        let smoothed_bytes = parse_size_string(speed.as_deref().unwrap()).unwrap();
+        let raw_spike = 20.0 * 1024.0 * 1024.0;
+        let baseline = 5.0 * 1024.0 * 1024.0;
+        // Smoothed value should be between baseline and spike
+        assert!(smoothed_bytes > baseline);
+        assert!(smoothed_bytes < raw_spike);
+    }
+
+    #[test]
+    fn test_smoother_phase_reset() {
+        let mut smoother = SpeedSmoother::new(0.3);
+        // Build up speed state at high percent
+        smoother.update(Some("5.00MiB/s"), Some("100.00MiB"), 80.0);
+        smoother.update(Some("5.00MiB/s"), Some("100.00MiB"), 90.0);
+        smoother.update(Some("5.00MiB/s"), Some("100.00MiB"), 99.0);
+
+        // Phase reset: percent drops significantly (video→audio merge)
+        let (speed, _) = smoother.update(Some("3.00MiB/s"), Some("50.00MiB"), 5.0);
+        // After reset, first sample should pass through unsmoothed
+        assert_eq!(speed, Some("3.00MiB/s".to_string()));
+    }
+
+    #[test]
+    fn test_smoother_no_false_reset_on_small_fluctuation() {
+        let mut smoother = SpeedSmoother::new(0.3);
+        smoother.update(Some("5.00MiB/s"), Some("100.00MiB"), 50.0);
+        // Small percent fluctuation (within 5%) should NOT reset
+        let (speed, _) = smoother.update(Some("10.00MiB/s"), Some("100.00MiB"), 48.0);
+        let smoothed_bytes = parse_size_string(speed.as_deref().unwrap()).unwrap();
+        let raw_10 = 10.0 * 1024.0 * 1024.0;
+        // Should be EMA'd, not raw passthrough — i.e. less than 10 MiB/s
+        assert!(smoothed_bytes < raw_10);
+    }
+
+    #[test]
+    fn test_smoother_none_speed_preserves_previous() {
+        let mut smoother = SpeedSmoother::new(0.3);
+        smoother.update(Some("5.00MiB/s"), Some("100.00MiB"), 10.0);
+        // Speed is None (yt-dlp didn't report it this line)
+        let (speed, _) = smoother.update(None, Some("100.00MiB"), 15.0);
+        // Should still return the previous smoothed speed
+        assert_eq!(speed, Some("5.00MiB/s".to_string()));
+    }
+
+    #[test]
+    fn test_smoother_no_total_size_no_eta() {
+        let mut smoother = SpeedSmoother::new(0.3);
+        let (speed, eta) = smoother.update(Some("5.00MiB/s"), None, 50.0);
+        assert!(speed.is_some());
+        assert!(eta.is_none());
+    }
+
+    #[test]
+    fn test_smoother_both_none() {
+        let mut smoother = SpeedSmoother::new(0.3);
+        let (speed, eta) = smoother.update(None, None, 50.0);
+        assert!(speed.is_none());
+        assert!(eta.is_none());
     }
 }
