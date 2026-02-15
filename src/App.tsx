@@ -16,6 +16,7 @@ import Devices from './pages/Devices';
 import AddDevice from './pages/AddDevice';
 import MediaDownload from './pages/MediaDownload';
 import MediaPlayer from './pages/MediaPlayer';
+import WebArchive from './pages/WebArchive';
 import logoSvg from './assets/logo.svg';
 import './styles/App.css';
 
@@ -98,6 +99,9 @@ function App() {
             <NavLink to="/media" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Media Download
             </NavLink>
+            <NavLink to="/web-archive" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Web Archive
+            </NavLink>
 
             {/* Devices section */}
             <div className="nav-section-label">Devices</div>
@@ -150,6 +154,7 @@ function App() {
             <Route path="/backup-server" element={<BackupServer />} />
             <Route path="/media" element={<MediaDownload />} />
             <Route path="/media/player/:taskId" element={<MediaPlayer />} />
+            <Route path="/web-archive" element={<WebArchive />} />
             <Route path="/settings" element={<Settings />} />
 
             {/* V2 routes - placeholder for marketplace */}

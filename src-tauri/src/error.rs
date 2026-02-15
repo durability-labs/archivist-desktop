@@ -42,6 +42,9 @@ pub enum ArchivistError {
     #[error("Streaming server error: {0}")]
     StreamingError(String),
 
+    #[error("Web archive error: {0}")]
+    WebArchiveError(String),
+
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 

@@ -11,6 +11,7 @@ pub mod media_streaming;
 pub mod node;
 pub mod peers;
 pub mod sync;
+pub mod web_archive;
 
 pub use backup::BackupService;
 pub use backup_daemon::BackupDaemon;
@@ -22,6 +23,7 @@ pub use media_streaming::{MediaStreamingConfig, MediaStreamingServer};
 pub use node::NodeService;
 pub use peers::PeerService;
 pub use sync::SyncService;
+pub use web_archive::WebArchiveService;
 
 // V2 Marketplace services (conditionally compiled)
 #[cfg(feature = "marketplace")]

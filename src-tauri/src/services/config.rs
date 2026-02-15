@@ -33,6 +33,10 @@ pub struct AppConfig {
     #[serde(default)]
     pub media_streaming: MediaStreamingSettings,
 
+    // Web archive settings
+    #[serde(default)]
+    pub web_archive: WebArchiveSettings,
+
     // V2 Marketplace settings (optional)
     #[cfg(feature = "marketplace")]
     pub blockchain: Option<BlockchainSettings>,
@@ -183,6 +187,28 @@ impl Default for MediaStreamingSettings {
     }
 }
 
+/// Web archive settings for website crawling/archival
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebArchiveSettings {
+    pub max_concurrent_archives: u32,
+    pub default_max_depth: u32,
+    pub default_max_pages: u32,
+    pub include_assets: bool,
+    pub request_delay_ms: u64,
+}
+
+impl Default for WebArchiveSettings {
+    fn default() -> Self {
+        Self {
+            max_concurrent_archives: 2,
+            default_max_depth: 3,
+            default_max_pages: 100,
+            include_assets: true,
+            request_delay_ms: 200,
+        }
+    }
+}
+
 impl Default for ManifestServerSettings {
     fn default() -> Self {
         Self {
@@ -273,6 +299,7 @@ impl Default for AppConfig {
             manifest_server: ManifestServerSettings::default(),
             media_download: MediaDownloadSettings::default(),
             media_streaming: MediaStreamingSettings::default(),
+            web_archive: WebArchiveSettings::default(),
             #[cfg(feature = "marketplace")]
             blockchain: None,
             #[cfg(feature = "marketplace")]
