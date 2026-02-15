@@ -66,11 +66,14 @@ export function useWebArchive() {
     return await invoke<ArchivedSite[]>('get_archived_sites');
   }, []);
 
-  const openViewer = useCallback(async (cid: string) => {
+  const openViewer = useCallback(async (cid: string, originalUrl?: string) => {
     setViewerLoading(true);
     try {
-      const url = await invoke<string>('open_archive_viewer', { cid });
-      setViewerUrl(url);
+      const viewerResult = await invoke<string>('open_archive_viewer', {
+        cid,
+        url: originalUrl,
+      });
+      setViewerUrl(viewerResult);
       setViewerCid(cid);
     } catch (e) {
       setError(
