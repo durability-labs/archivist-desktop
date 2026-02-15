@@ -65,7 +65,7 @@ base64 = "0.22"
 bs58 = "0.5"
 
 # Regex for parsing yt-dlp progress output
-regex = "1.10"
+regex = "1.12"
 
 # Zip archive support for ffmpeg extraction (Windows)
 zip = "2.2"
@@ -75,7 +75,7 @@ thiserror = "1.0"
 anyhow = "1.0"
 
 # UUID generation
-uuid = { version = "1.0", features = ["v4", "serde"] }
+uuid = { version = "1.21", features = ["v4", "serde"] }
 
 # Date/time
 chrono = { version = "0.4", features = ["serde"] }
@@ -100,5 +100,5 @@ tauri-plugin-updater = "2"
 [dev-dependencies]
 tokio-test = "0.4"
 mockall = "0.13"
-tempfile = "3.13"
+tempfile = "3.25"
 rstest = "0.23"
