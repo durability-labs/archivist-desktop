@@ -596,6 +596,18 @@ fn compute_relative_path(from: &str, to: &str) -> String {
     }
 }
 
+/// Normalize a URL for deduplication by stripping trailing slashes.
+/// This prevents `/path/` and `/path` from being treated as separate pages
+/// (both map to the same file path in the archive).
+fn normalize_url_for_dedup(url: &Url) -> String {
+    let s = url.to_string();
+    if s.ends_with('/') && s.len() > 1 {
+        s[..s.len() - 1].to_string()
+    } else {
+        s
+    }
+}
+
 /// The main archive pipeline — runs in a tokio task
 async fn run_archive_pipeline(
     task: ArchiveTask,
@@ -621,7 +633,7 @@ async fn run_archive_pipeline(
     let mut site_title: Option<String> = None;
 
     queue.push_back((root_url.clone(), 0));
-    visited.insert(root_url.to_string());
+    visited.insert(normalize_url_for_dedup(&root_url));
 
     while let Some((url, depth)) = queue.pop_front() {
         // Check cancellation
@@ -674,7 +686,21 @@ async fn run_archive_pipeline(
             title,
         });
 
+        // Extract and enqueue links (only if we haven't hit max depth)
+        if depth < task.options.max_depth {
+            let links = extract_links(&pages.last().unwrap().html, &url);
+            for link in links {
+                let link_str = normalize_url_for_dedup(&link);
+                if !visited.contains(&link_str) && is_same_origin(&root_url, &link) {
+                    visited.insert(link_str);
+                    queue.push_back((link, depth + 1));
+                }
+            }
+        }
+
         // Update progress in service and emit to frontend
+        // NOTE: This must come AFTER link extraction so visited.len() reflects
+        // the fully-updated count and the progress bar never jumps backwards.
         {
             let mut svc = service.write().await;
             if let Some(t) = svc.tasks.get_mut(&task.id) {
@@ -692,18 +718,6 @@ async fn run_archive_pipeline(
                 "totalBytes": 0u64,
             }),
         );
-
-        // Extract and enqueue links (only if we haven't hit max depth)
-        if depth < task.options.max_depth {
-            let links = extract_links(&pages.last().unwrap().html, &url);
-            for link in links {
-                let link_str = link.to_string();
-                if !visited.contains(&link_str) && is_same_origin(&root_url, &link) {
-                    visited.insert(link_str);
-                    queue.push_back((link, depth + 1));
-                }
-            }
-        }
 
         // Polite delay
         if task.options.request_delay_ms > 0 {
@@ -886,9 +900,16 @@ fn create_archive_zip(
     let options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
 
+    // Track written paths to prevent duplicate filename errors
+    let mut written_paths: HashSet<String> = HashSet::new();
+
     // Write HTML pages
     for page in pages {
         let rel_path = url_to_path(root_url, &page.url);
+        if !written_paths.insert(rel_path.clone()) {
+            log::warn!("Skipping duplicate ZIP entry: {}", rel_path);
+            continue;
+        }
         let rewritten_html = rewrite_links(&page.html, &page.url, root_url);
 
         zip.start_file(&rel_path, options)
@@ -899,6 +920,10 @@ fn create_archive_zip(
 
     // Write assets
     for (rel_path, data) in assets {
+        if !written_paths.insert(rel_path.clone()) {
+            log::warn!("Skipping duplicate ZIP asset: {}", rel_path);
+            continue;
+        }
         zip.start_file(rel_path, options)
             .map_err(|e| ArchivistError::WebArchiveError(format!("ZIP write error: {}", e)))?;
         zip.write_all(data)
