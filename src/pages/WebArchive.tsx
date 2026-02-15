@@ -239,7 +239,7 @@ export default function WebArchive() {
                 task={task}
                 onCancel={cancelArchive}
                 onRemove={removeTask}
-                onBrowse={task.cid ? () => openViewer(task.cid!) : undefined}
+                onBrowse={task.cid ? () => openViewer(task.cid!, task.url) : undefined}
                 viewerLoading={viewerLoading}
               />
             ))}
@@ -267,7 +267,7 @@ export default function WebArchive() {
                 <div className="archived-actions">
                   <button
                     className="browse-btn"
-                    onClick={() => openViewer(site.cid)}
+                    onClick={() => openViewer(site.cid, site.url)}
                     disabled={viewerLoading}
                   >
                     {viewerLoading ? 'Loading...' : 'Browse'}

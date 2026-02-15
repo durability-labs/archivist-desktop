@@ -544,24 +544,26 @@ fn extract_title(html: &str) -> Option<String> {
         .filter(|t| !t.is_empty())
 }
 
-/// Rewrite links in HTML to use relative paths
+/// Rewrite links in HTML to use relative paths.
+/// Uses attribute-level replacement (`href="old"` → `href="new"`) to avoid
+/// corrupting other parts of the HTML that happen to contain the same text.
 fn rewrite_links(html: &str, page_url: &Url, root_url: &Url) -> String {
     let mut result = html.to_string();
 
-    // Rewrite href attributes
     let document = Html::parse_document(html);
-
-    // Collect all href/src attributes that need rewriting
     let link_sel = Selector::parse("a[href]").unwrap();
+
     for el in document.select(&link_sel) {
         if let Some(href) = el.value().attr("href") {
             if let Ok(resolved) = page_url.join(href) {
                 if is_same_origin(root_url, &resolved) {
                     let rel_path = url_to_path(root_url, &resolved);
-                    // Calculate relative path from current page to target
                     let current_path = url_to_path(root_url, page_url);
                     let relative = compute_relative_path(&current_path, &rel_path);
-                    result = result.replacen(href, &relative, 1);
+                    // Replace only within the href attribute context, not bare text
+                    let old_attr = format!("href=\"{}\"", href);
+                    let new_attr = format!("href=\"{}\"", relative);
+                    result = result.replacen(&old_attr, &new_attr, 1);
                 }
             }
         }
@@ -1138,6 +1140,51 @@ mod tests {
         assert_eq!(state.tasks.len(), 5);
         assert_eq!(state.queued_count, 5);
         assert_eq!(state.max_concurrent, 2);
+    }
+
+    #[test]
+    fn test_rewrite_links_does_not_corrupt_title() {
+        let html =
+            r#"<html><head><title>Test</title></head><body><a href="/">Home</a></body></html>"#;
+        let page = Url::parse("https://example.com/docs/page.html").unwrap();
+        let root = Url::parse("https://example.com").unwrap();
+        let result = rewrite_links(html, &page, &root);
+        assert!(
+            result.contains("</title>"),
+            "closing title tag must not be corrupted: {}",
+            result
+        );
+        assert!(
+            result.contains(r#"href="../index.html""#),
+            "link should be rewritten to relative path: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_links_deeply_nested_page() {
+        let html = r#"<html><head><title>PeerDAS -- Ethereum Research</title></head><body><a href="/">Home</a><a href="/about">About</a></body></html>"#;
+        let page = Url::parse("https://example.com/t/peerdas/16541/index.html").unwrap();
+        let root = Url::parse("https://example.com").unwrap();
+        let result = rewrite_links(html, &page, &root);
+        // Title must remain intact
+        assert!(
+            result.contains("<title>PeerDAS -- Ethereum Research</title>"),
+            "title tag was corrupted: {}",
+            result
+        );
+        // Links should be rewritten to correct relative paths
+        // t/peerdas/16541/index.html is 3 dirs deep, so 3x ../
+        assert!(
+            result.contains(r#"href="../../../index.html""#),
+            "root link should have correct relative path: {}",
+            result
+        );
+        assert!(
+            result.contains(r#"href="../../../about/index.html""#),
+            "about link should have correct relative path: {}",
+            result
+        );
     }
 
     #[test]

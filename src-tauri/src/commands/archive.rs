@@ -51,11 +51,16 @@ pub async fn get_archived_sites(state: State<'_, AppState>) -> Result<Vec<Archiv
 }
 
 /// Open the archive viewer for a given CID. Downloads ZIP, extracts, starts server.
-/// Returns the viewer base URL.
+/// Returns the viewer URL pointing to the correct starting page.
+/// If `url` is provided, the viewer navigates to the matching path in the archive.
 #[tauri::command]
-pub async fn open_archive_viewer(state: State<'_, AppState>, cid: String) -> Result<String> {
+pub async fn open_archive_viewer(
+    state: State<'_, AppState>,
+    cid: String,
+    url: Option<String>,
+) -> Result<String> {
     let mut viewer = state.archive_viewer.write().await;
-    viewer.open_archive(&cid).await
+    viewer.open_archive(&cid, url.as_deref()).await
 }
 
 /// Close the archive viewer and clean up extracted files.

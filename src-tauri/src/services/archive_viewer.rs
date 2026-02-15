@@ -43,8 +43,10 @@ impl ArchiveViewerServer {
     }
 
     /// Open an archive by CID: download ZIP from node, extract, and start server.
-    /// Returns the viewer base URL.
-    pub async fn open_archive(&mut self, cid: &str) -> Result<String> {
+    /// Returns the viewer URL pointing to the correct starting page.
+    /// If `original_url` is provided, the returned URL will point to the
+    /// corresponding path within the archive instead of the root.
+    pub async fn open_archive(&mut self, cid: &str, original_url: Option<&str>) -> Result<String> {
         // If already serving a different archive, close the current one first
         if self.running {
             self.close_archive();
@@ -122,7 +124,20 @@ impl ArchiveViewerServer {
         log::info!("Archive viewer server starting on port {}", port);
         tokio::spawn(server);
 
-        Ok(format!("http://127.0.0.1:{}", port))
+        let base_url = format!("http://127.0.0.1:{}", port);
+
+        // Compute starting page path from original URL
+        if let Some(url_str) = original_url {
+            if let Ok(parsed) = url::Url::parse(url_str) {
+                let path = parsed.path().trim_start_matches('/');
+                if !path.is_empty() {
+                    let path = path.trim_end_matches('/');
+                    return Ok(format!("{}/{}/index.html", base_url, path));
+                }
+            }
+        }
+
+        Ok(base_url)
     }
 
     /// Close the archive viewer: stop server and clean up extracted files.
