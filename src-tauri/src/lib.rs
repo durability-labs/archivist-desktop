@@ -128,6 +128,10 @@ pub fn run() {
             commands::remove_archive_task,
             commands::clear_completed_archives,
             commands::get_archived_sites,
+            // Archive viewer commands
+            commands::open_archive_viewer,
+            commands::close_archive_viewer,
+            commands::get_archive_viewer_status,
             // Streaming server commands
             commands::get_streaming_server_url,
             commands::start_streaming_server,

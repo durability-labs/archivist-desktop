@@ -5,9 +5,9 @@ use tokio::sync::RwLock;
 use crate::node_api::NodeApiClient;
 use crate::services::node::NodeConfig;
 use crate::services::{
-    BackupDaemon, BackupService, ConfigService, FileService, ManifestRegistry, ManifestServer,
-    ManifestServerConfig, MediaDownloadService, MediaStreamingConfig, MediaStreamingServer,
-    NodeService, PeerService, SyncService, WebArchiveService,
+    ArchiveViewerServer, BackupDaemon, BackupService, ConfigService, FileService, ManifestRegistry,
+    ManifestServer, ManifestServerConfig, MediaDownloadService, MediaStreamingConfig,
+    MediaStreamingServer, NodeService, PeerService, SyncService, WebArchiveService,
 };
 
 /// Global application state managed by Tauri
@@ -24,6 +24,7 @@ pub struct AppState {
     pub media: Arc<RwLock<MediaDownloadService>>,
     pub media_streaming: Arc<RwLock<MediaStreamingServer>>,
     pub web_archive: Arc<RwLock<WebArchiveService>>,
+    pub archive_viewer: Arc<RwLock<ArchiveViewerServer>>,
 }
 
 impl AppState {
@@ -114,6 +115,12 @@ impl AppState {
             app_config.node.api_port,
         )));
 
+        // Create archive viewer server
+        let archive_viewer = Arc::new(RwLock::new(ArchiveViewerServer::new(
+            app_config.web_archive.viewer_port,
+            app_config.node.api_port,
+        )));
+
         Self {
             node: Arc::new(RwLock::new(NodeService::with_config(node_config))),
             files: Arc::new(RwLock::new(FileService::new())),
@@ -127,6 +134,7 @@ impl AppState {
             media,
             media_streaming,
             web_archive,
+            archive_viewer,
         }
     }
 }

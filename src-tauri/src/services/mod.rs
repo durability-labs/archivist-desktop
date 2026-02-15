@@ -1,5 +1,6 @@
 // Service layer - trait-based abstractions for V2 extensibility
 
+pub mod archive_viewer;
 pub mod backup;
 pub mod backup_daemon;
 pub mod binary_manager;
@@ -13,6 +14,7 @@ pub mod peers;
 pub mod sync;
 pub mod web_archive;
 
+pub use archive_viewer::ArchiveViewerServer;
 pub use backup::BackupService;
 pub use backup_daemon::BackupDaemon;
 pub use config::ConfigService;
