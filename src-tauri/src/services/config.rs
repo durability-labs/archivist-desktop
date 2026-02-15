@@ -195,6 +195,12 @@ pub struct WebArchiveSettings {
     pub default_max_pages: u32,
     pub include_assets: bool,
     pub request_delay_ms: u64,
+    #[serde(default = "default_viewer_port")]
+    pub viewer_port: u16,
+}
+
+fn default_viewer_port() -> u16 {
+    8088
 }
 
 impl Default for WebArchiveSettings {
@@ -205,6 +211,7 @@ impl Default for WebArchiveSettings {
             default_max_pages: 100,
             include_assets: true,
             request_delay_ms: 200,
+            viewer_port: 8088,
         }
     }
 }

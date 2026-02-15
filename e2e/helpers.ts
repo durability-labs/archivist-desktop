@@ -221,6 +221,19 @@ export const SEL = {
   downloadQueue: '.download-queue',
   queueEmpty: '.queue-empty',
   binaryInfo: '.binary-info',
+
+  // Web Archive
+  webArchivePage: '.web-archive-page',
+  webArchiveHeader: '.web-archive-page h1',
+  archiveUrlInput: '.web-archive-page .url-input',
+  archiveBtn: '.web-archive-page .archive-btn',
+  archiveTaskCard: '.web-archive-page .task-card',
+  archiveTaskBadge: '.web-archive-page .task-badge',
+  archivedItem: '.web-archive-page .archived-item',
+  browseBtn: '.web-archive-page .browse-btn',
+  viewerPanel: '.web-archive-page .archive-viewer-panel',
+  viewerIframe: '.web-archive-page .archive-viewer-iframe',
+  viewerCloseBtn: '.web-archive-page .viewer-close-btn',
 } as const;
 
 // ---------------------------------------------------------------------------

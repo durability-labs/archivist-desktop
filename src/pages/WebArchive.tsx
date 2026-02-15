@@ -48,6 +48,11 @@ export default function WebArchive() {
     cancelArchive,
     removeTask,
     clearCompleted,
+    viewerUrl,
+    viewerLoading,
+    viewerCid,
+    openViewer,
+    closeViewer,
   } = useWebArchive();
 
   const [url, setUrl] = useState('');
@@ -120,6 +125,32 @@ export default function WebArchive() {
       <h1>Web Archive</h1>
 
       {error && <div className="archive-error">{error}</div>}
+
+      {/* Archive Viewer Panel */}
+      {viewerUrl && (
+        <div className="archive-viewer-panel">
+          <div className="viewer-toolbar">
+            <span className="viewer-title">
+              Browsing archived site{viewerCid ? ` (${viewerCid.slice(0, 12)}...)` : ''}
+            </span>
+            <button className="viewer-close-btn" onClick={closeViewer}>
+              Close Viewer
+            </button>
+          </div>
+          <iframe
+            src={viewerUrl}
+            className="archive-viewer-iframe"
+            sandbox="allow-same-origin allow-scripts"
+            title="Archive Viewer"
+          />
+        </div>
+      )}
+
+      {viewerLoading && (
+        <div className="viewer-loading">
+          Downloading and extracting archive...
+        </div>
+      )}
 
       {/* URL Input */}
       <div className="url-input-section">
@@ -208,6 +239,8 @@ export default function WebArchive() {
                 task={task}
                 onCancel={cancelArchive}
                 onRemove={removeTask}
+                onBrowse={task.cid ? () => openViewer(task.cid!) : undefined}
+                viewerLoading={viewerLoading}
               />
             ))}
           </div>
@@ -231,8 +264,17 @@ export default function WebArchive() {
                     {formatBytes(site.totalBytes)}
                   </span>
                 </div>
-                <div className="archived-cid" title={site.cid}>
-                  CID: {site.cid.slice(0, 12)}...
+                <div className="archived-actions">
+                  <button
+                    className="browse-btn"
+                    onClick={() => openViewer(site.cid)}
+                    disabled={viewerLoading}
+                  >
+                    {viewerLoading ? 'Loading...' : 'Browse'}
+                  </button>
+                  <div className="archived-cid" title={site.cid}>
+                    CID: {site.cid.slice(0, 12)}...
+                  </div>
                 </div>
               </div>
             ))}
@@ -257,10 +299,14 @@ function TaskCard({
   task,
   onCancel,
   onRemove,
+  onBrowse,
+  viewerLoading,
 }: {
   task: ArchiveTask;
   onCancel: (id: string) => void;
   onRemove: (id: string) => void;
+  onBrowse?: () => void;
+  viewerLoading: boolean;
 }) {
   const isActive =
     task.state === 'crawling' ||
@@ -337,6 +383,15 @@ function TaskCard({
           <span className="result-cid" title={task.cid}>
             {task.cid}
           </span>
+          {onBrowse && (
+            <button
+              className="browse-btn"
+              onClick={onBrowse}
+              disabled={viewerLoading}
+            >
+              {viewerLoading ? 'Loading...' : 'Browse'}
+            </button>
+          )}
         </div>
       )}
 

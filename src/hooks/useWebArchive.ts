@@ -12,6 +12,9 @@ export function useWebArchive() {
   const [queueState, setQueueState] = useState<ArchiveQueueState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerLoading, setViewerLoading] = useState(false);
+  const [viewerCid, setViewerCid] = useState<string | null>(null);
 
   const refreshQueue = useCallback(async () => {
     try {
@@ -61,6 +64,35 @@ export function useWebArchive() {
 
   const getArchivedSites = useCallback(async (): Promise<ArchivedSite[]> => {
     return await invoke<ArchivedSite[]>('get_archived_sites');
+  }, []);
+
+  const openViewer = useCallback(async (cid: string) => {
+    setViewerLoading(true);
+    try {
+      const url = await invoke<string>('open_archive_viewer', { cid });
+      setViewerUrl(url);
+      setViewerCid(cid);
+    } catch (e) {
+      setError(
+        typeof e === 'string'
+          ? e
+          : e instanceof Error
+            ? e.message
+            : 'Failed to open archive viewer'
+      );
+    } finally {
+      setViewerLoading(false);
+    }
+  }, []);
+
+  const closeViewer = useCallback(async () => {
+    try {
+      await invoke('close_archive_viewer');
+    } catch {
+      // Ignore close errors
+    }
+    setViewerUrl(null);
+    setViewerCid(null);
   }, []);
 
   // Initialize and poll
@@ -144,5 +176,10 @@ export function useWebArchive() {
     clearCompleted,
     getArchivedSites,
     refreshQueue,
+    viewerUrl,
+    viewerLoading,
+    viewerCid,
+    openViewer,
+    closeViewer,
   };
 }
