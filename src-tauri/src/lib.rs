@@ -28,6 +28,7 @@ pub fn run() {
     let manifest_server = app_state.manifest_server.clone();
     let media_service = app_state.media.clone();
     let media_streaming = app_state.media_streaming.clone();
+    let web_archive_service = app_state.web_archive.clone();
 
     let mut builder = tauri::Builder::default()
         .plugin(
@@ -120,6 +121,13 @@ pub fn run() {
             commands::clear_completed_downloads,
             commands::get_download_queue,
             commands::update_yt_dlp,
+            // Web archive commands
+            commands::queue_web_archive,
+            commands::get_archive_queue,
+            commands::cancel_web_archive,
+            commands::remove_archive_task,
+            commands::clear_completed_archives,
+            commands::get_archived_sites,
             // Streaming server commands
             commands::get_streaming_server_url,
             commands::start_streaming_server,
@@ -255,6 +263,21 @@ pub fn run() {
                 }
             });
             log::info!("Media download queue processor started");
+
+            // Start web archive queue processor
+            let web_archive_clone = web_archive_service.clone();
+            let app_handle_archive = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    crate::services::web_archive::process_queue(
+                        &web_archive_clone,
+                        &app_handle_archive,
+                    )
+                    .await;
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
+            });
+            log::info!("Web archive queue processor started");
 
             // Auto-start media streaming server if enabled in config
             let media_streaming_clone = media_streaming.clone();

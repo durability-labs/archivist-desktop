@@ -7,7 +7,7 @@ use crate::services::node::NodeConfig;
 use crate::services::{
     BackupDaemon, BackupService, ConfigService, FileService, ManifestRegistry, ManifestServer,
     ManifestServerConfig, MediaDownloadService, MediaStreamingConfig, MediaStreamingServer,
-    NodeService, PeerService, SyncService,
+    NodeService, PeerService, SyncService, WebArchiveService,
 };
 
 /// Global application state managed by Tauri
@@ -23,6 +23,7 @@ pub struct AppState {
     pub manifest_server: Arc<RwLock<ManifestServer>>,
     pub media: Arc<RwLock<MediaDownloadService>>,
     pub media_streaming: Arc<RwLock<MediaStreamingServer>>,
+    pub web_archive: Arc<RwLock<WebArchiveService>>,
 }
 
 impl AppState {
@@ -107,6 +108,12 @@ impl AppState {
             media.clone(),
         )));
 
+        // Create web archive service
+        let web_archive = Arc::new(RwLock::new(WebArchiveService::new(
+            app_config.web_archive.max_concurrent_archives,
+            app_config.node.api_port,
+        )));
+
         Self {
             node: Arc::new(RwLock::new(NodeService::with_config(node_config))),
             files: Arc::new(RwLock::new(FileService::new())),
@@ -119,6 +126,7 @@ impl AppState {
             manifest_server,
             media,
             media_streaming,
+            web_archive,
         }
     }
 }
