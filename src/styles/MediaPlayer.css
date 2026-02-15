@@ -76,7 +76,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #000;
+  background: var(--term-black);
 }
 
 /* Video container */
@@ -87,7 +87,7 @@
   justify-content: center;
   overflow: hidden;
   cursor: pointer;
-  background: #000;
+  background: var(--term-black);
 }
 
 .video-container video {
@@ -303,8 +303,8 @@
 
 /* Live badge */
 .live-badge {
-  background: #e53e3e;
-  color: #fff;
+  background: var(--color-error);
+  color: var(--term-black);
   font-size: 0.65rem;
   font-weight: 700;
   padding: 0.2rem 0.5rem;
@@ -326,7 +326,7 @@
 }
 
 .live-time {
-  color: #e53e3e;
+  color: var(--color-error);
   font-weight: 700;
 }
 
