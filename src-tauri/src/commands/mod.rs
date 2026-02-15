@@ -1,6 +1,7 @@
 // Tauri command handlers
 
 pub mod archive;
+pub mod chat;
 pub mod files;
 pub mod media;
 pub mod node;
@@ -11,6 +12,7 @@ pub mod system;
 
 // Re-export all commands for registration
 pub use archive::*;
+pub use chat::*;
 pub use files::*;
 pub use media::*;
 pub use node::*;

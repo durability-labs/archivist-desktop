@@ -45,6 +45,18 @@ pub enum ArchivistError {
     #[error("Web archive error: {0}")]
     WebArchiveError(String),
 
+    #[error("Chat error: {0}")]
+    ChatError(String),
+
+    #[error("Crypto error: {0}")]
+    CryptoError(String),
+
+    #[error("TLS error: {0}")]
+    TlsError(String),
+
+    #[error("Session not found: {0}")]
+    SessionNotFound(String),
+
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 

@@ -1,4 +1,5 @@
 mod commands;
+pub mod crypto;
 mod error;
 mod features;
 pub mod node_api;
@@ -29,6 +30,8 @@ pub fn run() {
     let media_service = app_state.media.clone();
     let media_streaming = app_state.media_streaming.clone();
     let web_archive_service = app_state.web_archive.clone();
+    let chat_service = app_state.chat.clone();
+    let chat_server = app_state.chat_server.clone();
 
     let mut builder = tauri::Builder::default()
         .plugin(
@@ -137,6 +140,23 @@ pub fn run() {
             commands::start_streaming_server,
             commands::stop_streaming_server,
             commands::get_media_library,
+            // Chat commands
+            commands::initiate_chat_session,
+            commands::send_chat_message,
+            commands::get_conversations,
+            commands::get_conversation_messages,
+            commands::mark_messages_read,
+            commands::delete_conversation,
+            commands::get_chat_identity,
+            commands::get_safety_number,
+            commands::verify_peer_identity,
+            commands::get_chat_server_status,
+            commands::create_chat_group,
+            commands::send_group_message,
+            commands::add_group_member,
+            commands::remove_group_member,
+            commands::leave_group,
+            commands::get_group_info,
             // System commands
             commands::get_config,
             commands::save_config,
@@ -173,6 +193,7 @@ pub fn run() {
 
             // Auto-start node if configured
             let node_svc = node_service.clone();
+            let chat_svc_for_autostart = chat_service.clone();
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let node = node_svc.read().await;
@@ -181,6 +202,20 @@ pub fn run() {
                     let mut node = node_svc.write().await;
                     if let Err(e) = node.start(&app_handle).await {
                         log::error!("Auto-start failed: {}", e);
+                    } else {
+                        // Wait for the node API to be ready, then update chat peer ID
+                        for _ in 0..30 {
+                            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                            if node.health_check().await.unwrap_or(false) {
+                                break;
+                            }
+                        }
+                        let status = node.get_status();
+                        if let Some(ref peer_id) = status.peer_id {
+                            drop(node);
+                            let mut chat = chat_svc_for_autostart.write().await;
+                            chat.update_peer_id(peer_id);
+                        }
                     }
                 }
             });
@@ -282,6 +317,47 @@ pub fn run() {
                 }
             });
             log::info!("Web archive queue processor started");
+
+            // Start chat TLS server and delivery queue processor
+            let chat_service_for_server = chat_service.clone();
+            let chat_server_clone = chat_server.clone();
+            let config_for_chat = config_service.clone();
+            let chat_app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // Set app handle on chat service
+                {
+                    let mut chat = chat_service_for_server.write().await;
+                    chat.set_app_handle(chat_app_handle);
+                }
+
+                let config = config_for_chat.read().await;
+                if config.get().chat.enabled {
+                    let handler = std::sync::Arc::new(
+                        crate::services::chat_service::ChatIncomingAdapter::new(
+                            chat_service_for_server.clone(),
+                        ),
+                    );
+                    let mut server = chat_server_clone.write().await;
+                    if let Err(e) = server.start(handler).await {
+                        log::error!("Failed to start chat TLS server: {}", e);
+                    }
+                } else {
+                    log::info!("Chat server disabled in config");
+                }
+            });
+
+            // Chat delivery queue processor (1s loop, same as media download)
+            let chat_delivery_service = chat_service.clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    {
+                        let mut chat = chat_delivery_service.write().await;
+                        chat.process_delivery_queue().await;
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
+            });
+            log::info!("Chat delivery queue processor started");
 
             // Auto-start media streaming server if enabled in config
             let media_streaming_clone = media_streaming.clone();

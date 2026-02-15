@@ -40,6 +40,28 @@ test.describe('Devices page', () => {
     }
   });
 
+  test('should have Chat button on connected peer cards', async () => {
+    const { browser, page } = await connectToApp();
+
+    try {
+      await navigateTo(page, 'My Devices');
+
+      // Check connected peer cards for Chat buttons
+      const connectedPeerCards = page.locator('.device-card.peer:not(.offline)');
+      const count = await connectedPeerCards.count();
+
+      if (count > 0) {
+        for (let i = 0; i < count; i++) {
+          const chatBtn = connectedPeerCards.nth(i).locator('.device-actions button:has-text("Chat")');
+          await expect(chatBtn).toBeVisible({ timeout: 3_000 });
+        }
+      }
+      // If no connected peers, test passes — Chat buttons only appear on connected peers
+    } finally {
+      await browser.close();
+    }
+  });
+
   test('should have Copy Peer ID and Copy SPR buttons', async () => {
     const { browser, page } = await connectToApp();
 
