@@ -57,6 +57,15 @@ pub enum ArchivistError {
     #[error("Session not found: {0}")]
     SessionNotFound(String),
 
+    #[error("Stremio addon error: {0}")]
+    StremioError(String),
+
+    #[error("Debrid service error: {0}")]
+    DebridError(String),
+
+    #[error("IPTV error: {0}")]
+    IptvError(String),
+
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 

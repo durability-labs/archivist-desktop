@@ -69,6 +69,7 @@ impl KeyStore {
 
     // ── AES-256-GCM helpers ────────────────────────────────────
 
+    #[allow(deprecated)]
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
         let cipher = Aes256Gcm::new_from_slice(self.master_key.as_ref())
             .map_err(|e| ArchivistError::CryptoError(format!("AES init: {}", e)))?;
@@ -86,6 +87,7 @@ impl KeyStore {
         Ok(out)
     }
 
+    #[allow(deprecated)]
     fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
         if data.len() < 12 {
             return Err(ArchivistError::CryptoError("Ciphertext too short".into()));

@@ -1,0 +1,270 @@
+.streaming-page {
+  padding: 1.5rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.streaming-page h1 {
+  color: var(--phosphor);
+  font-size: 1.1rem;
+  margin: 0 0 1rem 0;
+}
+
+/* Tab bar */
+.streaming-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--term-border);
+  margin-bottom: 1rem;
+}
+
+.streaming-tab {
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.streaming-tab:hover {
+  color: var(--text-primary);
+}
+
+.streaming-tab.active {
+  color: var(--phosphor);
+  border-bottom-color: var(--phosphor);
+}
+
+/* Content area */
+.streaming-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Empty states */
+.catalog-empty,
+.iptv-empty,
+.addons-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 2rem;
+  color: var(--term-border);
+  margin-bottom: 1rem;
+  font-family: monospace;
+  font-weight: 700;
+}
+
+.catalog-empty h3,
+.iptv-empty h3,
+.addons-placeholder h3 {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.catalog-empty p,
+.iptv-empty p,
+.addons-placeholder p {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin: 0 0 0.25rem 0;
+  max-width: 400px;
+}
+
+.empty-hint {
+  color: var(--ui-green) !important;
+  font-style: italic;
+}
+
+/* Catalog grid (for Phase 2a) */
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+  padding: 0.5rem 0;
+}
+
+.catalog-card {
+  background: var(--term-panel);
+  border: 1px solid var(--term-border);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.catalog-card:hover {
+  border-color: var(--phosphor);
+  box-shadow: 0 0 12px var(--phosphor-glow);
+}
+
+.catalog-card-poster {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  background: var(--term-dark);
+  display: block;
+}
+
+.catalog-card-poster.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--term-border);
+  font-size: 2rem;
+}
+
+.catalog-card-title {
+  padding: 0.4rem 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Type filter bar */
+.catalog-type-filter {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.catalog-type-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--term-border);
+  padding: 0.3rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.catalog-type-btn.active {
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+}
+
+.catalog-type-btn:hover {
+  border-color: var(--ui-green);
+  color: var(--ui-green);
+}
+
+/* Search */
+.catalog-search {
+  margin-bottom: 1rem;
+}
+
+.catalog-search input {
+  width: 100%;
+  max-width: 400px;
+  background: var(--term-dark);
+  color: var(--text-primary);
+  border: 1px solid var(--term-border);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  outline: none;
+}
+
+.catalog-search input:focus {
+  border-color: var(--phosphor);
+}
+
+/* Settings */
+.streaming-settings {
+  max-width: 600px;
+}
+
+.streaming-settings h3 {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.settings-description {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin: 0 0 1rem 0;
+}
+
+.settings-placeholder {
+  background: var(--term-panel);
+  border: 1px solid var(--term-border);
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+/* Debrid settings */
+.debrid-provider-select,
+.debrid-token-input input {
+  background: var(--term-dark);
+  color: var(--text-primary);
+  border: 1px solid var(--term-border);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  max-width: 400px;
+}
+
+.debrid-provider-select:focus,
+.debrid-token-input input:focus {
+  border-color: var(--phosphor);
+}
+
+.debrid-status {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.debrid-status.configured {
+  color: var(--ui-green);
+}
+
+.debrid-status.not-configured {
+  color: var(--text-dim);
+}
+
+.debrid-validate-btn,
+.debrid-clear-btn {
+  background: transparent;
+  border: 1px solid var(--term-border);
+  color: var(--text-secondary);
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  margin-top: 0.5rem;
+}
+
+.debrid-validate-btn:hover {
+  border-color: var(--ui-green);
+  color: var(--ui-green);
+}
+
+.debrid-clear-btn:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}

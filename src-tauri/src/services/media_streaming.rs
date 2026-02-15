@@ -75,6 +75,28 @@ impl MediaStreamingServer {
         }
     }
 
+    /// Build a proxy URL for an external stream
+    pub fn get_proxy_url(
+        &self,
+        url: &str,
+        headers: Option<&std::collections::HashMap<String, String>>,
+    ) -> Option<String> {
+        if !self.running {
+            return None;
+        }
+        let mut proxy_url = format!(
+            "http://127.0.0.1:{}/api/v1/proxy?url={}",
+            self.port,
+            urlencoding::encode(url)
+        );
+        if let Some(h) = headers {
+            if let Ok(json) = serde_json::to_string(h) {
+                proxy_url.push_str(&format!("&headers={}", urlencoding::encode(&json)));
+            }
+        }
+        Some(proxy_url)
+    }
+
     /// Build library items from completed downloads
     pub async fn get_library(&self) -> Vec<MediaLibraryItem> {
         let download = self.media_download.read().await;
@@ -128,10 +150,18 @@ impl MediaStreamingServer {
             .and(warp::any().map(move || media_for_stream.clone()))
             .and_then(handle_stream);
 
+        // GET /api/v1/proxy?url=<encoded>&headers=<encoded_json>
+        let proxy_route = warp::path!("api" / "v1" / "proxy")
+            .and(warp::get().or(warp::head()).unify())
+            .and(warp::query::<ProxyQuery>())
+            .and(warp::header::optional::<String>("range"))
+            .and_then(handle_proxy);
+
         let routes = health_route
             .or(library_route)
             .or(stream_route)
             .or(info_route)
+            .or(proxy_route)
             .recover(handle_rejection)
             .with(cors)
             .with(warp::log("media_streaming"));
@@ -192,6 +222,13 @@ async fn find_completed_task(
     let download = media.read().await;
     let completed = download.get_completed_media();
     completed.into_iter().find(|t| t.id == id)
+}
+
+/// Query parameters for the proxy endpoint
+#[derive(Debug, Deserialize)]
+struct ProxyQuery {
+    url: String,
+    headers: Option<String>,
 }
 
 // --- Route handlers ---
@@ -334,6 +371,64 @@ fn parse_range(range: &str, file_size: u64) -> std::result::Result<(u64, u64), A
             .map_err(|_| ArchivistError::StreamingError("Invalid range value".to_string()))?;
         Ok((start, end.min(file_size - 1)))
     }
+}
+
+async fn handle_proxy(
+    query: ProxyQuery,
+    range_header: Option<String>,
+) -> std::result::Result<warp::reply::Response, warp::Rejection> {
+    let client = reqwest::Client::new();
+    let mut request = client.get(&query.url);
+
+    // Forward Range header if present
+    if let Some(ref range) = range_header {
+        request = request.header("Range", range);
+    }
+
+    // Inject custom headers from query param
+    if let Some(ref headers_json) = query.headers {
+        if let Ok(headers) =
+            serde_json::from_str::<std::collections::HashMap<String, String>>(headers_json)
+        {
+            for (key, value) in headers {
+                request = request.header(&key, &value);
+            }
+        }
+    }
+
+    let upstream = request.send().await.map_err(|e| {
+        log::error!("Proxy upstream error: {}", e);
+        warp::reject::not_found()
+    })?;
+
+    let status = upstream.status().as_u16();
+    let mut response_builder = warp::http::Response::builder().status(status);
+
+    // Forward important headers from upstream
+    for header_name in &[
+        "content-type",
+        "content-length",
+        "content-range",
+        "accept-ranges",
+        "content-disposition",
+    ] {
+        if let Some(value) = upstream.headers().get(*header_name) {
+            if let Ok(value_str) = value.to_str() {
+                response_builder = response_builder.header(*header_name, value_str);
+            }
+        }
+    }
+
+    // Always set Accept-Ranges
+    if upstream.headers().get("accept-ranges").is_none() {
+        response_builder = response_builder.header("Accept-Ranges", "bytes");
+    }
+
+    let stream = upstream.bytes_stream();
+    let body = warp::hyper::Body::wrap_stream(stream);
+
+    let response = response_builder.body(body).unwrap();
+    Ok(response)
 }
 
 // --- Error handling ---
