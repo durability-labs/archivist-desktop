@@ -86,7 +86,7 @@ toml = "0.8"
 
 # V2 Marketplace dependencies (optional)
 ethers = { version = "2.0", optional = true }
-alloy = { version = "0.1", optional = true }
+alloy = { version = "1.4", optional = true }
 
 # Unix process management
 [target.'cfg(unix)'.dependencies]
