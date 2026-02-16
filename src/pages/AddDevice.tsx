@@ -54,7 +54,7 @@ function AddDevice() {
       <h2>Add a Device</h2>
       <p className="wizard-description">
         Connect to another device running Archivist to sync files between them.
-        You'll need the other device's SPR (Signed Peer Record) or multiaddr.
+        Paste the connection address from the other device's Dashboard.
       </p>
 
       <div className="input-section">
@@ -63,11 +63,11 @@ function AddDevice() {
           id="peer-address"
           value={peerAddress}
           onChange={(e) => setPeerAddress(e.target.value)}
-          placeholder="Paste SPR (spr:...) or multiaddr (/ip4/...)"
+          placeholder="/ip4/192.168.1.100/tcp/8070/p2p/16Uiu2HAm..."
           rows={3}
         />
         <p className="input-hint">
-          Get this from the other device: Devices → Copy SPR
+          On the other device: Dashboard → Share Your Connection → Copy
         </p>
       </div>
 

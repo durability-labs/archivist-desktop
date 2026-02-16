@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useNode, NodeState, NodeStatus } from '../hooks/useNode';
 import { useSync, SyncState } from '../hooks/useSync';
 import { usePeers } from '../hooks/usePeers';
 import { invoke } from '@tauri-apps/api/core';
+import QRCode from 'qrcode';
 import NextSteps from '../components/NextSteps';
 
 interface DiagnosticInfo {
@@ -281,11 +282,37 @@ function getLastBackupTime(syncState: SyncState): string | null {
   return times[0] || null;
 }
 
+// Helper to determine if an address is public (not LAN/localhost)
+function isPublicAddress(address: string): boolean {
+  return !address.includes('/ip4/192.168.') &&
+    !address.includes('/ip4/10.') &&
+    !/\/ip4\/172\.(1[6-9]|2[0-9]|3[0-1])\./.test(address) &&
+    !address.includes('/ip4/127.');
+}
+
 // Basic View - Simple, focused on essential controls
 function BasicView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, copied, copyToClipboard, getShareableAddress, connectedPeerCount }: BasicViewProps) {
   const hasBackupFolders = syncState.folders.length > 0;
   const hasConnectedPeers = connectedPeerCount > 0;
   const lastBackupTime = getLastBackupTime(syncState);
+  const [showQr, setShowQr] = useState(false);
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  const shareableAddr = getShareableAddress(status.addresses, status.publicIp);
+  const fullMultiaddr = shareableAddr && status.peerId ? `${shareableAddr}/p2p/${status.peerId}` : null;
+  const isPublic = shareableAddr ? isPublicAddress(shareableAddr) : false;
+
+  useEffect(() => {
+    if (showQr && qrCanvasRef.current && fullMultiaddr) {
+      QRCode.toCanvas(qrCanvasRef.current, fullMultiaddr, {
+        width: 200,
+        margin: 2,
+        color: { dark: '#00ff41', light: '#010302' },
+      });
+    }
+  }, [showQr, fullMultiaddr]);
+
+  const toggleQr = useCallback(() => setShowQr(prev => !prev), []);
 
   return (
     <div className="basic-view">
@@ -351,20 +378,39 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
       {/* Connection Info (when running) */}
       {isRunning && status.peerId && status.addresses.length > 0 && (
         <div className="connection-card">
-          <h3>Share Your Connection</h3>
+          <div className="connection-card-header">
+            <h3>Share Your Connection</h3>
+            <span className={`network-badge ${isPublic ? 'public' : 'lan'}`}>
+              {isPublic ? 'PUBLIC' : 'LAN'}
+            </span>
+          </div>
           <p className="connection-hint">Copy this address to share with other nodes</p>
-          {getShareableAddress(status.addresses, status.publicIp) && (
-            <div className="connection-field">
-              <code className="connection-addr">
-                {getShareableAddress(status.addresses, status.publicIp)}/p2p/{status.peerId}
-              </code>
-              <button
-                className="btn-copy"
-                onClick={() => copyToClipboard(`${getShareableAddress(status.addresses, status.publicIp)}/p2p/${status.peerId}`, 'multiaddr')}
-              >
-                {copied === 'multiaddr' ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
+          {fullMultiaddr && (
+            <>
+              <div className="connection-field">
+                <code className="connection-addr">
+                  {fullMultiaddr}
+                </code>
+                <button
+                  className="btn-copy"
+                  onClick={() => copyToClipboard(fullMultiaddr, 'multiaddr')}
+                >
+                  {copied === 'multiaddr' ? '✓ Copied' : 'Copy'}
+                </button>
+                <button
+                  className="btn-copy qr-toggle-btn"
+                  onClick={toggleQr}
+                >
+                  {showQr ? 'Hide QR' : 'QR'}
+                </button>
+              </div>
+              {showQr && (
+                <div className="qr-container">
+                  <canvas ref={qrCanvasRef} />
+                  <p className="qr-label">Scan to connect</p>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -632,7 +678,7 @@ function AdvancedView({ status, loading, isRunning, isStopped, isError, isTransi
                         <li>No network addresses found. Check firewall and network configuration.</li>
                       )}
                       {diagnostics.apiReachable && diagnostics.addressCount > 0 && connectedPeerCount === 0 && (
-                        <li>Node is reachable but no peers connected. Share your SPR on the Devices page.</li>
+                        <li>Node is reachable but no peers connected. Share your connection address from the Dashboard.</li>
                       )}
                       {diagnostics.apiReachable && connectedPeerCount > 0 && (
                         <li>✓ Everything looks good! You have {connectedPeerCount} connected peer{connectedPeerCount !== 1 ? 's' : ''}.</li>
