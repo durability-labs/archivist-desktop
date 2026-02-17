@@ -21,15 +21,9 @@ pub use streaming::*;
 pub use sync::*;
 pub use system::*;
 
-// V2 Marketplace commands (conditionally compiled)
-#[cfg(feature = "marketplace")]
+// Marketplace commands
 pub mod marketplace;
-#[cfg(feature = "marketplace")]
 pub mod wallet;
 
-#[allow(unused_imports)]
-#[cfg(feature = "marketplace")]
 pub use marketplace::*;
-#[allow(unused_imports)]
-#[cfg(feature = "marketplace")]
 pub use wallet::*;

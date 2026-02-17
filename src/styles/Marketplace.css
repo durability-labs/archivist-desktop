@@ -1,0 +1,342 @@
+/* Marketplace pages — follows terminal aesthetic from MediaDownload.css */
+
+.marketplace-page,
+.deals-page,
+.wallet-page {
+  padding: 1.5rem;
+  max-width: 900px;
+}
+
+.marketplace-page h1,
+.deals-page h1,
+.wallet-page h1 {
+  color: var(--phosphor);
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+}
+
+/* ── Section panels ──────────────────────────────────────────────────── */
+
+.mp-section {
+  background: var(--term-panel);
+  border: 1px solid var(--term-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.mp-section h2 {
+  color: var(--phosphor-dim);
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.mp-section h3 {
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+}
+
+/* ── Form fields ─────────────────────────────────────────────────────── */
+
+.mp-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.mp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mp-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.mp-field label {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mp-field input,
+.mp-field select {
+  background: var(--term-dark);
+  border: 1px solid var(--term-border);
+  color: var(--text-primary);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.mp-field input:focus,
+.mp-field select:focus {
+  border-color: var(--ui-green);
+}
+
+.mp-field input::placeholder {
+  color: var(--text-dim);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+
+.mp-submit-btn {
+  background: var(--ui-green);
+  color: var(--term-black);
+  border: none;
+  padding: 0.6rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.mp-submit-btn:hover {
+  background: var(--phosphor);
+  box-shadow: 0 0 12px var(--phosphor-glow);
+}
+
+.mp-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mp-refresh-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--term-border);
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+}
+
+.mp-refresh-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--ui-green);
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────── */
+
+.mp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.mp-table th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.7rem;
+  border-bottom: 1px solid var(--term-border);
+}
+
+.mp-table td {
+  padding: 0.6rem 0.75rem;
+  color: var(--text-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mp-table tr:hover td {
+  background: rgba(0, 255, 65, 0.03);
+}
+
+/* ── State badges ────────────────────────────────────────────────────── */
+
+.mp-state-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mp-state-badge.pending {
+  background: var(--term-muted);
+  color: var(--text-secondary);
+}
+
+.mp-state-badge.started {
+  background: rgba(0, 255, 65, 0.15);
+  color: var(--phosphor);
+}
+
+.mp-state-badge.finished {
+  background: rgba(0, 255, 65, 0.15);
+  color: var(--color-success);
+}
+
+.mp-state-badge.failed,
+.mp-state-badge.error {
+  background: rgba(255, 68, 68, 0.15);
+  color: var(--color-error);
+}
+
+.mp-state-badge.cancelled {
+  background: var(--term-muted);
+  color: var(--text-dim);
+}
+
+/* ── Stats row ───────────────────────────────────────────────────────── */
+
+.mp-stats {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.mp-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.mp-stat-label {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mp-stat-value {
+  color: var(--phosphor);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────── */
+
+.mp-empty {
+  color: var(--text-dim);
+  text-align: center;
+  padding: 2rem;
+  font-size: 0.875rem;
+}
+
+/* ── Wallet page specifics ───────────────────────────────────────────── */
+
+.wallet-address {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--term-dark);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.wallet-address code {
+  color: var(--phosphor);
+  font-size: 0.9rem;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wallet-copy-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--term-border);
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.wallet-copy-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--ui-green);
+}
+
+.wallet-network-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(0, 255, 65, 0.1);
+  color: var(--phosphor);
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.wallet-contracts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wallet-contract-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.wallet-contract-row .contract-label {
+  color: var(--text-secondary);
+  min-width: 100px;
+}
+
+.wallet-contract-row code {
+  color: var(--text-primary);
+  font-size: 0.75rem;
+}
+
+.wallet-contract-row a {
+  color: var(--ui-green);
+  text-decoration: none;
+  font-size: 0.75rem;
+}
+
+.wallet-contract-row a:hover {
+  color: var(--phosphor);
+  text-decoration: underline;
+}
+
+/* ── Error state ─────────────────────────────────────────────────────── */
+
+.mp-error {
+  color: var(--color-error);
+  background: var(--error-dark);
+  border: 1px solid var(--error-dim);
+  padding: 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+}
+
+/* ── Section header with actions ─────────────────────────────────────── */
+
+.mp-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.mp-section-header h2 {
+  margin: 0;
+}

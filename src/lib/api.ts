@@ -24,30 +24,5 @@ export interface StorageInfo {
   usedSlots: number;
 }
 
-// V2 API types (not used in v1 but defined for consistency)
-
-export interface SalesSlot {
-  id: string;
-  cid: string;
-  size: number;
-  price: string;
-  expiry: string;
-}
-
-export interface Availability {
-  id: string;
-  totalSize: number;
-  freeSize: number;
-  duration: number;
-  minPrice: string;
-}
-
-export interface Purchase {
-  id: string;
-  request: {
-    cid: string;
-    duration: number;
-    pricePerSlot: string;
-  };
-  state: 'pending' | 'submitted' | 'started' | 'finished' | 'errored' | 'cancelled';
-}
+// Re-export marketplace types from the hook for convenience
+export type { SalesSlot, Availability, Purchase, StorageRequest, StorageAsk, StorageContent } from '../hooks/useMarketplace';

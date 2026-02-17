@@ -102,6 +102,118 @@ pub struct PeerInfo {
     pub addresses: Vec<String>,
 }
 
+// ── Marketplace / Storage types ──────────────────────────────────────────────
+
+/// Storage ask parameters in a storage request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageAsk {
+    pub slots: u64,
+    #[serde(default)]
+    pub slot_size: u64,
+    pub duration: u64,
+    #[serde(default)]
+    pub proof_probability: String,
+    #[serde(default, rename = "pricePerBytePerSecond")]
+    pub price_per_byte_per_second: String,
+    #[serde(default, rename = "collateralPerByte")]
+    pub collateral_per_byte: String,
+    #[serde(default)]
+    pub max_slot_loss: u64,
+}
+
+/// Storage content reference
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageContent {
+    pub cid: String,
+    #[serde(default)]
+    pub merkle_root: String,
+}
+
+/// A full storage request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageRequest {
+    #[serde(default)]
+    pub client: String,
+    pub ask: StorageAsk,
+    pub content: StorageContent,
+    #[serde(default)]
+    pub expiry: String,
+    #[serde(default)]
+    pub nonce: String,
+}
+
+/// A provider's active sales slot
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SalesSlot {
+    pub request: StorageRequest,
+    #[serde(default)]
+    pub slot_index: u64,
+}
+
+/// Provider availability offer
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Availability {
+    pub id: String,
+    #[serde(default)]
+    pub total_size: String,
+    #[serde(default)]
+    pub free_size: String,
+    #[serde(default)]
+    pub duration: String,
+    #[serde(default)]
+    pub min_price: String,
+    #[serde(default)]
+    pub max_collateral: String,
+}
+
+/// Request body for creating an availability offer
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvailabilityRequest {
+    pub total_size: String,
+    pub duration: String,
+    pub min_price: String,
+    pub max_collateral: String,
+}
+
+/// Request body for creating a storage request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageRequestParams {
+    pub duration: String,
+    #[serde(rename = "pricePerBytePerSecond")]
+    pub price_per_byte_per_second: String,
+    #[serde(rename = "collateralPerByte")]
+    pub collateral_per_byte: String,
+    pub slots: u64,
+    #[serde(default)]
+    pub slot_size: u64,
+    #[serde(default)]
+    pub max_slot_loss: u64,
+    #[serde(default)]
+    pub expiry: u64,
+}
+
+/// A client's storage purchase
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Purchase {
+    pub state: String,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub request: Option<StorageRequest>,
+    #[serde(default)]
+    pub request_id: String,
+}
+
+// ── HTTP Client ─────────────────────────────────────────────────────────────
+
 /// HTTP client for the archivist-node API
 #[derive(Clone)]
 pub struct NodeApiClient {
@@ -564,8 +676,7 @@ impl NodeApiClient {
         Ok(())
     }
 
-    /// Create a storage request for a CID
-    /// This requests the node to download and store the specified CID from the network
+    /// Create a storage request for a CID (simple version — just triggers network fetch)
     pub async fn request_storage(&self, cid: &str) -> Result<()> {
         let url = format!("{}/api/archivist/v1/storage/request/{}", self.base_url, cid);
 
@@ -588,6 +699,182 @@ impl NodeApiClient {
 
         log::info!("Storage request created for CID: {}", cid);
         Ok(())
+    }
+
+    // ── Marketplace API methods ─────────────────────────────────────────
+
+    /// List provider's active sales slots
+    pub async fn get_sales_slots(&self) -> Result<Vec<SalesSlot>> {
+        let url = format!("{}/api/archivist/v1/sales/slots", self.base_url);
+
+        let response =
+            self.client.get(&url).send().await.map_err(|e| {
+                ArchivistError::ApiError(format!("Failed to get sales slots: {}", e))
+            })?;
+
+        if !response.status().is_success() {
+            return Err(ArchivistError::ApiError(format!(
+                "Failed to get sales slots: HTTP {}",
+                response.status()
+            )));
+        }
+
+        response
+            .json::<Vec<SalesSlot>>()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Failed to parse sales slots: {}", e)))
+    }
+
+    /// Get a specific sales slot by ID
+    pub async fn get_sales_slot(&self, slot_id: &str) -> Result<SalesSlot> {
+        let url = format!("{}/api/archivist/v1/sales/slots/{}", self.base_url, slot_id);
+
+        let response =
+            self.client.get(&url).send().await.map_err(|e| {
+                ArchivistError::ApiError(format!("Failed to get sales slot: {}", e))
+            })?;
+
+        if !response.status().is_success() {
+            return Err(ArchivistError::ApiError(format!(
+                "Failed to get sales slot: HTTP {}",
+                response.status()
+            )));
+        }
+
+        response
+            .json::<SalesSlot>()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Failed to parse sales slot: {}", e)))
+    }
+
+    /// Get provider's availability offers
+    pub async fn get_availability(&self) -> Result<Vec<Availability>> {
+        let url = format!("{}/api/archivist/v1/sales/availability", self.base_url);
+
+        let response =
+            self.client.get(&url).send().await.map_err(|e| {
+                ArchivistError::ApiError(format!("Failed to get availability: {}", e))
+            })?;
+
+        if !response.status().is_success() {
+            return Err(ArchivistError::ApiError(format!(
+                "Failed to get availability: HTTP {}",
+                response.status()
+            )));
+        }
+
+        response
+            .json::<Vec<Availability>>()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Failed to parse availability: {}", e)))
+    }
+
+    /// Create a new availability offer (provider)
+    pub async fn post_availability(&self, avail: &AvailabilityRequest) -> Result<Availability> {
+        let url = format!("{}/api/archivist/v1/sales/availability", self.base_url);
+
+        let response = self
+            .client
+            .post(&url)
+            .json(avail)
+            .send()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Failed to post availability: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(ArchivistError::ApiError(format!(
+                "Failed to post availability: HTTP {} - {}",
+                status, body
+            )));
+        }
+
+        response.json::<Availability>().await.map_err(|e| {
+            ArchivistError::ApiError(format!("Failed to parse availability response: {}", e))
+        })
+    }
+
+    /// Create a storage request with full marketplace parameters
+    pub async fn create_storage_request(
+        &self,
+        cid: &str,
+        params: &StorageRequestParams,
+    ) -> Result<Purchase> {
+        let url = format!("{}/api/archivist/v1/storage/request/{}", self.base_url, cid);
+
+        let response = self
+            .client
+            .post(&url)
+            .json(params)
+            .timeout(Duration::from_secs(60))
+            .send()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Storage request failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(ArchivistError::ApiError(format!(
+                "Storage request failed: HTTP {} - {}",
+                status, body
+            )));
+        }
+
+        response.json::<Purchase>().await.map_err(|e| {
+            ArchivistError::ApiError(format!("Failed to parse purchase response: {}", e))
+        })
+    }
+
+    /// List client's storage purchases
+    pub async fn get_purchases(&self) -> Result<Vec<Purchase>> {
+        let url = format!("{}/api/archivist/v1/storage/purchases", self.base_url);
+
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Failed to get purchases: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(ArchivistError::ApiError(format!(
+                "Failed to get purchases: HTTP {}",
+                response.status()
+            )));
+        }
+
+        response
+            .json::<Vec<Purchase>>()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Failed to parse purchases: {}", e)))
+    }
+
+    /// Get a specific purchase by ID
+    pub async fn get_purchase(&self, id: &str) -> Result<Purchase> {
+        let url = format!(
+            "{}/api/archivist/v1/storage/purchases/{}",
+            self.base_url, id
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Failed to get purchase: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(ArchivistError::ApiError(format!(
+                "Failed to get purchase: HTTP {}",
+                response.status()
+            )));
+        }
+
+        response
+            .json::<Purchase>()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Failed to parse purchase: {}", e)))
     }
 }
 

@@ -41,12 +41,12 @@ pub struct AppConfig {
     #[serde(default)]
     pub chat: ChatSettings,
 
-    // V2 Marketplace settings (optional)
-    #[cfg(feature = "marketplace")]
-    pub blockchain: Option<BlockchainSettings>,
+    // Marketplace settings
+    #[serde(default)]
+    pub blockchain: BlockchainSettings,
 
-    #[cfg(feature = "marketplace")]
-    pub marketplace: Option<MarketplaceSettings>,
+    #[serde(default)]
+    pub marketplace: MarketplaceSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -236,7 +236,6 @@ impl Default for ManifestServerSettings {
     }
 }
 
-#[cfg(feature = "marketplace")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockchainSettings {
     pub network: String,
@@ -244,12 +243,31 @@ pub struct BlockchainSettings {
     pub wallet_address: Option<String>,
 }
 
-#[cfg(feature = "marketplace")]
+impl Default for BlockchainSettings {
+    fn default() -> Self {
+        Self {
+            network: "arbitrum-sepolia".to_string(),
+            rpc_url: "https://rpc.devnet.archivist.storage".to_string(),
+            wallet_address: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarketplaceSettings {
     pub enabled: bool,
     pub auto_renew_storage: bool,
     pub max_price_per_gb: Option<f64>,
+}
+
+impl Default for MarketplaceSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            auto_renew_storage: false,
+            max_price_per_gb: None,
+        }
+    }
 }
 
 /// Chat settings for P2P encrypted messaging
@@ -343,10 +361,8 @@ impl Default for AppConfig {
             media_streaming: MediaStreamingSettings::default(),
             web_archive: WebArchiveSettings::default(),
             chat: ChatSettings::default(),
-            #[cfg(feature = "marketplace")]
-            blockchain: None,
-            #[cfg(feature = "marketplace")]
-            marketplace: None,
+            blockchain: BlockchainSettings::default(),
+            marketplace: MarketplaceSettings::default(),
         }
     }
 }

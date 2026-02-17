@@ -1,4 +1,10 @@
-// V2 Marketplace - Wallet commands stub
-// This module will be implemented when the marketplace feature is built
+use crate::error::Result;
+use crate::services::wallet::WalletInfo;
+use crate::state::AppState;
+use tauri::State;
 
-#![allow(dead_code)]
+#[tauri::command]
+pub async fn get_wallet_info(state: State<'_, AppState>) -> Result<WalletInfo> {
+    let wallet = state.wallet.read().await;
+    wallet.get_wallet_info().await
+}

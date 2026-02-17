@@ -36,15 +36,9 @@ pub use peers::PeerService;
 pub use sync::SyncService;
 pub use web_archive::WebArchiveService;
 
-// V2 Marketplace services (conditionally compiled)
-#[cfg(feature = "marketplace")]
-mod marketplace;
-#[cfg(feature = "marketplace")]
-mod wallet;
+// Marketplace services
+pub mod marketplace;
+pub mod wallet;
 
-#[allow(unused_imports)]
-#[cfg(feature = "marketplace")]
 pub use marketplace::MarketplaceService;
-#[allow(unused_imports)]
-#[cfg(feature = "marketplace")]
 pub use wallet::WalletService;

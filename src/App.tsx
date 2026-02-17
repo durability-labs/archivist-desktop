@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { useFeatures } from './hooks/useFeatures';
 import { useSoundNotifications } from './hooks/useSoundNotifications';
 import { useOnboarding } from './hooks/useOnboarding';
 import NavAccordion from './components/NavAccordion';
@@ -18,6 +17,9 @@ import MediaDownload from './pages/MediaDownload';
 import MediaPlayer from './pages/MediaPlayer';
 import WebArchive from './pages/WebArchive';
 import Chat from './pages/Chat';
+import Marketplace from './pages/Marketplace';
+import Deals from './pages/Deals';
+import Wallet from './pages/Wallet';
 import { ChatProvider, useChatContext } from './contexts/ChatContext';
 import logoSvg from './assets/logo.svg';
 import './styles/App.css';
@@ -45,7 +47,6 @@ function OnboardingRedirect() {
 }
 
 function AppInner() {
-  const { marketplaceEnabled } = useFeatures();
   const { totalUnread } = useChatContext();
 
   return (
@@ -100,20 +101,18 @@ function AppInner() {
               </NavLink>
             </NavAccordion>
 
-            {/* V2 - Only shown when marketplace feature enabled */}
-            {marketplaceEnabled && (
-              <NavAccordion title="Marketplace" storageKey="nav-marketplace-open" defaultOpen={false}>
-                <NavLink to="/marketplace" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                  Browse
-                </NavLink>
-                <NavLink to="/marketplace/deals" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                  My Deals
-                </NavLink>
-                <NavLink to="/wallet" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                  Wallet
-                </NavLink>
-              </NavAccordion>
-            )}
+            {/* Marketplace */}
+            <NavAccordion title="Marketplace" storageKey="nav-marketplace-open" defaultOpen={false}>
+              <NavLink to="/marketplace" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                Browse
+              </NavLink>
+              <NavLink to="/marketplace/deals" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                My Deals
+              </NavLink>
+              <NavLink to="/wallet" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                Wallet
+              </NavLink>
+            </NavAccordion>
           </nav>
         </aside>
 
@@ -134,14 +133,10 @@ function AppInner() {
             <Route path="/chat/:conversationId" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />
 
-            {/* V2 routes - placeholder for marketplace */}
-            {marketplaceEnabled && (
-              <>
-                <Route path="/marketplace" element={<div>Marketplace - Coming in v2</div>} />
-                <Route path="/marketplace/deals" element={<div>My Deals - Coming in v2</div>} />
-                <Route path="/wallet" element={<div>Wallet - Coming in v2</div>} />
-              </>
-            )}
+            {/* Marketplace routes */}
+            <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/marketplace/deals" element={<Deals />} />
+            <Route path="/wallet" element={<Wallet />} />
           </Routes>
         </main>
       </div>

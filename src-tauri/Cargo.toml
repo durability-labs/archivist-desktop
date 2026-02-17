@@ -14,8 +14,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
 default = []
-# V2 Marketplace features - disabled by default
-marketplace = ["ethers", "alloy"]
 zk-proofs = []
 
 [build-dependencies]
@@ -95,10 +93,6 @@ chrono = { version = "0.4", features = ["serde"] }
 # Configuration
 config = "0.14"
 toml = "0.8"
-
-# V2 Marketplace dependencies (optional)
-ethers = { version = "2.0", optional = true }
-alloy = { version = "0.1", optional = true }
 
 # Unix process management
 [target.'cfg(unix)'.dependencies]

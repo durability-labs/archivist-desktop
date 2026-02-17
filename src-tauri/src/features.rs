@@ -11,15 +11,11 @@ pub struct Features {
     pub analytics: bool,
 }
 
-// Cannot derive Default because we use cfg!() macros for compile-time feature detection
-#[allow(clippy::derivable_impls)]
 impl Default for Features {
     fn default() -> Self {
         Self {
-            // Compile-time feature detection
-            marketplace: cfg!(feature = "marketplace"),
+            marketplace: true,
             zk_proofs: cfg!(feature = "zk-proofs"),
-            // Runtime features (can be enabled via config)
             analytics: false,
         }
     }

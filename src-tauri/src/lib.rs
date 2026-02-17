@@ -157,6 +157,15 @@ pub fn run() {
             commands::remove_group_member,
             commands::leave_group,
             commands::get_group_info,
+            // Marketplace commands
+            commands::get_sales_slots,
+            commands::get_availability,
+            commands::set_availability,
+            commands::create_storage_request,
+            commands::get_purchases,
+            commands::get_purchase,
+            // Wallet commands
+            commands::get_wallet_info,
             // System commands
             commands::get_config,
             commands::save_config,

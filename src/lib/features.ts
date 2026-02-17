@@ -9,11 +9,13 @@ export const FEATURES = {
   PEER_CONNECTION: true,
   SYSTEM_TRAY: true,
 
-  // V2 features - enabled via compile-time feature flags
-  MARKETPLACE: false, // Will be true when built with `--features marketplace`
-  WALLET: false,
+  // Marketplace features - always enabled (uses node REST API)
+  MARKETPLACE: true,
+  WALLET: true,
+  SMART_CONTRACTS: true,
+
+  // ZK proofs - compile-time feature flag
   ZK_PROOFS: false,
-  SMART_CONTRACTS: false,
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

@@ -7,9 +7,9 @@ use crate::node_api::NodeApiClient;
 use crate::services::node::NodeConfig;
 use crate::services::{
     ArchiveViewerServer, BackupDaemon, BackupService, ChatServer, ChatService, ConfigService,
-    FileService, ManifestRegistry, ManifestServer, ManifestServerConfig, MediaDownloadService,
-    MediaStreamingConfig, MediaStreamingServer, NodeService, PeerService, SyncService,
-    WebArchiveService,
+    FileService, ManifestRegistry, ManifestServer, ManifestServerConfig, MarketplaceService,
+    MediaDownloadService, MediaStreamingConfig, MediaStreamingServer, NodeService, PeerService,
+    SyncService, WalletService, WebArchiveService,
 };
 
 /// Global application state managed by Tauri
@@ -29,6 +29,8 @@ pub struct AppState {
     pub archive_viewer: Arc<RwLock<ArchiveViewerServer>>,
     pub chat: Arc<RwLock<ChatService>>,
     pub chat_server: Arc<RwLock<ChatServer>>,
+    pub marketplace: Arc<RwLock<MarketplaceService>>,
+    pub wallet: Arc<RwLock<WalletService>>,
 }
 
 impl AppState {
@@ -53,6 +55,11 @@ impl AppState {
 
         // Create API client for backup service
         let api_client = NodeApiClient::new(node_config.api_port);
+
+        // Create marketplace and wallet services
+        let marketplace_service = MarketplaceService::new(api_client.clone());
+        let wallet_service =
+            WalletService::new(api_client.clone(), app_config.blockchain.network.clone());
 
         // Create backup service with API client and peer service
         let backup_service = BackupService::new(api_client.clone(), peers.clone());
@@ -174,6 +181,8 @@ impl AppState {
             archive_viewer,
             chat,
             chat_server,
+            marketplace: Arc::new(RwLock::new(marketplace_service)),
+            wallet: Arc::new(RwLock::new(wallet_service)),
         }
     }
 }

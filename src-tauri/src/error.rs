@@ -63,13 +63,14 @@ pub enum ArchivistError {
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
 
-    #[cfg(feature = "marketplace")]
     #[error("Wallet error: {0}")]
     WalletError(String),
 
-    #[cfg(feature = "marketplace")]
     #[error("Contract error: {0}")]
     ContractError(String),
+
+    #[error("Marketplace error: {0}")]
+    MarketplaceError(String),
 }
 
 // Make error serializable for Tauri commands
