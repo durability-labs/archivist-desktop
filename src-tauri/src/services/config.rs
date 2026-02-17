@@ -41,18 +41,6 @@ pub struct AppConfig {
     #[serde(default)]
     pub chat: ChatSettings,
 
-    // Stremio addon settings
-    #[serde(default)]
-    pub stremio: StremioSettings,
-
-    // Debrid service settings
-    #[serde(default)]
-    pub debrid: DebridSettings,
-
-    // IPTV settings
-    #[serde(default)]
-    pub iptv: IptvSettings,
-
     // V2 Marketplace settings (optional)
     #[cfg(feature = "marketplace")]
     pub blockchain: Option<BlockchainSettings>,
@@ -288,46 +276,6 @@ impl Default for ChatSettings {
     }
 }
 
-/// Stremio addon settings
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct StremioSettings {
-    #[serde(default)]
-    pub installed_addons: Vec<InstalledAddonConfig>,
-}
-
-/// Persisted addon configuration (lightweight, no full manifest)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InstalledAddonConfig {
-    pub base_url: String,
-    pub addon_id: String,
-    pub enabled: bool,
-}
-
-/// Debrid service settings
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct DebridSettings {
-    /// Active provider: "real_debrid", "premiumize", or None
-    pub provider: Option<String>,
-    /// API token for the active provider
-    pub api_token: Option<String>,
-}
-
-/// IPTV settings
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct IptvSettings {
-    #[serde(default)]
-    pub playlists: Vec<IptvPlaylistConfig>,
-}
-
-/// Persisted IPTV playlist configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IptvPlaylistConfig {
-    pub id: String,
-    pub name: String,
-    /// URL to fetch M3U from (for refresh)
-    pub url: Option<String>,
-}
-
 impl Default for AppConfig {
     fn default() -> Self {
         let data_dir = dirs::data_dir()
@@ -395,9 +343,6 @@ impl Default for AppConfig {
             media_streaming: MediaStreamingSettings::default(),
             web_archive: WebArchiveSettings::default(),
             chat: ChatSettings::default(),
-            stremio: StremioSettings::default(),
-            debrid: DebridSettings::default(),
-            iptv: IptvSettings::default(),
             #[cfg(feature = "marketplace")]
             blockchain: None,
             #[cfg(feature = "marketplace")]

@@ -25,17 +25,6 @@ pub async fn stop_streaming_server(state: State<'_, AppState>) -> Result<()> {
     Ok(())
 }
 
-/// Get a proxy URL for an external stream URL
-#[tauri::command]
-pub async fn get_proxy_url(
-    state: State<'_, AppState>,
-    url: String,
-    headers: Option<std::collections::HashMap<String, String>>,
-) -> Result<Option<String>> {
-    let server = state.media_streaming.read().await;
-    Ok(server.get_proxy_url(&url, headers.as_ref()))
-}
-
 /// Get the media library (completed downloads available for playback)
 #[tauri::command]
 pub async fn get_media_library(state: State<'_, AppState>) -> Result<Vec<MediaLibraryItem>> {

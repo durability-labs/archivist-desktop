@@ -7,9 +7,9 @@ use crate::node_api::NodeApiClient;
 use crate::services::node::NodeConfig;
 use crate::services::{
     ArchiveViewerServer, BackupDaemon, BackupService, ChatServer, ChatService, ConfigService,
-    DebridService, FileService, IptvService, ManifestRegistry, ManifestServer,
-    ManifestServerConfig, MediaDownloadService, MediaStreamingConfig, MediaStreamingServer,
-    NodeService, PeerService, StremioService, SyncService, WebArchiveService,
+    FileService, ManifestRegistry, ManifestServer, ManifestServerConfig, MediaDownloadService,
+    MediaStreamingConfig, MediaStreamingServer, NodeService, PeerService, SyncService,
+    WebArchiveService,
 };
 
 /// Global application state managed by Tauri
@@ -29,9 +29,6 @@ pub struct AppState {
     pub archive_viewer: Arc<RwLock<ArchiveViewerServer>>,
     pub chat: Arc<RwLock<ChatService>>,
     pub chat_server: Arc<RwLock<ChatServer>>,
-    pub stremio: Arc<RwLock<StremioService>>,
-    pub debrid: Arc<RwLock<DebridService>>,
-    pub iptv: Arc<RwLock<IptvService>>,
 }
 
 impl AppState {
@@ -161,25 +158,6 @@ impl AppState {
             key_store.key_path().to_string_lossy().to_string(),
         )));
 
-        // Create streaming TV services
-        let stremio = Arc::new(RwLock::new(StremioService::new()));
-        let debrid_service = DebridService::new();
-        // Restore debrid config if persisted
-        let debrid = if let (Some(ref provider), Some(ref token)) =
-            (&app_config.debrid.provider, &app_config.debrid.api_token)
-        {
-            let mut svc = debrid_service;
-            match provider.as_str() {
-                "real_debrid" => svc.configure_real_debrid(token),
-                "premiumize" => svc.configure_premiumize(token),
-                _ => {}
-            }
-            Arc::new(RwLock::new(svc))
-        } else {
-            Arc::new(RwLock::new(debrid_service))
-        };
-        let iptv = Arc::new(RwLock::new(IptvService::new()));
-
         Self {
             node: Arc::new(RwLock::new(NodeService::with_config(node_config))),
             files: Arc::new(RwLock::new(FileService::new())),
@@ -196,9 +174,6 @@ impl AppState {
             archive_viewer,
             chat,
             chat_server,
-            stremio,
-            debrid,
-            iptv,
         }
     }
 }
