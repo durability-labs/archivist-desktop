@@ -88,6 +88,18 @@ function AppInner() {
               Add Device
             </NavLink>
 
+            {/* Marketplace section */}
+            <div className="nav-section-label">Marketplace</div>
+            <NavLink to="/marketplace" end className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Browse
+            </NavLink>
+            <NavLink to="/marketplace/deals" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              My Deals
+            </NavLink>
+            <NavLink to="/wallet" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Wallet
+            </NavLink>
+
             {/* Advanced section - collapsible */}
             <NavAccordion title="Advanced" storageKey="nav-advanced-open" defaultOpen={false}>
               <NavLink to="/logs" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
@@ -98,19 +110,6 @@ function AppInner() {
               </NavLink>
               <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
                 Settings
-              </NavLink>
-            </NavAccordion>
-
-            {/* Marketplace */}
-            <NavAccordion title="Marketplace" storageKey="nav-marketplace-open" defaultOpen={false}>
-              <NavLink to="/marketplace" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                Browse
-              </NavLink>
-              <NavLink to="/marketplace/deals" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                My Deals
-              </NavLink>
-              <NavLink to="/wallet" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                Wallet
               </NavLink>
             </NavAccordion>
           </nav>
