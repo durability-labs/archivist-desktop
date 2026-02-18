@@ -65,6 +65,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
+  overflow-y: auto;
 }
 
 .nav-link {
@@ -1722,5 +1723,31 @@ button.secondary:hover:not(:disabled) {
 
   .status-text {
     font-size: 1.5rem;
+  }
+}
+
+@media (max-height: 768px) {
+  .main-content {
+    padding: var(--spacing-md);
+  }
+
+  .status-hero {
+    padding: var(--spacing-md);
+  }
+
+  .status-text {
+    font-size: 1.5rem;
+  }
+
+  .basic-view {
+    gap: var(--spacing-md);
+  }
+
+  .quick-stat-card {
+    padding: var(--spacing-md);
+  }
+
+  .quick-stat-value {
+    font-size: 1.25rem;
   }
 }
