@@ -52,6 +52,19 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      - name: Set version from tag
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          echo "Setting version to $VERSION"
+          # Update tauri.conf.json (controls binary filenames)
+          sed -i.bak 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' src-tauri/tauri.conf.json
+          # Update package.json (first occurrence only)
+          sed -i.bak '0,/"version": "[^"]*"/{s/"version": "[^"]*"/"version": "'"$VERSION"'"/}' package.json
+          # Update Cargo.toml
+          sed -i.bak 's/^version = "[^"]*"/version = "'"$VERSION"'"/' src-tauri/Cargo.toml
+          rm -f src-tauri/tauri.conf.json.bak package.json.bak src-tauri/Cargo.toml.bak
+        shell: bash
+
       - name: Setup pnpm
         uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
 
