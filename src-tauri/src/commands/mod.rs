@@ -9,6 +9,7 @@ pub mod peers;
 pub mod streaming;
 pub mod sync;
 pub mod system;
+pub mod torrent;
 
 // Re-export all commands for registration
 pub use archive::*;
@@ -20,6 +21,7 @@ pub use peers::*;
 pub use streaming::*;
 pub use sync::*;
 pub use system::*;
+pub use torrent::*;
 
 // Marketplace commands
 pub mod marketplace;

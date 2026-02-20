@@ -19,6 +19,7 @@ pub mod media_streaming;
 pub mod node;
 pub mod peers;
 pub mod sync;
+pub mod torrent;
 pub mod web_archive;
 
 pub use archive_viewer::ArchiveViewerServer;
@@ -34,6 +35,8 @@ pub use media_streaming::{MediaStreamingConfig, MediaStreamingServer};
 pub use node::NodeService;
 pub use peers::PeerService;
 pub use sync::SyncService;
+#[allow(unused_imports)]
+pub use torrent::TorrentService;
 pub use web_archive::WebArchiveService;
 
 // Marketplace services

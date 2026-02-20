@@ -71,6 +71,9 @@ pub enum ArchivistError {
 
     #[error("Marketplace error: {0}")]
     MarketplaceError(String),
+
+    #[error("Torrent error: {0}")]
+    TorrentError(String),
 }
 
 // Make error serializable for Tauri commands

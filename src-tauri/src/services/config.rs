@@ -47,6 +47,10 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub marketplace: MarketplaceSettings,
+
+    // Torrent settings (librqbit)
+    #[serde(default)]
+    pub torrent: TorrentSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -270,6 +274,48 @@ impl Default for MarketplaceSettings {
     }
 }
 
+/// Torrent client settings (librqbit engine)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TorrentSettings {
+    pub enabled: bool,
+    pub download_directory: String,
+    pub listen_port_start: u16,
+    pub listen_port_end: u16,
+    pub enable_dht: bool,
+    pub enable_upnp: bool,
+    pub max_seed_ratio: Option<f64>,
+    pub max_seed_time_minutes: Option<u64>,
+    pub remove_on_seed_limit: bool,
+    pub download_speed_limit: Option<u64>,
+    pub upload_speed_limit: Option<u64>,
+    pub sequential_by_default: bool,
+}
+
+impl Default for TorrentSettings {
+    fn default() -> Self {
+        let download_dir = dirs::download_dir()
+            .map(|p| p.join("Archivist Torrents"))
+            .unwrap_or_else(|| std::path::PathBuf::from("Archivist Torrents"))
+            .to_string_lossy()
+            .to_string();
+
+        Self {
+            enabled: true,
+            download_directory: download_dir,
+            listen_port_start: 6881,
+            listen_port_end: 6889,
+            enable_dht: true,
+            enable_upnp: true,
+            max_seed_ratio: None,
+            max_seed_time_minutes: None,
+            remove_on_seed_limit: false,
+            download_speed_limit: None,
+            upload_speed_limit: None,
+            sequential_by_default: false,
+        }
+    }
+}
+
 /// Chat settings for P2P encrypted messaging
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatSettings {
@@ -363,6 +409,7 @@ impl Default for AppConfig {
             chat: ChatSettings::default(),
             blockchain: BlockchainSettings::default(),
             marketplace: MarketplaceSettings::default(),
+            torrent: TorrentSettings::default(),
         }
     }
 }

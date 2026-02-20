@@ -80,6 +80,9 @@ rand = "0.8"
 # Zip archive support for ffmpeg extraction (Windows)
 zip = "2.2"
 
+# BitTorrent engine
+librqbit = "8"
+
 # Error handling
 thiserror = "1.0"
 anyhow = "1.0"

@@ -1,0 +1,474 @@
+.torrents-page {
+  padding: 1.5rem;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.torrents-page h1 {
+  color: var(--phosphor);
+  font-size: 1.5rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+/* Header */
+.torrents-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.global-stats {
+  display: flex;
+  gap: 1.25rem;
+  font-size: 0.875rem;
+  font-family: var(--font-mono, monospace);
+}
+
+.global-stats .dl-speed {
+  color: var(--ui-green);
+}
+
+.global-stats .ul-speed {
+  color: var(--color-warning, #f0a030);
+}
+
+/* Add torrent bar */
+.add-torrent-bar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.add-torrent-bar input[type="text"] {
+  flex: 1;
+  background: var(--term-panel);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 0.875rem;
+  font-family: var(--font-mono, monospace);
+}
+
+.add-torrent-bar input[type="text"]:focus {
+  outline: none;
+  border-color: var(--phosphor);
+  box-shadow: 0 0 6px var(--phosphor-glow, rgba(0, 255, 128, 0.2));
+}
+
+.add-magnet-btn,
+.add-file-btn {
+  background: var(--ui-green);
+  color: var(--term-black);
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.add-magnet-btn:hover,
+.add-file-btn:hover {
+  background: var(--phosphor);
+  box-shadow: 0 0 12px var(--phosphor-glow, rgba(0, 255, 128, 0.2));
+}
+
+.add-magnet-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-file-btn {
+  background: var(--term-panel);
+  color: var(--text-primary, #e0e0e0);
+  border: 1px solid var(--border-color, #333);
+}
+
+.add-file-btn:hover {
+  background: var(--border-color, #333);
+  box-shadow: none;
+}
+
+/* Error */
+.torrent-error {
+  background: rgba(255, 50, 50, 0.1);
+  border: 1px solid rgba(255, 50, 50, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  color: var(--color-error, #ff5050);
+  font-size: 0.8125rem;
+}
+
+/* Empty state */
+.torrent-empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+}
+
+/* Loading */
+.loading-message {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-secondary);
+}
+
+/* Torrent list table */
+.torrent-list {
+  overflow-x: auto;
+}
+
+.torrent-list table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.torrent-list thead th {
+  text-align: left;
+  padding: 0.5rem 0.5rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-color, #333);
+  white-space: nowrap;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.torrent-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.torrent-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.torrent-row.selected {
+  background: rgba(0, 255, 128, 0.05);
+  outline: 1px solid var(--phosphor-glow, rgba(0, 255, 128, 0.15));
+}
+
+.torrent-row td {
+  padding: 0.5rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.torrent-name {
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+/* Progress bar */
+.torrent-progress-bar {
+  position: relative;
+  width: 100px;
+  height: 16px;
+  background: var(--term-panel);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.torrent-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--ui-green);
+  opacity: 0.6;
+  transition: width 0.3s;
+}
+
+.torrent-progress-text {
+  position: relative;
+  z-index: 1;
+  display: block;
+  text-align: center;
+  font-size: 0.6875rem;
+  line-height: 16px;
+  color: var(--text-primary, #e0e0e0);
+}
+
+/* State badges */
+.torrent-state-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.state-downloading {
+  background: rgba(0, 180, 255, 0.15);
+  color: #00b4ff;
+}
+
+.state-seeding {
+  background: rgba(0, 255, 128, 0.12);
+  color: var(--ui-green);
+}
+
+.state-paused {
+  background: rgba(255, 200, 50, 0.12);
+  color: var(--color-warning, #f0a030);
+}
+
+.state-error {
+  background: rgba(255, 50, 50, 0.12);
+  color: var(--color-error, #ff5050);
+}
+
+.state-other {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+}
+
+/* Action buttons in table row */
+.torrent-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.torrent-actions button {
+  background: transparent;
+  border: 1px solid var(--border-color, #333);
+  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.6875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.torrent-actions button:hover {
+  background: var(--term-panel);
+  color: var(--text-primary, #e0e0e0);
+}
+
+.torrent-remove-btn:hover {
+  border-color: var(--color-error, #ff5050) !important;
+  color: var(--color-error, #ff5050) !important;
+}
+
+/* Detail panel */
+.torrent-detail-panel {
+  background: var(--term-panel);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.detail-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color, #333);
+}
+
+.detail-tabs button {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 0.625rem 1rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: all 0.15s;
+  border-bottom: 2px solid transparent;
+}
+
+.detail-tabs button:hover {
+  color: var(--text-primary, #e0e0e0);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.detail-tabs button.active {
+  color: var(--phosphor);
+  border-bottom-color: var(--phosphor);
+}
+
+.detail-content {
+  padding: 0.75rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.detail-empty {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+/* File tree */
+.file-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.8125rem;
+}
+
+.file-tree-item input[type="checkbox"] {
+  accent-color: var(--ui-green);
+}
+
+.file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.file-size {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.file-progress-bar {
+  width: 60px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.file-progress-fill {
+  height: 100%;
+  background: var(--ui-green);
+  opacity: 0.6;
+  transition: width 0.3s;
+}
+
+.file-progress-text {
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  width: 40px;
+  text-align: right;
+}
+
+/* Peer table */
+.peer-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.peer-table th {
+  text-align: left;
+  padding: 0.375rem 0.5rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-color, #333);
+}
+
+.peer-table td {
+  padding: 0.375rem 0.5rem;
+  color: var(--text-primary, #e0e0e0);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* Info panel */
+.torrent-info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.info-row {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8125rem;
+}
+
+.info-row label {
+  color: var(--text-secondary);
+  min-width: 100px;
+  font-weight: 500;
+}
+
+.info-row span {
+  color: var(--text-primary, #e0e0e0);
+  word-break: break-all;
+}
+
+.torrent-info-hash {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+}
+
+/* Status bar */
+.torrent-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--term-panel);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.speed-limit-dl,
+.speed-limit-ul {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.speed-limit-dl label,
+.speed-limit-ul label {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.speed-limit-dl input,
+.speed-limit-ul input {
+  width: 60px;
+  background: var(--term-black, #0a0a0a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 4px;
+  padding: 0.25rem 0.375rem;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 0.75rem;
+  font-family: var(--font-mono, monospace);
+}
+
+.speed-limit-dl input:focus,
+.speed-limit-ul input:focus {
+  outline: none;
+  border-color: var(--phosphor);
+}
+
+.dht-peers {
+  color: var(--text-secondary);
+}
+
+.status-summary {
+  color: var(--text-secondary);
+  margin-left: auto;
+}

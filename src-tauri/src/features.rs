@@ -9,6 +9,8 @@ pub struct Features {
     pub zk_proofs: bool,
     /// Advanced analytics dashboard
     pub analytics: bool,
+    /// BitTorrent client (librqbit)
+    pub torrent: bool,
 }
 
 impl Default for Features {
@@ -17,6 +19,7 @@ impl Default for Features {
             marketplace: true,
             zk_proofs: cfg!(feature = "zk-proofs"),
             analytics: false,
+            torrent: true,
         }
     }
 }

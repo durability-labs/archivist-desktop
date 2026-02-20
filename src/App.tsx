@@ -17,6 +17,7 @@ import MediaDownload from './pages/MediaDownload';
 import MediaPlayer from './pages/MediaPlayer';
 import WebArchive from './pages/WebArchive';
 import Chat from './pages/Chat';
+import Torrents from './pages/Torrents';
 import Marketplace from './pages/Marketplace';
 import Deals from './pages/Deals';
 import Wallet from './pages/Wallet';
@@ -75,6 +76,9 @@ function AppInner() {
             <NavLink to="/web-archive" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Web Archive
             </NavLink>
+            <NavLink to="/torrents" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Torrents
+            </NavLink>
             <NavLink to="/chat" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Chat
               {totalUnread > 0 && <span className="nav-chat-badge">{totalUnread}</span>}
@@ -128,6 +132,7 @@ function AppInner() {
             <Route path="/media" element={<MediaDownload />} />
             <Route path="/media/player/:taskId" element={<MediaPlayer />} />
             <Route path="/web-archive" element={<WebArchive />} />
+            <Route path="/torrents" element={<Torrents />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/chat/:conversationId" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />

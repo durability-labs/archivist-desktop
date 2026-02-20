@@ -5,6 +5,7 @@ use tokio::sync::RwLock;
 use crate::crypto::key_store::KeyStore;
 use crate::node_api::NodeApiClient;
 use crate::services::node::NodeConfig;
+use crate::services::torrent::{SeedLimitAction, SeedingRules, TorrentConfig, TorrentService};
 use crate::services::{
     ArchiveViewerServer, BackupDaemon, BackupService, ChatServer, ChatService, ConfigService,
     FileService, ManifestRegistry, ManifestServer, ManifestServerConfig, MarketplaceService,
@@ -31,6 +32,7 @@ pub struct AppState {
     pub chat_server: Arc<RwLock<ChatServer>>,
     pub marketplace: Arc<RwLock<MarketplaceService>>,
     pub wallet: Arc<RwLock<WalletService>>,
+    pub torrent: Arc<RwLock<TorrentService>>,
 }
 
 impl AppState {
@@ -165,6 +167,27 @@ impl AppState {
             key_store.key_path().to_string_lossy().to_string(),
         )));
 
+        // Create torrent service
+        let torrent_config = TorrentConfig {
+            download_directory: app_config.torrent.download_directory.clone(),
+            listen_port_start: app_config.torrent.listen_port_start,
+            listen_port_end: app_config.torrent.listen_port_end,
+            enable_dht: app_config.torrent.enable_dht,
+            enable_upnp: app_config.torrent.enable_upnp,
+            sequential_by_default: app_config.torrent.sequential_by_default,
+        };
+        let torrent_seeding_rules = SeedingRules {
+            max_ratio: app_config.torrent.max_seed_ratio,
+            max_seed_time_minutes: app_config.torrent.max_seed_time_minutes,
+            action_on_limit: if app_config.torrent.remove_on_seed_limit {
+                SeedLimitAction::Remove
+            } else {
+                SeedLimitAction::Pause
+            },
+        };
+        let torrent_service = TorrentService::new(torrent_config, torrent_seeding_rules);
+        let torrent = Arc::new(RwLock::new(torrent_service));
+
         Self {
             node: Arc::new(RwLock::new(NodeService::with_config(node_config))),
             files: Arc::new(RwLock::new(FileService::new())),
@@ -183,6 +206,7 @@ impl AppState {
             chat_server,
             marketplace: Arc::new(RwLock::new(marketplace_service)),
             wallet: Arc::new(RwLock::new(wallet_service)),
+            torrent,
         }
     }
 }

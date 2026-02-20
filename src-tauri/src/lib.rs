@@ -16,6 +16,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use tauri::Manager;
+use tauri::Emitter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -32,11 +33,16 @@ pub fn run() {
     let web_archive_service = app_state.web_archive.clone();
     let chat_service = app_state.chat.clone();
     let chat_server = app_state.chat_server.clone();
+    let torrent_service = app_state.torrent.clone();
 
     let mut builder = tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
+                .level_for("librqbit", log::LevelFilter::Warn)
+                .level_for("librqbit_dht", log::LevelFilter::Warn)
+                .level_for("librqbit_tracker_comms", log::LevelFilter::Warn)
+                .level_for("tracing::span", log::LevelFilter::Off)
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
@@ -166,6 +172,17 @@ pub fn run() {
             commands::get_purchase,
             // Wallet commands
             commands::get_wallet_info,
+            // Torrent commands
+            commands::get_torrent_session_stats,
+            commands::add_torrent,
+            commands::pause_torrent,
+            commands::resume_torrent,
+            commands::remove_torrent,
+            commands::set_torrent_files,
+            commands::get_torrent_peers,
+            commands::get_torrent_details,
+            commands::set_torrent_speed_limits,
+            commands::set_torrent_seeding_rules,
             // System commands
             commands::get_config,
             commands::save_config,
@@ -383,6 +400,41 @@ pub fn run() {
                 }
             });
 
+            // Initialize torrent session
+            let torrent_service_init = torrent_service.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut torrent = torrent_service_init.write().await;
+                if let Err(e) = torrent.initialize().await {
+                    log::error!("Failed to initialize torrent session: {}", e);
+                } else {
+                    log::info!("Torrent session initialized");
+                }
+            });
+
+            // Torrent stats emitter + seeding rule enforcer (2s interval)
+            let torrent_service_loop = torrent_service.clone();
+            let app_handle_torrent = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    {
+                        let mut torrent = torrent_service_loop.write().await;
+                        match torrent.get_session_stats() {
+                            Ok(stats) => {
+                                let _ = app_handle_torrent.emit("torrent-stats-update", &stats);
+                            }
+                            Err(e) => {
+                                log::warn!("Torrent stats emission failed: {}", e);
+                            }
+                        }
+                        if let Err(e) = torrent.enforce_seeding_rules().await {
+                            log::warn!("Seeding rules error: {}", e);
+                        }
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                }
+            });
+            log::info!("Torrent stats emitter started");
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -401,16 +453,25 @@ pub fn run() {
     app.run(|app_handle, event| {
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         if let tauri::RunEvent::Exit = event {
-            log::info!("Application exiting, cleaning up sidecar...");
+            log::info!("Application exiting, cleaning up...");
             let state = app_handle.state::<AppState>();
             let node = state.node.clone();
+            let torrent = state.torrent.clone();
             tauri::async_runtime::block_on(async {
+                // Shutdown torrent session
+                let mut torrent = torrent.write().await;
+                if let Err(e) = torrent.shutdown().await {
+                    log::warn!("Torrent session cleanup on exit: {}", e);
+                }
+                drop(torrent);
+
+                // Stop node sidecar
                 let mut node = node.write().await;
                 if let Err(e) = node.stop().await {
                     log::warn!("Sidecar cleanup on exit: {}", e);
                 }
             });
-            log::info!("Sidecar cleanup complete");
+            log::info!("Cleanup complete");
         }
     });
 }
