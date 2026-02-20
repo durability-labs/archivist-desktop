@@ -58,8 +58,8 @@ jobs:
           echo "Setting version to $VERSION"
           # Update tauri.conf.json (controls binary filenames)
           sed -i.bak 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' src-tauri/tauri.conf.json
-          # Update package.json (first occurrence only)
-          sed -i.bak '0,/"version": "[^"]*"/{s/"version": "[^"]*"/"version": "'"$VERSION"'"/}' package.json
+          # Update package.json
+          sed -i.bak 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' package.json
           # Update Cargo.toml
           sed -i.bak 's/^version = "[^"]*"/version = "'"$VERSION"'"/' src-tauri/Cargo.toml
           rm -f src-tauri/tauri.conf.json.bak package.json.bak src-tauri/Cargo.toml.bak
