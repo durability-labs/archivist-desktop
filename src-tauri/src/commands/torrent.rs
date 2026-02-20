@@ -7,9 +7,7 @@ use tauri::State;
 
 /// Get session-wide torrent statistics and full torrent list
 #[tauri::command]
-pub async fn get_torrent_session_stats(
-    state: State<'_, AppState>,
-) -> Result<TorrentSessionStats> {
+pub async fn get_torrent_session_stats(state: State<'_, AppState>) -> Result<TorrentSessionStats> {
     let mut torrent = state.torrent.write().await;
     torrent.get_session_stats()
 }
@@ -62,10 +60,7 @@ pub async fn set_torrent_files(
 
 /// Get peer connection details for a torrent
 #[tauri::command]
-pub async fn get_torrent_peers(
-    state: State<'_, AppState>,
-    id: usize,
-) -> Result<Vec<TorrentPeer>> {
+pub async fn get_torrent_peers(state: State<'_, AppState>, id: usize) -> Result<Vec<TorrentPeer>> {
     let torrent = state.torrent.read().await;
     torrent.get_torrent_peers(id)
 }
