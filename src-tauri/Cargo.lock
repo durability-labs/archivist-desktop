@@ -208,7 +208,7 @@ dependencies = [
  "bs58",
  "chrono",
  "config",
- "dirs 5.0.1",
+ "dirs 6.0.0",
  "env_logger",
  "futures",
  "libc",
