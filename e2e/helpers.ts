@@ -196,6 +196,8 @@ export const SEL = {
   settingsSection: '.settings-section',
   apiPortInput: 'input[type="number"]',             // first number input in Node section
   errorBanner: '.error-banner',
+  errorBannerEnhanced: '.error-banner-enhanced',
+  errorBannerAction: '.error-banner-action',
 
   // Devices
   devicesPage: '.devices-page',
@@ -265,6 +267,66 @@ export const SEL = {
   safetyNumberModal: '.safety-number-modal',
   safetyNumberGrid: '.safety-number-grid',
   navChatBadge: '.nav-chat-badge',
+
+  // Marketplace
+  marketplacePage: '.marketplace-page',
+  marketplaceHeader: '.marketplace-page h1',
+  mpSection: '.mp-section',
+  mpForm: '.mp-form',
+  mpSubmitBtn: '.mp-submit-btn',
+  mpTable: '.mp-table',
+  mpStats: '.mp-stats',
+  mpEmpty: '.mp-empty',
+  mpSectionHeader: '.mp-section-header',
+  mpRefreshBtn: '.mp-refresh-btn',
+
+  // Deals
+  dealsPage: '.deals-page',
+  dealsHeader: '.deals-page h1',
+
+  // Wallet
+  walletPage: '.wallet-page',
+  walletHeader: '.wallet-page h1',
+  walletAddress: '.wallet-address',
+  walletNetworkBadge: '.wallet-network-badge',
+  walletContracts: '.wallet-contracts',
+  walletContractRow: '.wallet-contract-row',
+
+  // Torrents
+  torrentsPage: '.torrents-page',
+  torrentsHeader: '.torrents-page h1',
+  magnetInput: '.add-torrent-bar input[type="text"]',
+  addMagnetBtn: '.add-torrent-bar .add-magnet-btn',
+  addFileBtn: '.add-torrent-bar .add-file-btn',
+  torrentList: '.torrent-list',
+  torrentRow: '.torrent-row',
+  torrentRowSelected: '.torrent-row.selected',
+  torrentName: '.torrent-name',
+  torrentProgress: '.torrent-progress-bar',
+  torrentProgressFill: '.torrent-progress-fill',
+  torrentStateBadge: '.torrent-state-badge',
+  torrentSpeedDl: '.torrent-speed-dl',
+  torrentSpeedUl: '.torrent-speed-ul',
+  torrentDetailPanel: '.torrent-detail-panel',
+  detailTabFiles: '.detail-tabs [data-tab="files"]',
+  detailTabPeers: '.detail-tabs [data-tab="peers"]',
+  detailTabInfo: '.detail-tabs [data-tab="info"]',
+  fileTree: '.file-tree',
+  fileTreeItem: '.file-tree-item',
+  fileCheckbox: '.file-tree-item input[type="checkbox"]',
+  peerTable: '.peer-table',
+  peerTableRow: '.peer-table tr',
+  torrentInfoHash: '.torrent-info-hash',
+  torrentStatusBar: '.torrent-status-bar',
+  speedLimitDl: '.speed-limit-dl input',
+  speedLimitUl: '.speed-limit-ul input',
+  globalDlSpeed: '.global-stats .dl-speed',
+  globalUlSpeed: '.global-stats .ul-speed',
+  torrentContextMenu: '.torrent-context-menu',
+  torrentPauseBtn: '.torrent-pause-btn',
+  torrentResumeBtn: '.torrent-resume-btn',
+  torrentRemoveBtn: '.torrent-remove-btn',
+  torrentEmptyState: '.torrent-empty-state',
 
   // Streaming TV hub
   streamingPage: '.streaming-page',
@@ -341,7 +403,7 @@ export async function navigateTo(page: Page, label: string): Promise<void> {
   const advancedTargets = ['Logs', 'Backup Server', 'Settings'];
   if (advancedTargets.includes(label)) {
     // Use the sidebar-scoped accordion header to avoid matching Dashboard "Advanced" toggle
-    const accordion = page.locator('.sidebar .nav-accordion-header');
+    const accordion = page.locator('.sidebar .nav-accordion-header:has-text("Advanced")');
     // Check if the target link is already visible inside the sidebar
     const targetLink = page.locator(`.sidebar .nav-link:has-text("${label}")`);
     if (!(await targetLink.isVisible({ timeout: 1000 }).catch(() => false))) {

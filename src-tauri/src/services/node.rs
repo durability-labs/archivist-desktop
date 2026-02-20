@@ -193,6 +193,19 @@ impl NodeService {
         // Check if ports are available and clean up orphaned processes
         self.cleanup_orphaned_processes().await;
 
+        // After orphaned process cleanup, verify port is actually free
+        #[cfg(unix)]
+        if let Some(process_info) = Self::check_port_in_use(self.config.api_port) {
+            let msg = format!(
+                "Port {} is already in use by {}. Close the conflicting application or change the API port in Settings.",
+                self.config.api_port, process_info
+            );
+            log::error!("{}", msg);
+            self.status.state = NodeState::Error;
+            self.status.last_error = Some(msg.clone());
+            return Err(ArchivistError::NodeStartFailed(msg));
+        }
+
         // Ensure data directory exists
         let data_dir = std::path::Path::new(&self.config.data_dir);
         if !data_dir.exists() {
@@ -509,6 +522,33 @@ impl NodeService {
             // On Windows, we can't easily check process names, so just log
             log::debug!("Orphaned process cleanup not implemented on this platform");
         }
+    }
+
+    /// Check if any process is listening on a port, returns user-friendly process info if so (Unix only)
+    #[cfg(unix)]
+    fn check_port_in_use(port: u16) -> Option<String> {
+        use std::process::Command;
+
+        let output = Command::new("ss")
+            .args(["-tlnp", &format!("sport = :{}", port)])
+            .output()
+            .ok()?;
+
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        // Parse the users:(("name",pid=NNN,...)) portion into a friendly string
+        let re = regex::Regex::new(r#"users:\(\("([^"]+)",pid=(\d+)"#).ok();
+        for line in output_str.lines() {
+            if line.contains(&format!(":{}", port)) && !line.starts_with("State") {
+                if let Some(caps) = re.as_ref().and_then(|r| r.captures(line)) {
+                    let name = caps.get(1).map(|m| m.as_str()).unwrap_or("unknown");
+                    let pid = caps.get(2).map(|m| m.as_str()).unwrap_or("?");
+                    return Some(format!("process \"{}\" (PID {})", name, pid));
+                }
+                return Some("another process".to_string());
+            }
+        }
+
+        None
     }
 
     /// Find an archivist process using a specific port (Unix only)
