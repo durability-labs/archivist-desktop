@@ -59,7 +59,6 @@ function Dashboard() {
   const {
     status,
     loading,
-    error,
     startNode,
     stopNode,
     restartNode,
@@ -202,7 +201,18 @@ function Dashboard() {
         </div>
       </div>
 
-      {error && <div className="error-banner">{error}</div>}
+      {status.state === 'error' && status.lastError && (
+        <div className="error-banner-enhanced">
+          <div className="error-banner-content">
+            <span className="error-banner-icon">!</span>
+            <div>
+              <strong>Node cannot start</strong>
+              <p style={{ margin: '4px 0 0', opacity: 0.85 }}>{status.lastError}</p>
+            </div>
+          </div>
+          <a href="/settings" className="btn-error-banner">Change Port</a>
+        </div>
+      )}
 
       {viewMode === 'basic' ? (
         <BasicView
