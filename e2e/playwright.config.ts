@@ -9,6 +9,19 @@ import { defineConfig } from '@playwright/test';
  * Prerequisites:
  *   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
  *   Then launch Archivist.exe
+ *
+ * Test tags:
+ *   @smoke  — Fast single-instance tests (~3 min)
+ *   @online — Requires internet (real yt-dlp downloads, torrents, web archiving)
+ *   @slow   — Long downloads (>60s per test)
+ *   @dual   — Requires a second app instance (CDP 9223, API 9080)
+ *
+ * Run by tag:
+ *   npx playwright test --grep @smoke
+ *   npx playwright test --grep @online
+ *   npx playwright test --grep @dual
+ *   npx playwright test --grep-invert @dual   (skip dual-instance tests)
+ *   npx playwright test --grep-invert "@dual|@slow"  (fast local only)
  */
 export default defineConfig({
   testDir: './tests',

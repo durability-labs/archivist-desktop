@@ -59,7 +59,10 @@ export function sleep(ms: number): Promise<void> {
 // Sidecar REST API helpers
 // ---------------------------------------------------------------------------
 
-const SIDECAR_BASE = 'http://127.0.0.1:8080/api/archivist/v1';
+/** Build the sidecar base URL for a given API port (defaults to 8080). */
+function sidecarBase(apiPort = 8080): string {
+  return `http://127.0.0.1:${apiPort}/api/archivist/v1`;
+}
 
 export interface DebugInfo {
   id: string;
@@ -76,22 +79,22 @@ export interface SpaceInfo {
 }
 
 /** GET /debug/info — node identity, addresses, version */
-export async function apiDebugInfo(): Promise<DebugInfo> {
-  const res = await fetch(`${SIDECAR_BASE}/debug/info`);
+export async function apiDebugInfo(apiPort = 8080): Promise<DebugInfo> {
+  const res = await fetch(`${sidecarBase(apiPort)}/debug/info`);
   if (!res.ok) throw new Error(`/debug/info returned ${res.status}`);
   return res.json();
 }
 
 /** GET /spr — Signed Peer Record */
-export async function apiSpr(): Promise<string> {
-  const res = await fetch(`${SIDECAR_BASE}/spr`);
+export async function apiSpr(apiPort = 8080): Promise<string> {
+  const res = await fetch(`${sidecarBase(apiPort)}/spr`);
   if (!res.ok) throw new Error(`/spr returned ${res.status}`);
   return res.text();
 }
 
 /** GET /space — storage summary */
-export async function apiSpace(): Promise<SpaceInfo> {
-  const res = await fetch(`${SIDECAR_BASE}/space`);
+export async function apiSpace(apiPort = 8080): Promise<SpaceInfo> {
+  const res = await fetch(`${sidecarBase(apiPort)}/space`);
   if (!res.ok) throw new Error(`/space returned ${res.status}`);
   return res.json();
 }
@@ -101,9 +104,10 @@ export async function apiUploadFile(
   content: string | Buffer,
   filename = 'e2e-test.txt',
   mime = 'text/plain',
+  apiPort = 8080,
 ): Promise<string> {
   const body = typeof content === 'string' ? Buffer.from(content) : content;
-  const res = await fetch(`${SIDECAR_BASE}/data`, {
+  const res = await fetch(`${sidecarBase(apiPort)}/data`, {
     method: 'POST',
     headers: {
       'Content-Type': mime,
@@ -116,16 +120,34 @@ export async function apiUploadFile(
 }
 
 /** DELETE /data/{cid} */
-export async function apiDeleteFile(cid: string): Promise<void> {
-  const res = await fetch(`${SIDECAR_BASE}/data/${cid}`, { method: 'DELETE' });
+export async function apiDeleteFile(cid: string, apiPort = 8080): Promise<void> {
+  const res = await fetch(`${sidecarBase(apiPort)}/data/${cid}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`DELETE /data/${cid} returned ${res.status}`);
 }
 
 /** GET /data — list stored CIDs */
-export async function apiListFiles(): Promise<{ content: Array<{ cid: string }> }> {
-  const res = await fetch(`${SIDECAR_BASE}/data`);
+export async function apiListFiles(apiPort = 8080): Promise<{ content: Array<{ cid: string }> }> {
+  const res = await fetch(`${sidecarBase(apiPort)}/data`);
   if (!res.ok) throw new Error(`GET /data returned ${res.status}`);
   return res.json();
+}
+
+/** POST /data/{cid}/network — request download from network */
+export async function apiDownloadFromNetwork(cid: string, apiPort = 8080): Promise<void> {
+  const res = await fetch(`${sidecarBase(apiPort)}/data/${cid}/network`, { method: 'POST' });
+  if (!res.ok) throw new Error(`POST /data/${cid}/network returned ${res.status}`);
+}
+
+/** GET /connect/{peerId}?addrs[]= — connect to a peer */
+export async function apiConnectPeer(
+  peerId: string,
+  addrs: string[] = [],
+  apiPort = 8080,
+): Promise<void> {
+  const params = addrs.map((a) => `addrs[]=${encodeURIComponent(a)}`).join('&');
+  const url = `${sidecarBase(apiPort)}/connect/${peerId}${params ? '?' + params : ''}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`GET /connect/${peerId} returned ${res.status}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -328,69 +350,17 @@ export const SEL = {
   torrentRemoveBtn: '.torrent-remove-btn',
   torrentEmptyState: '.torrent-empty-state',
 
-  // Streaming TV hub
-  streamingPage: '.streaming-page',
-  streamingHeader: '.streaming-page h1',
-  streamingTabs: '.streaming-tabs',
-  tabDiscover: '.streaming-tab[data-tab="discover"]',
-  tabIptv: '.streaming-tab[data-tab="iptv"]',
-  tabAddons: '.streaming-tab[data-tab="addons"]',
-  tabSettings: '.streaming-tab[data-tab="settings"]',
-  tabActive: '.streaming-tab.active',
+  // Media Player
+  mediaPlayerPage: '.media-player-page',
+  mediaPlayerVideo: '.media-player-page video',
+  mediaPlayerBackBtn: '.media-player-page .back-btn',
 
-  // Addon manager
-  addonUrlInput: '.addon-url-input input[type="text"]',
-  addonInstallBtn: '.addon-install-btn',
-  addonList: '.addon-list',
-  addonItem: '.addon-item',
-  addonToggle: '.addon-toggle',
-  addonRemoveBtn: '.addon-remove-btn',
-  addonSuggestions: '.addon-suggestions',
-
-  // Catalog / Discover
-  catalogGrid: '.catalog-grid',
-  catalogCard: '.catalog-card',
-  catalogCardTitle: '.catalog-card-title',
-  catalogTypeFilter: '.catalog-type-filter',
-  catalogSearch: '.catalog-search input',
-  catalogEmpty: '.catalog-empty',
-
-  // Content detail
-  contentDetail: '.content-detail',
-  contentTitle: '.content-detail .content-title',
-  contentPoster: '.content-detail .content-poster',
-  contentDescription: '.content-detail .content-description',
-  streamList: '.stream-list',
-  streamItem: '.stream-item',
-  streamPlayBtn: '.stream-play-btn',
-  cachedBadge: '.cached-badge',
-  notCachedBadge: '.not-cached-badge',
-
-  // IPTV
-  iptvPlaylistInput: '.iptv-playlist-url input',
-  iptvPlaylistName: '.iptv-playlist-name input',
-  iptvAddPlaylistBtn: '.iptv-add-playlist-btn',
-  iptvPlaylistList: '.iptv-playlist-list',
-  iptvPlaylistItem: '.iptv-playlist-item',
-  iptvRefreshBtn: '.iptv-refresh-btn',
-  iptvRemoveBtn: '.iptv-remove-btn',
-  iptvGroupSidebar: '.iptv-group-sidebar',
-  iptvGroupItem: '.iptv-group-item',
-  iptvChannelGrid: '.iptv-channel-grid',
-  iptvChannelCard: '.iptv-channel-card',
-  iptvChannelSearch: '.iptv-channel-search input',
-  iptvEmpty: '.iptv-empty',
-
-  // Debrid settings
-  debridProviderSelect: '.debrid-provider-select',
-  debridTokenInput: '.debrid-token-input input',
-  debridValidateBtn: '.debrid-validate-btn',
-  debridStatus: '.debrid-status',
-  debridClearBtn: '.debrid-clear-btn',
-
-  // Player (extended)
-  liveBadge: '.live-badge',
-  playerSubtitleBtn: '.subtitle-btn',
+  // Backup Server
+  backupServerPage: '.backup-server-page',
+  backupServerHeader: '.backup-server-page h1',
+  backupStatsCard: '.backup-stats-card',
+  backupDaemonToggle: '.daemon-toggle',
+  backupManifestTable: '.manifest-table',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -416,13 +386,3 @@ export async function navigateTo(page: Page, label: string): Promise<void> {
   await page.waitForLoadState('networkidle');
 }
 
-/** Navigate to a streaming tab. Navigates to Streaming TV first, then clicks the tab. */
-export async function navigateToStreamingTab(
-  page: Page,
-  tab: 'discover' | 'iptv' | 'addons' | 'settings',
-): Promise<void> {
-  await navigateTo(page, 'Streaming TV');
-  await page.waitForTimeout(500);
-  await page.locator(`.streaming-tab[data-tab="${tab}"]`).click();
-  await page.waitForTimeout(300);
-}
