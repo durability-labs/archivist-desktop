@@ -4,6 +4,8 @@ use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// State of a download task
@@ -137,15 +139,15 @@ impl MediaDownloadService {
 
         log::info!("Fetching metadata for: {}", url);
 
-        let output = tokio::process::Command::new(&yt_dlp)
-            .args(["-j", "--no-playlist", "--no-warnings", url])
+        let mut cmd = tokio::process::Command::new(&yt_dlp);
+        cmd.args(["-j", "--no-playlist", "--no-warnings", url])
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .output()
-            .await
-            .map_err(|e| {
-                ArchivistError::MediaDownloadError(format!("Failed to run yt-dlp: {}", e))
-            })?;
+            .stderr(std::process::Stdio::piped());
+        #[cfg(windows)]
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        let output = cmd.output().await.map_err(|e| {
+            ArchivistError::MediaDownloadError(format!("Failed to run yt-dlp: {}", e))
+        })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -427,12 +429,13 @@ impl MediaDownloadService {
         );
 
         // Spawn yt-dlp process
-        let child = match tokio::process::Command::new(&yt_dlp)
-            .args(&args)
+        let mut cmd = tokio::process::Command::new(&yt_dlp);
+        cmd.args(&args)
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-        {
+            .stderr(std::process::Stdio::piped());
+        #[cfg(windows)]
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        let child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
                 if let Some(t) = self.tasks.get_mut(task_id) {
@@ -955,9 +958,10 @@ fn kill_process(pid: u32) {
     }
     #[cfg(windows)]
     {
-        let _ = std::process::Command::new("taskkill")
-            .args(["/PID", &pid.to_string(), "/F"])
-            .output();
+        let mut cmd = std::process::Command::new("taskkill");
+        cmd.args(["/PID", &pid.to_string(), "/F"]);
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        let _ = cmd.output();
     }
 }
 

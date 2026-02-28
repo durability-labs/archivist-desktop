@@ -100,13 +100,13 @@ impl BinaryManager {
             return None;
         }
 
-        match tokio::process::Command::new(&path)
-            .arg("--version")
+        let mut cmd = tokio::process::Command::new(&path);
+        cmd.arg("--version")
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .output()
-            .await
-        {
+            .stderr(std::process::Stdio::null());
+        #[cfg(windows)]
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        match cmd.output().await {
             Ok(output) if output.status.success() => {
                 let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if version.is_empty() {
@@ -126,13 +126,13 @@ impl BinaryManager {
             return None;
         }
 
-        match tokio::process::Command::new(&path)
-            .arg("-version")
+        let mut cmd = tokio::process::Command::new(&path);
+        cmd.arg("-version")
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .output()
-            .await
-        {
+            .stderr(std::process::Stdio::null());
+        #[cfg(windows)]
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        match cmd.output().await {
             Ok(output) if output.status.success() => {
                 let full = String::from_utf8_lossy(&output.stdout);
                 // First line is like: ffmpeg version N-xxxxx-g... Copyright ...
