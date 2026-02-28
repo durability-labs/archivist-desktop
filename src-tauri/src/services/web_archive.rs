@@ -433,7 +433,9 @@ fn url_to_path(base: &Url, page_url: &Url) -> String {
 
     // Remove leading slash
     let _ = base; // base used for context only
-    result
+
+    // Sanitize each path component for Windows compatibility
+    crate::path_utils::sanitize_path_for_archive(&result)
 }
 
 /// Extract links from HTML
@@ -529,7 +531,7 @@ fn asset_url_to_path(url: &Url) -> String {
     if path.is_empty() {
         "assets/unknown".to_string()
     } else {
-        path.to_string()
+        crate::path_utils::sanitize_path_for_archive(path)
     }
 }
 

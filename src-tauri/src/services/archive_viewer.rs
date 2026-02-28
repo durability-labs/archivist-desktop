@@ -183,12 +183,13 @@ fn extract_zip(zip_path: &std::path::Path, dest: &std::path::Path) -> Result<()>
             .by_index(i)
             .map_err(|e| ArchivistError::WebArchiveError(format!("ZIP entry error: {}", e)))?;
 
-        let name = entry.name().to_string();
+        let raw_name = entry.name().to_string();
         // Skip directories and entries with suspicious paths
-        if name.ends_with('/') || name.contains("..") {
+        if raw_name.ends_with('/') || raw_name.contains("..") {
             continue;
         }
 
+        let name = crate::path_utils::sanitize_path_for_archive(&raw_name);
         let out_path = dest.join(&name);
 
         // Create parent directories

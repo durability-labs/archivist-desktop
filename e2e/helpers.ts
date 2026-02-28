@@ -355,26 +355,57 @@ export const SEL = {
   mediaPlayerVideo: '.media-player-page video',
   mediaPlayerBackBtn: '.media-player-page .back-btn',
 
-  // Backup Server
-  backupServerPage: '.backup-server-page',
-  backupServerHeader: '.backup-server-page h1',
-  backupStatsCard: '.backup-stats-card',
-  backupDaemonToggle: '.daemon-toggle',
+  // Backup Server (container class is "backup-server", not "backup-server-page")
+  backupServerPage: '.backup-server',
+  backupServerHeader: '.backup-server h1',
+  backupStatsCard: '.stat-card',
+  backupStatsGrid: '.stats-grid',
+  backupConfigGrid: '.config-grid',
+  backupInfoBanner: '.info-banner',
   backupManifestTable: '.manifest-table',
+
+  // Add Device (extra selectors for wizard states)
+  wizardStep: '.wizard-step',
+  wizardIconConnecting: '.wizard-icon.connecting',
+  wizardIconSuccess: '.wizard-icon.success',
+  wizardIconError: '.wizard-icon.error',
+
+  // Media Player (extra selectors for controls)
+  playerControls: '.player-controls',
+  playBtn: '.play-btn',
+  muteBtn: '.mute-btn',
+  seekBar: '.seek-bar',
+  volumeBar: '.volume-bar',
+  playlistToggleBtn: '.playlist-toggle-btn',
+  playlistSidebar: '.playlist-sidebar',
+  playerBackBtn: '.player-back-btn',
+
+  // Wallet (extra selectors)
+  walletCopyBtn: '.wallet-copy-btn',
 } as const;
 
 // ---------------------------------------------------------------------------
 // Navigation helpers
 // ---------------------------------------------------------------------------
 
-/** Click a sidebar nav link by visible text. */
+/**
+ * Direct-URL fallback map for pages that may not have sidebar links
+ * (e.g. marketplace pages behind feature flags).
+ */
+const DIRECT_NAV_ROUTES: Record<string, string> = {
+  'Browse': '/marketplace',
+  'My Deals': '/marketplace/deals',
+  'Wallet': '/wallet',
+  'Torrents': '/torrents',
+  'Streaming TV': '/streaming',
+};
+
+/** Click a sidebar nav link by visible text, falling back to direct URL navigation. */
 export async function navigateTo(page: Page, label: string): Promise<void> {
   // Expand the Advanced accordion if targeting Logs / Settings / Backup Server
   const advancedTargets = ['Logs', 'Backup Server', 'Settings'];
   if (advancedTargets.includes(label)) {
-    // Use the sidebar-scoped accordion header to avoid matching Dashboard "Advanced" toggle
     const accordion = page.locator('.sidebar .nav-accordion-header:has-text("Advanced")');
-    // Check if the target link is already visible inside the sidebar
     const targetLink = page.locator(`.sidebar .nav-link:has-text("${label}")`);
     if (!(await targetLink.isVisible({ timeout: 1000 }).catch(() => false))) {
       await accordion.click();
@@ -382,7 +413,20 @@ export async function navigateTo(page: Page, label: string): Promise<void> {
     }
   }
 
-  await page.locator(`.sidebar .nav-link:has-text("${label}")`).click();
-  await page.waitForLoadState('networkidle');
+  // Check if sidebar link exists; if not, navigate directly via URL
+  const sidebarLink = page.locator(`.sidebar .nav-link:has-text("${label}")`);
+  const linkVisible = await sidebarLink.isVisible({ timeout: 2_000 }).catch(() => false);
+
+  if (linkVisible) {
+    await sidebarLink.click();
+  } else if (DIRECT_NAV_ROUTES[label]) {
+    // Page not in sidebar — use direct URL navigation
+    const currentUrl = new URL(page.url());
+    await page.goto(`${currentUrl.origin}${DIRECT_NAV_ROUTES[label]}`);
+  } else {
+    throw new Error(`Navigation target "${label}" not found in sidebar and no direct route configured`);
+  }
+
+  await page.waitForLoadState('domcontentloaded');
 }
 

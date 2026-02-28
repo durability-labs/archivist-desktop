@@ -276,5 +276,5 @@ fn short_peer_id(peer_id: &str) -> String {
 }
 
 fn sanitize_filename(name: &str) -> String {
-    name.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_")
+    crate::path_utils::sanitize_filename(name)
 }

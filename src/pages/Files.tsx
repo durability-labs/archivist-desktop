@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { validateCid, type CidValidationResult } from '../lib/cidValidation';
+import { sanitizeFilename } from '../lib/sanitizeFilename';
 
 interface UploadProgressEvent {
   filename: string;
@@ -142,7 +143,7 @@ function Files() {
     try {
       const savePath = await save({
         title: 'Save file as',
-        defaultPath: filename,
+        defaultPath: sanitizeFilename(filename),
       });
 
       if (!savePath) return;
@@ -187,7 +188,7 @@ function Files() {
           { cid }
         );
         if (fileInfo?.filename) {
-          defaultFilename = fileInfo.filename;
+          defaultFilename = sanitizeFilename(fileInfo.filename);
         }
       } catch {
         // If we can't get file info, use the default filename

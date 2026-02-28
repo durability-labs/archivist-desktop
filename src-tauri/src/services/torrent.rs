@@ -736,8 +736,8 @@ impl TorrentService {
                     };
                     TorrentFile {
                         index: idx,
-                        name: f.name.clone(),
-                        path: f.components.join("/"),
+                        name: crate::path_utils::sanitize_filename(&f.name),
+                        path: crate::path_utils::sanitize_path_for_archive(&f.components.join("/")),
                         length: f.length,
                         downloaded_bytes: file_downloaded,
                         included: f.included,

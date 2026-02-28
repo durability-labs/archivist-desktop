@@ -3,6 +3,7 @@ pub mod crypto;
 mod error;
 mod features;
 pub mod node_api;
+pub mod path_utils;
 mod services;
 mod state;
 

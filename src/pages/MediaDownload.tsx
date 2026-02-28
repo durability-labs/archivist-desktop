@@ -7,6 +7,7 @@ import {
   MediaMetadata,
   DownloadTask,
 } from '../hooks/useMediaDownload';
+import { sanitizeFilename } from '../lib/sanitizeFilename';
 import '../styles/MediaDownload.css';
 
 function formatDuration(seconds: number | null): string {
@@ -102,7 +103,7 @@ export default function MediaDownload() {
       // Optionally let user pick directory
       const selected = await save({
         title: 'Save media file',
-        defaultPath: `${outputDir}/${metadata.title}`,
+        defaultPath: `${outputDir}/${sanitizeFilename(metadata.title)}`,
       });
 
       if (!selected) {

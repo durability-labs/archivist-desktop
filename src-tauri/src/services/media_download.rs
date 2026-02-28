@@ -378,7 +378,8 @@ impl MediaDownloadService {
         );
 
         // Build yt-dlp arguments
-        let mut args: Vec<String> = vec!["--newline".to_string()];
+        let mut args: Vec<String> =
+            vec!["--newline".to_string(), "--windows-filenames".to_string()];
 
         // Format selection
         if task.options.audio_only {
@@ -409,7 +410,8 @@ impl MediaDownloadService {
 
         // Output template
         let output_template = if let Some(ref name) = task.options.filename {
-            format!("{}/{}.%(ext)s", task.options.output_directory, name)
+            let safe_name = crate::path_utils::sanitize_filename(name);
+            format!("{}/{}.%(ext)s", task.options.output_directory, safe_name)
         } else {
             format!("{}/%(title)s.%(ext)s", task.options.output_directory)
         };
