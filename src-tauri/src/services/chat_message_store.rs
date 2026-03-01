@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use super::chat_types::{ConversationSummary, ConversationType, DeliveryStatus, StoredMessage};
@@ -34,6 +34,7 @@ impl MessageStore {
             .map_err(|e| ArchivistError::ChatError(format!("Create messages dir: {}", e)))?;
 
         let mut conversations = HashMap::new();
+        let mut loaded_paths: Vec<PathBuf> = Vec::new();
 
         // Load existing conversations
         if let Ok(entries) = std::fs::read_dir(&messages_dir) {
@@ -43,6 +44,7 @@ impl MessageStore {
                     match std::fs::read_to_string(&path) {
                         Ok(data) => match serde_json::from_str::<Conversation>(&data) {
                             Ok(conv) => {
+                                loaded_paths.push(path);
                                 conversations.insert(conv.id.clone(), conv);
                             }
                             Err(e) => {
@@ -58,10 +60,18 @@ impl MessageStore {
         }
 
         log::info!("Loaded {} conversations from disk", conversations.len());
-        Ok(Self {
+
+        let store = Self {
             conversations,
             base_dir: base_dir.to_path_buf(),
-        })
+        };
+
+        // Migrate: re-persist with current sanitized filenames, remove stale files
+        if !loaded_paths.is_empty() {
+            store.migrate_filenames(&loaded_paths);
+        }
+
+        Ok(store)
     }
 
     /// Get or create a direct conversation with a peer.
@@ -250,6 +260,31 @@ impl MessageStore {
             self.persist_conversation(group_id)?;
         }
         Ok(())
+    }
+
+    /// Re-persist all conversations with current sanitized filenames,
+    /// then remove stale files (from old sanitization rules).
+    fn migrate_filenames(&self, loaded_paths: &[PathBuf]) {
+        let mut expected: HashSet<String> = HashSet::new();
+        for conv_id in self.conversations.keys() {
+            let filename = format!("{}.json", sanitize_filename(conv_id));
+            expected.insert(filename);
+            if let Err(e) = self.persist_conversation(conv_id) {
+                log::warn!("Migration: failed to persist {}: {}", conv_id, e);
+            }
+        }
+
+        // Remove loaded files whose names no longer match (stale from old sanitization)
+        for path in loaded_paths {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if !expected.contains(name) {
+                    log::info!("Removing stale conversation file: {:?}", path);
+                    if let Err(e) = std::fs::remove_file(path) {
+                        log::warn!("Failed to remove stale file {:?}: {}", path, e);
+                    }
+                }
+            }
+        }
     }
 
     fn persist_conversation(&self, conversation_id: &str) -> Result<()> {

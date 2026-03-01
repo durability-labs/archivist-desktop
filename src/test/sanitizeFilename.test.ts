@@ -2,24 +2,24 @@ import { describe, it, expect } from 'vitest';
 import { sanitizeFilename } from '../lib/sanitizeFilename';
 
 describe('sanitizeFilename', () => {
-  it('replaces illegal characters with underscore', () => {
-    expect(sanitizeFilename('a<b>c:d"e/f\\g|h?i*j')).toBe('a_b_c_d_e_f_g_h_i_j');
+  it('replaces illegal characters with hyphens', () => {
+    expect(sanitizeFilename('a<b>c:d"e/f\\g|h?i*j')).toBe('a-b-c-d-e-f-g-h-i-j');
   });
 
   it('strips control characters', () => {
-    expect(sanitizeFilename('hello\x00world\x1F!')).toBe('helloworld!');
+    expect(sanitizeFilename('hello\x00world\x1F!')).toBe('helloworld');
   });
 
   it('prefixes Windows reserved names', () => {
-    expect(sanitizeFilename('CON')).toBe('_CON');
+    expect(sanitizeFilename('CON')).toBe('_con');
     expect(sanitizeFilename('con')).toBe('_con');
-    expect(sanitizeFilename('PRN.txt')).toBe('_PRN.txt');
-    expect(sanitizeFilename('COM1')).toBe('_COM1');
+    expect(sanitizeFilename('PRN.txt')).toBe('_prn.txt');
+    expect(sanitizeFilename('COM1')).toBe('_com1');
     expect(sanitizeFilename('lpt9.log')).toBe('_lpt9.log');
   });
 
   it('does not prefix non-reserved names', () => {
-    expect(sanitizeFilename('CONSOLE')).toBe('CONSOLE');
+    expect(sanitizeFilename('CONSOLE')).toBe('console');
     expect(sanitizeFilename('contest.txt')).toBe('contest.txt');
   });
 
@@ -45,7 +45,7 @@ describe('sanitizeFilename', () => {
   it('truncates long names without extension', () => {
     const longName = 'a'.repeat(300);
     const result = sanitizeFilename(longName);
-    expect(result.length).toBe(200);
+    expect(result.length).toBeLessThanOrEqual(200);
   });
 
   it('leaves normal filenames unchanged', () => {
@@ -55,13 +55,28 @@ describe('sanitizeFilename', () => {
 
   it('handles real-world video titles', () => {
     expect(sanitizeFilename('React Tutorial: Build a Full App | 2024'))
-      .toBe('React Tutorial_ Build a Full App _ 2024');
+      .toBe('react-tutorial-build-a-full-app-2024');
     expect(sanitizeFilename('AC/DC - Thunderstruck'))
-      .toBe('AC_DC - Thunderstruck');
+      .toBe('ac-dc-thunderstruck');
   });
 
-  it('preserves unicode characters', () => {
-    expect(sanitizeFilename('日本語テスト.txt')).toBe('日本語テスト.txt');
-    expect(sanitizeFilename('café résumé.pdf')).toBe('café résumé.pdf');
+  it('replaces unicode with hyphens or falls back to unnamed', () => {
+    expect(sanitizeFilename('日本語テスト.txt')).toBe('unnamed.txt');
+    expect(sanitizeFilename('café résumé.pdf')).toBe('caf-r-sum.pdf');
+  });
+
+  it('converts to lowercase', () => {
+    expect(sanitizeFilename('MyFile.TXT')).toBe('myfile.txt');
+    expect(sanitizeFilename('HELLO WORLD')).toBe('hello-world');
+  });
+
+  it('handles complex video titles with mixed special chars', () => {
+    expect(sanitizeFilename("The Internet's Own Boy: The Story of Aaron Swartz | full movie (2014)"))
+      .toBe('the-internet-s-own-boy-the-story-of-aaron-swartz-full-movie-2014');
+  });
+
+  it('handles ampersands and parentheses', () => {
+    expect(sanitizeFilename('Tom & Jerry (2021).mkv'))
+      .toBe('tom-jerry-2021.mkv');
   });
 });

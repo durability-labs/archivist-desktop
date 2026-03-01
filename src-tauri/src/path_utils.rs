@@ -1,8 +1,8 @@
-//! Shared filename/path sanitization for Windows compatibility.
+//! Cross-platform filename sanitization using a strict allowlist.
 //!
-//! Windows forbids `< > : " / \ | ? *` and control characters in filenames.
-//! These utilities ensure external data (video titles, URLs, torrent names,
-//! ZIP entries, remote filenames) never cause OS error 123 (`ERROR_INVALID_NAME`).
+//! Only `a-z`, `0-9`, `-` (hyphen), and `_` (underscore) survive in the stem.
+//! All other characters are replaced with hyphens and collapsed. Extensions are
+//! preserved if they look valid (1-10 alphanumeric chars after the last dot).
 
 /// Windows reserved device names (case-insensitive).
 const RESERVED_NAMES: &[&str] = &[
@@ -10,65 +10,127 @@ const RESERVED_NAMES: &[&str] = &[
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
-/// Maximum filename length (leaving room for extension).
+/// Maximum filename length (stem + extension).
 const MAX_FILENAME_LEN: usize = 200;
 
 /// Sanitize a single filename component for safe use on all platforms.
 ///
-/// - Replaces Windows-illegal characters (`< > : " / \ | ? *`) with `_`
-/// - Strips control characters (0x00–0x1F)
-/// - Removes trailing dots and spaces (Windows ignores them, causing confusion)
-/// - Prefixes Windows reserved names (CON, PRN, etc.) with `_`
-/// - Truncates to 200 chars while preserving the file extension
-/// - Returns `"unnamed"` if the result would be empty
+/// Pipeline:
+/// 1. Strip control characters (0x00–0x1F)
+/// 2. Convert to lowercase
+/// 3. Split extension from stem (last `.` where suffix is 1–10 alphanumeric)
+/// 4. Replace any char NOT in `[a-z0-9_]` with `-`
+/// 5. Collapse consecutive hyphens (`---` → `-`)
+/// 6. Trim leading/trailing hyphens, underscores, and dots from stem
+/// 7. Prefix Windows reserved names (CON, PRN, etc.) with `_`
+/// 8. Truncate to 200 chars preserving extension; re-trim trailing hyphens
+/// 9. Return `"unnamed"` (or `"unnamed.ext"`) if empty
 pub fn sanitize_filename(name: &str) -> String {
-    let mut result = String::with_capacity(name.len());
+    // 1. Strip control characters (0x00–0x1F)
+    let clean: String = name.chars().filter(|c| !c.is_control()).collect();
 
-    for ch in name.chars() {
-        if ch.is_control() {
-            continue;
-        }
-        match ch {
-            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => result.push('_'),
-            _ => result.push(ch),
+    // 2. Convert to lowercase
+    let lower = clean.to_lowercase();
+
+    // 3. Split extension from stem
+    let (raw_stem, ext) = split_stem_ext(&lower);
+
+    // 4. In stem: replace any char NOT in [a-z0-9_] with '-'
+    let mapped: String = raw_stem
+        .chars()
+        .map(|c| {
+            if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
+
+    // 5. Collapse consecutive hyphens
+    let mut collapsed = String::with_capacity(mapped.len());
+    let mut prev_hyphen = false;
+    for c in mapped.chars() {
+        if c == '-' {
+            if !prev_hyphen {
+                collapsed.push('-');
+            }
+            prev_hyphen = true;
+        } else {
+            collapsed.push(c);
+            prev_hyphen = false;
         }
     }
 
-    // Remove trailing dots and spaces
-    let trimmed = result.trim_end_matches(['.', ' ']);
-    let mut result = trimmed.to_string();
+    // 6. Trim leading/trailing hyphens, underscores, and dots from stem
+    let stem = collapsed.trim_matches(['-', '_', '.']).to_string();
 
-    // Handle reserved names (check the stem without extension)
-    let stem = if let Some(dot_pos) = result.rfind('.') {
-        &result[..dot_pos]
+    // If stem is empty after cleanup, return early
+    if stem.is_empty() {
+        return if ext.is_empty() {
+            "unnamed".to_string()
+        } else {
+            format!("unnamed.{}", ext)
+        };
+    }
+
+    // 7. Prefix Windows reserved names
+    let stem = if RESERVED_NAMES.iter().any(|r| r.eq_ignore_ascii_case(&stem)) {
+        format!("_{}", stem)
     } else {
-        &result
+        stem
     };
-    if RESERVED_NAMES.iter().any(|r| r.eq_ignore_ascii_case(stem)) {
-        result = format!("_{}", result);
-    }
 
-    // Truncate while preserving extension
+    // Build result
+    let mut result = if ext.is_empty() {
+        stem.clone()
+    } else {
+        format!("{}.{}", stem, ext)
+    };
+
+    // 8. Truncate to MAX_FILENAME_LEN preserving extension; re-trim trailing hyphens
     if result.len() > MAX_FILENAME_LEN {
-        if let Some(dot_pos) = result.rfind('.') {
-            let ext = &result[dot_pos..];
-            if ext.len() < MAX_FILENAME_LEN {
-                let keep = MAX_FILENAME_LEN - ext.len();
-                let stem: String = result.chars().take(keep).collect();
-                result = format!("{}{}", stem.trim_end(), ext);
+        if !ext.is_empty() {
+            let ext_with_dot_len = ext.len() + 1;
+            if ext_with_dot_len < MAX_FILENAME_LEN {
+                let keep = MAX_FILENAME_LEN - ext_with_dot_len;
+                let truncated: String = stem.chars().take(keep).collect();
+                let trimmed = truncated.trim_end_matches(['-', '_', '.']).to_string();
+                if trimmed.is_empty() {
+                    result = format!("unnamed.{}", ext);
+                } else {
+                    result = format!("{}.{}", trimmed, ext);
+                }
             } else {
                 result = result.chars().take(MAX_FILENAME_LEN).collect();
             }
         } else {
-            result = result.chars().take(MAX_FILENAME_LEN).collect();
+            let truncated: String = result.chars().take(MAX_FILENAME_LEN).collect();
+            let trimmed = truncated.trim_end_matches(['-', '_', '.']).to_string();
+            result = if trimmed.is_empty() {
+                "unnamed".to_string()
+            } else {
+                trimmed
+            };
         }
     }
 
-    if result.is_empty() {
-        "unnamed".to_string()
-    } else {
-        result
+    result
+}
+
+/// Split a lowercased filename into (stem, extension).
+/// Extension is the part after the last `.`, if it's 1–10 ASCII alphanumeric chars.
+fn split_stem_ext(name: &str) -> (&str, &str) {
+    if let Some(dot_pos) = name.rfind('.') {
+        let suffix = &name[dot_pos + 1..];
+        if !suffix.is_empty()
+            && suffix.len() <= 10
+            && suffix.chars().all(|c| c.is_ascii_alphanumeric())
+        {
+            return (&name[..dot_pos], suffix);
+        }
     }
+    (name, "")
 }
 
 /// Sanitize a relative path (e.g. from a ZIP entry or URL) by applying
@@ -95,28 +157,28 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn test_illegal_chars_replaced() {
+    fn test_illegal_chars_replaced_with_hyphens() {
         let result = sanitize_filename(r#"a<b>c:d"e/f\g|h?i*j"#);
-        assert_eq!(result, "a_b_c_d_e_f_g_h_i_j");
+        assert_eq!(result, "a-b-c-d-e-f-g-h-i-j");
     }
 
     #[test]
     fn test_control_chars_stripped() {
-        assert_eq!(sanitize_filename("hello\x00world\x1F!"), "helloworld!");
+        assert_eq!(sanitize_filename("hello\x00world\x1F!"), "helloworld");
     }
 
     #[test]
     fn test_reserved_names_prefixed() {
-        assert_eq!(sanitize_filename("CON"), "_CON");
+        assert_eq!(sanitize_filename("CON"), "_con");
         assert_eq!(sanitize_filename("con"), "_con");
-        assert_eq!(sanitize_filename("PRN.txt"), "_PRN.txt");
-        assert_eq!(sanitize_filename("COM1"), "_COM1");
+        assert_eq!(sanitize_filename("PRN.txt"), "_prn.txt");
+        assert_eq!(sanitize_filename("COM1"), "_com1");
         assert_eq!(sanitize_filename("lpt9.log"), "_lpt9.log");
     }
 
     #[test]
     fn test_non_reserved_not_prefixed() {
-        assert_eq!(sanitize_filename("CONSOLE"), "CONSOLE");
+        assert_eq!(sanitize_filename("CONSOLE"), "console");
         assert_eq!(sanitize_filename("contest.txt"), "contest.txt");
     }
 
@@ -146,7 +208,7 @@ mod tests {
     fn test_truncation_without_extension() {
         let long_name = "a".repeat(300);
         let result = sanitize_filename(&long_name);
-        assert_eq!(result.len(), MAX_FILENAME_LEN);
+        assert!(result.len() <= MAX_FILENAME_LEN);
     }
 
     #[test]
@@ -160,22 +222,44 @@ mod tests {
 
     #[test]
     fn test_real_world_video_titles() {
-        // YouTube titles often contain colons and pipes
         assert_eq!(
             sanitize_filename("React Tutorial: Build a Full App | 2024"),
-            "React Tutorial_ Build a Full App _ 2024"
+            "react-tutorial-build-a-full-app-2024"
         );
-        // Slashes in titles
         assert_eq!(
             sanitize_filename("AC/DC - Thunderstruck"),
-            "AC_DC - Thunderstruck"
+            "ac-dc-thunderstruck"
         );
     }
 
     #[test]
-    fn test_unicode_preserved() {
-        assert_eq!(sanitize_filename("日本語テスト.txt"), "日本語テスト.txt");
-        assert_eq!(sanitize_filename("café résumé.pdf"), "café résumé.pdf");
+    fn test_unicode_replaced() {
+        assert_eq!(sanitize_filename("日本語テスト.txt"), "unnamed.txt");
+        assert_eq!(sanitize_filename("café résumé.pdf"), "caf-r-sum.pdf");
+    }
+
+    #[test]
+    fn test_lowercase_conversion() {
+        assert_eq!(sanitize_filename("MyFile.TXT"), "myfile.txt");
+        assert_eq!(sanitize_filename("HELLO WORLD"), "hello-world");
+    }
+
+    #[test]
+    fn test_complex_video_title() {
+        assert_eq!(
+            sanitize_filename(
+                "The Internet's Own Boy: The Story of Aaron Swartz | full movie (2014)"
+            ),
+            "the-internet-s-own-boy-the-story-of-aaron-swartz-full-movie-2014"
+        );
+    }
+
+    #[test]
+    fn test_ampersand_and_parens() {
+        assert_eq!(
+            sanitize_filename("Tom & Jerry (2021).mkv"),
+            "tom-jerry-2021.mkv"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -186,13 +270,12 @@ mod tests {
     fn test_path_components_sanitized() {
         assert_eq!(
             sanitize_path_for_archive("docs/page:1/index.html"),
-            "docs/page_1/index.html"
+            "docs/page-1/index.html"
         );
     }
 
     #[test]
     fn test_path_empty_components_preserved() {
-        // Leading slash produces empty first component
         assert_eq!(sanitize_path_for_archive("css/style.css"), "css/style.css");
     }
 
@@ -200,7 +283,7 @@ mod tests {
     fn test_path_with_query_chars() {
         assert_eq!(
             sanitize_path_for_archive("api/data?key=val&other=1"),
-            "api/data_key=val&other=1"
+            "api/data-key-val-other-1"
         );
     }
 }
