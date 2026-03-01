@@ -419,6 +419,14 @@ function Files() {
 
       <div className="files-table">
         <table>
+          <colgroup>
+            <col style={{ width: '25%' }} />
+            <col style={{ width: '28%' }} />
+            <col style={{ width: '8%' }} />
+            <col style={{ width: '10%' }} />
+            <col style={{ width: '14%' }} />
+            <col style={{ width: '15%' }} />
+          </colgroup>
           <thead>
             <tr>
               <th>Name</th>

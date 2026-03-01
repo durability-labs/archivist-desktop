@@ -418,6 +418,10 @@ table {
   border-collapse: collapse;
 }
 
+.files-table table {
+  table-layout: fixed;
+}
+
 th, td {
   padding: var(--spacing-md);
   text-align: left;
@@ -449,9 +453,11 @@ tr:hover td {
   padding: var(--spacing-xs);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  word-break: break-all;
-  display: inline-block;
-  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 100%;
   border: 1px solid var(--term-border);
   transition: all var(--duration-normal) var(--ease-out);
 }
@@ -464,7 +470,6 @@ tr:hover td {
 }
 
 .cid-cell {
-  max-width: 220px;
 }
 
 .empty-state {
@@ -871,6 +876,10 @@ tr:hover td {
 .file-name {
   font-weight: 500;
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .pin-badge {
