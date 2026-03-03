@@ -97,7 +97,13 @@ export default function Torrents() {
       // Read the file and base64 encode it
       const { readFile } = await import('@tauri-apps/plugin-fs');
       const bytes = await readFile(filePath as string);
-      const base64 = btoa(String.fromCharCode(...bytes));
+      let binary = '';
+      const chunkSize = 8192;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        binary += String.fromCharCode(...chunk);
+      }
+      const base64 = btoa(binary);
       await addTorrent({
         source: base64,
         sourceType: 'file',

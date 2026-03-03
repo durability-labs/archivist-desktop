@@ -427,9 +427,22 @@ impl TorrentService {
 
     /// Get session-wide statistics for all torrents
     pub fn get_session_stats(&mut self) -> Result<TorrentSessionStats> {
-        let api = self.api.as_ref().ok_or_else(|| {
-            ArchivistError::TorrentError("Torrent session not initialized".into())
-        })?;
+        let api = match self.api.as_ref() {
+            Some(api) => api,
+            None => {
+                return Ok(TorrentSessionStats {
+                    torrents: vec![],
+                    total_download_speed: 0.0,
+                    total_upload_speed: 0.0,
+                    active_count: 0,
+                    seeding_count: 0,
+                    paused_count: 0,
+                    total_downloaded: 0,
+                    total_uploaded: 0,
+                    dht_peers: 0,
+                });
+            }
+        };
 
         let list = api.api_torrent_list_ext(librqbit::api::ApiTorrentListOpts { with_stats: true });
         let dht_peers = api
