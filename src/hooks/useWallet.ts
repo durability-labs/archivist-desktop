@@ -21,8 +21,6 @@ export function useWallet() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [balancesLoading, setBalancesLoading] = useState(false);
-  const [faucetLoading, setFaucetLoading] = useState<'eth' | 'tst' | null>(null);
-  const [faucetMessage, setFaucetMessage] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -94,47 +92,12 @@ export function useWallet() {
     await refresh();
   }, [refresh]);
 
-  const requestEthFaucet = useCallback(async () => {
-    setFaucetLoading('eth');
-    setFaucetMessage(null);
-    try {
-      const result = await invoke<string>('request_eth_faucet');
-      setFaucetMessage(`ETH faucet: ${result || 'Request sent successfully'}`);
-      // Refresh balances after a delay to allow tx to confirm
-      setTimeout(refreshBalances, 5000);
-      return result;
-    } catch (e) {
-      setFaucetMessage(`ETH faucet error: ${String(e)}`);
-      throw e;
-    } finally {
-      setFaucetLoading(null);
-    }
-  }, [refreshBalances]);
-
-  const requestTstFaucet = useCallback(async () => {
-    setFaucetLoading('tst');
-    setFaucetMessage(null);
-    try {
-      const result = await invoke<string>('request_tst_faucet');
-      setFaucetMessage(`TST faucet: ${result || 'Request sent successfully'}`);
-      setTimeout(refreshBalances, 5000);
-      return result;
-    } catch (e) {
-      setFaucetMessage(`TST faucet error: ${String(e)}`);
-      throw e;
-    } finally {
-      setFaucetLoading(null);
-    }
-  }, [refreshBalances]);
-
   return {
     wallet,
     balances,
     loading,
     error,
     balancesLoading,
-    faucetLoading,
-    faucetMessage,
     refresh,
     refreshBalances,
     generateWallet,
@@ -142,7 +105,5 @@ export function useWallet() {
     exportWallet,
     unlockWallet,
     deleteWallet,
-    requestEthFaucet,
-    requestTstFaucet,
   };
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { open } from '@tauri-apps/plugin-shell';
 import { useWallet } from '../hooks/useWallet';
 import { CONTRACT_ADDRESSES, getExplorerUrl, type NetworkId } from '../lib/contracts';
 import '../styles/Marketplace.css';
@@ -10,8 +11,6 @@ export default function Wallet() {
     loading,
     error,
     balancesLoading,
-    faucetLoading,
-    faucetMessage,
     refresh,
     refreshBalances,
     generateWallet,
@@ -19,11 +18,10 @@ export default function Wallet() {
     exportWallet,
     unlockWallet,
     deleteWallet,
-    requestEthFaucet,
-    requestTstFaucet,
   } = useWallet();
 
   const [copied, setCopied] = useState(false);
+  const [faucetMessage, setFaucetMessage] = useState<string | null>(null);
 
   // Wallet setup state
   const [setupMode, setSetupMode] = useState<'none' | 'generate' | 'import'>('none');
@@ -326,26 +324,36 @@ export default function Wallet() {
           <div className="mp-section">
             <h2>Testnet Faucets</h2>
             <p style={{ color: 'var(--text-dim)', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
-              Request free testnet tokens to interact with the marketplace.
+              Get free testnet tokens. Your address will be copied to clipboard so you can paste it in the faucet page.
             </p>
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button
                 className="mp-submit-btn"
-                onClick={requestEthFaucet}
-                disabled={faucetLoading !== null}
+                onClick={async () => {
+                  if (!wallet?.address) return;
+                  try { await navigator.clipboard.writeText(wallet.address); } catch { /* clipboard unavailable */ }
+                  setFaucetMessage('Address copied to clipboard. Paste it in the faucet page.');
+                  setTimeout(() => setFaucetMessage(null), 5000);
+                  await open('https://faucet-arb.testnet.archivist.storage');
+                }}
               >
-                {faucetLoading === 'eth' ? 'Requesting...' : 'Request ETH'}
+                Get ETH
               </button>
               <button
                 className="mp-submit-btn"
-                onClick={requestTstFaucet}
-                disabled={faucetLoading !== null}
+                onClick={async () => {
+                  if (!wallet?.address) return;
+                  try { await navigator.clipboard.writeText(wallet.address); } catch { /* clipboard unavailable */ }
+                  setFaucetMessage('Address copied to clipboard. Paste it in the faucet page.');
+                  setTimeout(() => setFaucetMessage(null), 5000);
+                  await open('https://faucet-tst.testnet.archivist.storage');
+                }}
               >
-                {faucetLoading === 'tst' ? 'Requesting...' : 'Request TST'}
+                Get TST
               </button>
             </div>
             {faucetMessage && (
-              <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+              <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--ui-green)' }}>
                 {faucetMessage}
               </div>
             )}

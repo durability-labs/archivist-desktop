@@ -48,15 +48,3 @@ pub async fn get_wallet_balances(state: State<'_, AppState>) -> Result<WalletBal
     let wallet = state.wallet.read().await;
     wallet.get_balances().await
 }
-
-#[tauri::command]
-pub async fn request_eth_faucet(state: State<'_, AppState>) -> Result<String> {
-    let wallet = state.wallet.read().await;
-    wallet.request_eth_faucet().await
-}
-
-#[tauri::command]
-pub async fn request_tst_faucet(state: State<'_, AppState>) -> Result<String> {
-    let wallet = state.wallet.read().await;
-    wallet.request_tst_faucet().await
-}
