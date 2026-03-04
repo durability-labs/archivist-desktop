@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-shell';
 import { useWallet } from '../hooks/useWallet';
 import { CONTRACT_ADDRESSES, getExplorerUrl, type NetworkId } from '../lib/contracts';
@@ -71,6 +72,8 @@ export default function Wallet() {
       setSetupMode('none');
       setPassword('');
       setConfirmPassword('');
+      try { await invoke('restart_node'); } catch { /* node may not be running */ }
+      await refresh();
     } catch (err) {
       setSetupError(String(err));
     } finally {
@@ -92,6 +95,8 @@ export default function Wallet() {
       setPassword('');
       setConfirmPassword('');
       setImportKey('');
+      try { await invoke('restart_node'); } catch { /* node may not be running */ }
+      await refresh();
     } catch (err) {
       setSetupError(String(err));
     } finally {
@@ -263,8 +268,15 @@ export default function Wallet() {
         <>
           {/* Marketplace status banner */}
           {!wallet?.marketplaceActive && (
-            <div className="mp-error" style={{ background: 'rgba(255, 170, 0, 0.1)', borderColor: 'var(--color-warning, #ffaa00)' }}>
-              Marketplace not active. Restart the node to enable marketplace features with your wallet.
+            <div className="mp-error" style={{ background: 'rgba(255, 170, 0, 0.1)', borderColor: 'var(--color-warning, #ffaa00)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Marketplace not active. Restart the node to enable marketplace features with your wallet.</span>
+              <button className="mp-submit-btn" style={{ marginLeft: '0.75rem', whiteSpace: 'nowrap' }}
+                onClick={async () => {
+                  try { await invoke('restart_node'); } catch { /* node may not be running */ }
+                  setTimeout(() => refresh(), 3000);
+                }}>
+                Restart Node
+              </button>
             </div>
           )}
 
@@ -360,7 +372,7 @@ export default function Wallet() {
           </div>
 
           {/* Unlock (if wallet exists but key not in memory) */}
-          {hasWallet && !wallet?.marketplaceActive && (
+          {hasWallet && !wallet?.isUnlocked && (
             <div className="mp-section">
               <h2>Unlock Wallet</h2>
               <p style={{ color: 'var(--text-dim)', marginBottom: '0.75rem', fontSize: '0.85rem' }}>

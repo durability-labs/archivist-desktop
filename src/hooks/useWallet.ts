@@ -6,6 +6,7 @@ export interface WalletInfo {
   network: string;
   hasKey: boolean;
   marketplaceActive: boolean;
+  isUnlocked: boolean;
 }
 
 export interface WalletBalances {

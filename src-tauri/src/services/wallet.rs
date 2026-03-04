@@ -22,6 +22,7 @@ pub struct WalletInfo {
     pub network: String,
     pub has_key: bool,
     pub marketplace_active: bool,
+    pub is_unlocked: bool,
 }
 
 /// Token balances returned to the frontend
@@ -122,6 +123,7 @@ impl WalletService {
             network: self.network.clone(),
             has_key: true,
             marketplace_active: false, // Will be true after node restart with key
+            is_unlocked: true,
         })
     }
 
@@ -164,6 +166,7 @@ impl WalletService {
             network: self.network.clone(),
             has_key: true,
             marketplace_active: false,
+            is_unlocked: true,
         })
     }
 
@@ -182,6 +185,7 @@ impl WalletService {
             network: self.network.clone(),
             has_key: true,
             marketplace_active: false,
+            is_unlocked: true,
         })
     }
 
@@ -243,6 +247,7 @@ impl WalletService {
             network: self.network.clone(),
             has_key,
             marketplace_active,
+            is_unlocked: self.cached_private_key.is_some(),
         })
     }
 
