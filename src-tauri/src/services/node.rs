@@ -264,6 +264,47 @@ impl NodeService {
                 ArchivistError::NodeStartFailed(format!("Failed to write key file: {}", e))
             })?;
 
+            // Restrict file permissions so the sidecar accepts the key file
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600))
+                    .map_err(|e| {
+                        ArchivistError::NodeStartFailed(format!(
+                            "Failed to set key file permissions: {}",
+                            e
+                        ))
+                    })?;
+            }
+            #[cfg(windows)]
+            {
+                // icacls: disable inheritance, remove all, grant current user full control
+                // %USERNAME% is not expanded by Command (no shell), so read the env var
+                let key_str = key_path.to_string_lossy();
+                let username = std::env::var("USERNAME").unwrap_or_default();
+                if !username.is_empty() {
+                    let grant_arg = format!("{}:F", username);
+                    let output = std::process::Command::new("icacls")
+                        .args([
+                            key_str.as_ref(),
+                            "/inheritance:r",
+                            "/grant:r",
+                            grant_arg.as_str(),
+                        ])
+                        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                        .output();
+                    match &output {
+                        Ok(o) if !o.status.success() => {
+                            log::warn!("icacls failed: {}", String::from_utf8_lossy(&o.stderr));
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to run icacls: {}", e);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
             args.push("persistence".to_string());
             args.push(format!("--eth-private-key={}", key_path.to_string_lossy()));
             if let Some(ref addr) = self.config.marketplace_address {
