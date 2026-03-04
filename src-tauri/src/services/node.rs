@@ -7,6 +7,9 @@ use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 use tokio::sync::{broadcast, mpsc, RwLock};
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 /// Node running status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -558,9 +561,11 @@ impl NodeService {
                         pid,
                         port
                     );
-                    let _ = std::process::Command::new("taskkill")
-                        .args(["/F", "/PID", &pid.to_string()])
-                        .output();
+                    let mut cmd = std::process::Command::new("taskkill");
+                    cmd.args(["/F", "/PID", &pid.to_string()]);
+                    #[cfg(windows)]
+                    cmd.creation_flags(0x08000000);
+                    let _ = cmd.output();
                     tokio::time::sleep(Duration::from_millis(1000)).await;
                 }
             }
@@ -629,10 +634,11 @@ impl NodeService {
     /// Find a process listening on a specific port (Windows only)
     #[cfg(not(unix))]
     fn find_process_on_port_windows(port: u16) -> Option<u32> {
-        let output = std::process::Command::new("netstat")
-            .args(["-ano"])
-            .output()
-            .ok()?;
+        let mut cmd = std::process::Command::new("netstat");
+        cmd.args(["-ano"]);
+        #[cfg(windows)]
+        cmd.creation_flags(0x08000000);
+        let output = cmd.output().ok()?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let listen_pattern = format!(":{}", port);
@@ -916,10 +922,11 @@ impl NodeService {
         #[cfg(not(unix))]
         if let Some(pid) = self.status.pid {
             // Use tasklist to check if the process actually exists on Windows
-            match std::process::Command::new("tasklist")
-                .args(["/FI", &format!("PID eq {}", pid), "/NH"])
-                .output()
-            {
+            let mut cmd = std::process::Command::new("tasklist");
+            cmd.args(["/FI", &format!("PID eq {}", pid), "/NH"]);
+            #[cfg(windows)]
+            cmd.creation_flags(0x08000000);
+            match cmd.output() {
                 Ok(output) => {
                     let stdout = String::from_utf8_lossy(&output.stdout);
                     stdout.contains(&pid.to_string())
