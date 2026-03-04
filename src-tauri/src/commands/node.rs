@@ -21,6 +21,21 @@ pub struct DiagnosticInfo {
 
 #[tauri::command]
 pub async fn start_node(app_handle: AppHandle, state: State<'_, AppState>) -> Result<NodeStatus> {
+    // Inject marketplace credentials from wallet into node config before starting
+    {
+        let wallet = state.wallet.read().await;
+        if wallet.is_unlocked() {
+            let config = state.config.read().await;
+            let app_config = config.get();
+            let mut node = state.node.write().await;
+            node.set_marketplace_config(
+                wallet.get_private_key().map(|s| s.to_string()),
+                Some(app_config.blockchain.marketplace_contract.clone()),
+                Some(app_config.blockchain.rpc_url.clone()),
+            );
+        }
+    }
+
     let mut node = state.node.write().await;
     node.start(&app_handle).await?;
 
@@ -54,6 +69,21 @@ pub async fn stop_node(state: State<'_, AppState>) -> Result<NodeStatus> {
 
 #[tauri::command]
 pub async fn restart_node(app_handle: AppHandle, state: State<'_, AppState>) -> Result<NodeStatus> {
+    // Inject marketplace credentials from wallet into node config before restarting
+    {
+        let wallet = state.wallet.read().await;
+        if wallet.is_unlocked() {
+            let config = state.config.read().await;
+            let app_config = config.get();
+            let mut node = state.node.write().await;
+            node.set_marketplace_config(
+                wallet.get_private_key().map(|s| s.to_string()),
+                Some(app_config.blockchain.marketplace_contract.clone()),
+                Some(app_config.blockchain.rpc_url.clone()),
+            );
+        }
+    }
+
     let mut node = state.node.write().await;
     node.restart(&app_handle).await?;
 

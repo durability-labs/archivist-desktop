@@ -173,6 +173,14 @@ pub fn run() {
             commands::get_purchase,
             // Wallet commands
             commands::get_wallet_info,
+            commands::generate_wallet,
+            commands::import_wallet,
+            commands::export_wallet,
+            commands::unlock_wallet,
+            commands::delete_wallet,
+            commands::get_wallet_balances,
+            commands::request_eth_faucet,
+            commands::request_tst_faucet,
             // Torrent commands
             commands::get_torrent_session_stats,
             commands::add_torrent,
@@ -220,12 +228,30 @@ pub fn run() {
 
             // Auto-start node if configured
             let node_svc = node_service.clone();
+            let wallet_svc = app.state::<AppState>().wallet.clone();
+            let config_svc_for_autostart = config_service.clone();
             let chat_svc_for_autostart = chat_service.clone();
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let node = node_svc.read().await;
                 if node.get_config().auto_start {
                     drop(node); // Release read lock
+
+                    // Inject marketplace credentials from wallet if available
+                    {
+                        let wallet = wallet_svc.read().await;
+                        if wallet.is_unlocked() {
+                            let config = config_svc_for_autostart.read().await;
+                            let app_config = config.get();
+                            let mut node = node_svc.write().await;
+                            node.set_marketplace_config(
+                                wallet.get_private_key().map(|s| s.to_string()),
+                                Some(app_config.blockchain.marketplace_contract.clone()),
+                                Some(app_config.blockchain.rpc_url.clone()),
+                            );
+                        }
+                    }
+
                     let mut node = node_svc.write().await;
                     if let Err(e) = node.start(&app_handle).await {
                         log::error!("Auto-start failed: {}", e);

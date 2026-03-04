@@ -245,6 +245,20 @@ pub struct BlockchainSettings {
     pub network: String,
     pub rpc_url: String,
     pub wallet_address: Option<String>,
+    /// Marketplace smart contract address
+    #[serde(default = "default_marketplace_contract")]
+    pub marketplace_contract: String,
+    /// TST token contract address
+    #[serde(default = "default_token_contract")]
+    pub token_contract: String,
+}
+
+fn default_marketplace_contract() -> String {
+    "0x9A110Ae7DC8916Fa741e38caAf204c3ace3eAB0c".to_string()
+}
+
+fn default_token_contract() -> String {
+    "0x3b7412Ee1144b9801341A4F391490eB735DDc005".to_string()
 }
 
 impl Default for BlockchainSettings {
@@ -253,6 +267,8 @@ impl Default for BlockchainSettings {
             network: "arbitrum-sepolia".to_string(),
             rpc_url: "https://rpc.devnet.archivist.storage".to_string(),
             wallet_address: None,
+            marketplace_contract: default_marketplace_contract(),
+            token_contract: default_token_contract(),
         }
     }
 }

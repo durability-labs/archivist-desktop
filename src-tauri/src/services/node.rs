@@ -74,6 +74,13 @@ pub struct NodeConfig {
     pub max_restart_attempts: u32,
     pub health_check_interval_secs: u64,
     pub log_level: String, // Log level: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL
+    // Marketplace fields (set at runtime, not serialized to frontend)
+    #[serde(skip)]
+    pub eth_private_key: Option<String>,
+    #[serde(skip)]
+    pub marketplace_address: Option<String>,
+    #[serde(skip)]
+    pub eth_provider_url: Option<String>,
 }
 
 impl Default for NodeConfig {
@@ -95,6 +102,9 @@ impl Default for NodeConfig {
             max_restart_attempts: 3,
             health_check_interval_secs: 30,
             log_level: "DEBUG".to_string(), // Good balance for debugging
+            eth_private_key: None,
+            marketplace_address: None,
+            eth_provider_url: None,
         }
     }
 }
@@ -113,6 +123,9 @@ impl NodeConfig {
             max_restart_attempts: 3,
             health_check_interval_secs: 30,
             log_level: settings.log_level.clone(),
+            eth_private_key: None,
+            marketplace_address: None,
+            eth_provider_url: None,
         }
     }
 }
@@ -228,18 +241,34 @@ impl NodeService {
 
         log::info!("Archivist node logs will be written to: {}", log_file_str);
 
+        // Build base args
+        let mut args: Vec<String> = vec![
+            format!("--data-dir={}", self.config.data_dir),
+            format!("--api-port={}", self.config.api_port),
+            format!("--disc-port={}", self.config.discovery_port),
+            format!("--listen-addrs={}", listen_addr),
+            format!("--storage-quota={}", self.config.max_storage_bytes),
+            "--nat=upnp".to_string(),
+        ];
+
+        // Append marketplace flags when a private key is available
+        if let Some(ref key) = self.config.eth_private_key {
+            log::info!("Starting node with marketplace flags enabled");
+            args.push(format!("--eth-private-key={}", key));
+            if let Some(ref addr) = self.config.marketplace_address {
+                args.push(format!("--marketplace-address={}", addr));
+            }
+            if let Some(ref url) = self.config.eth_provider_url {
+                args.push(format!("--eth-provider={}", url));
+            }
+        }
+
+        let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let sidecar_command = app_handle
             .shell()
             .sidecar("archivist")
             .map_err(|e| ArchivistError::NodeStartFailed(format!("Sidecar not found: {}", e)))?
-            .args([
-                &format!("--data-dir={}", self.config.data_dir),
-                &format!("--api-port={}", self.config.api_port),
-                &format!("--disc-port={}", self.config.discovery_port),
-                &format!("--listen-addrs={}", listen_addr),
-                &format!("--storage-quota={}", self.config.max_storage_bytes),
-                "--nat=upnp",
-            ]);
+            .args(&args_refs);
 
         // Spawn the sidecar process
         let (mut rx, child) = sidecar_command.spawn().map_err(|e| {
@@ -663,6 +692,18 @@ impl NodeService {
     /// Update node configuration (requires restart to take effect)
     pub fn set_config(&mut self, config: NodeConfig) {
         self.config = config;
+    }
+
+    /// Set marketplace-related config fields (private key, contract address, RPC URL)
+    pub fn set_marketplace_config(
+        &mut self,
+        eth_private_key: Option<String>,
+        marketplace_address: Option<String>,
+        eth_provider_url: Option<String>,
+    ) {
+        self.config.eth_private_key = eth_private_key;
+        self.config.marketplace_address = marketplace_address;
+        self.config.eth_provider_url = eth_provider_url;
     }
 
     /// Check if node is healthy by pinging its API

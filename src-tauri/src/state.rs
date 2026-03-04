@@ -60,8 +60,16 @@ impl AppState {
 
         // Create marketplace and wallet services
         let marketplace_service = MarketplaceService::new(api_client.clone());
-        let wallet_service =
-            WalletService::new(api_client.clone(), app_config.blockchain.network.clone());
+        let keystore_dir = dirs::config_dir()
+            .map(|p| p.join("archivist"))
+            .unwrap_or_else(|| std::path::PathBuf::from(".archivist"));
+        let wallet_service = WalletService::new(
+            api_client.clone(),
+            app_config.blockchain.network.clone(),
+            app_config.blockchain.rpc_url.clone(),
+            app_config.blockchain.token_contract.clone(),
+            keystore_dir,
+        );
 
         // Create backup service with API client and peer service
         let backup_service = BackupService::new(api_client.clone(), peers.clone());

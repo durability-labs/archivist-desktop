@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useMarketplace } from '../hooks/useMarketplace';
+import { useWallet } from '../hooks/useWallet';
+import { useNavigate } from 'react-router-dom';
 import '../styles/Marketplace.css';
 
 interface FileItem {
@@ -23,6 +25,8 @@ export default function Marketplace() {
     error,
     refresh,
   } = useMarketplace();
+  const { wallet } = useWallet();
+  const navigate = useNavigate();
 
   // Provider form state
   const [totalSize, setTotalSize] = useState('1073741824'); // 1 GB
@@ -109,6 +113,25 @@ export default function Marketplace() {
       <h1>Marketplace</h1>
 
       {error && <div className="mp-error">{error}</div>}
+
+      {/* Marketplace readiness banner */}
+      {!wallet?.hasKey && (
+        <div className="mp-section" style={{ background: 'rgba(255, 170, 0, 0.08)', borderColor: 'var(--color-warning, #ffaa00)' }}>
+          <h2>Set up your wallet to get started</h2>
+          <p style={{ color: 'var(--text-dim)', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+            A wallet is required to offer or purchase storage on the marketplace. Generate or import a wallet to begin.
+          </p>
+          <button className="mp-submit-btn" onClick={() => navigate('/wallet')}>
+            Go to Wallet Setup
+          </button>
+        </div>
+      )}
+
+      {wallet?.hasKey && !wallet?.marketplaceActive && (
+        <div className="mp-error" style={{ background: 'rgba(255, 170, 0, 0.1)', borderColor: 'var(--color-warning, #ffaa00)' }}>
+          Wallet configured but marketplace not active. Unlock your wallet and restart the node from the Wallet page.
+        </div>
+      )}
 
       {/* ── Provider Section ─────────────────────────────────────── */}
       <div className="mp-section">
