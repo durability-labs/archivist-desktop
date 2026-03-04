@@ -82,6 +82,8 @@ pub struct TorrentPeer {
     pub upload_speed: f64,
     pub progress_percent: f32,
     pub flags: String,
+    pub fetched_bytes: u64,
+    pub checked_pieces: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -305,7 +307,7 @@ impl TorrentService {
             self.sequential_mode.insert(id);
         }
 
-        self.build_torrent_item_from_details(&response.details)
+        self.build_torrent_item_from_details(&response.details, None)
     }
 
     /// Pause a torrent
@@ -374,7 +376,7 @@ impl TorrentService {
             .map_err(|e| {
                 ArchivistError::TorrentError(format!("Failed to get torrent details: {}", e))
             })?;
-        self.build_torrent_item_from_details(&details)
+        self.build_torrent_item_from_details(&details, None)
     }
 
     /// Get peer stats for a torrent
@@ -386,39 +388,34 @@ impl TorrentService {
                 ArchivistError::TorrentError(format!("Failed to get peer stats: {}", e))
             })?;
 
-        // Serialize the peer stats snapshot to JSON and extract peer data
+        // Serialize the peer stats snapshot to JSON and extract peer data.
+        // librqbit PeerStatsSnapshot has `peers: HashMap<String, PeerStats>` which
+        // serializes as a JSON object (not array). Keys are socket addresses.
         let json = serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null);
         let mut peers = Vec::new();
 
-        if let Some(peer_list) = json.get("peers").and_then(|v| v.as_array()) {
-            for p in peer_list {
+        if let Some(peer_map) = json.get("peers").and_then(|v| v.as_object()) {
+            for (addr, p) in peer_map {
+                let counters = p.get("counters").unwrap_or(&serde_json::Value::Null);
+                let state = p.get("state").and_then(|v| v.as_str()).unwrap_or("unknown");
+                let fetched = counters
+                    .get("fetched_bytes")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let pieces = counters
+                    .get("downloaded_and_checked_pieces")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+
                 peers.push(TorrentPeer {
-                    addr: p
-                        .get("addr")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    client: p
-                        .get("client")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string()),
-                    download_speed: p
-                        .get("download_speed")
-                        .and_then(extract_speed_bps)
-                        .unwrap_or(0.0),
-                    upload_speed: p
-                        .get("upload_speed")
-                        .and_then(extract_speed_bps)
-                        .unwrap_or(0.0),
-                    progress_percent: p
-                        .get("progress_percent")
-                        .and_then(|v| v.as_f64())
-                        .unwrap_or(0.0) as f32,
-                    flags: p
-                        .get("flags")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
+                    addr: addr.clone(),
+                    client: None,
+                    download_speed: 0.0,
+                    upload_speed: 0.0,
+                    progress_percent: 0.0,
+                    flags: state.to_string(),
+                    fetched_bytes: fetched,
+                    checked_pieces: pieces,
                 });
             }
         }
@@ -469,7 +466,15 @@ impl TorrentService {
         let mut total_uploaded = 0u64;
 
         for details in &list.torrents {
-            let item = self.build_torrent_item_from_details(details)?;
+            // List endpoint doesn't include files; fetch them per-torrent
+            let extra_files = details
+                .id
+                .and_then(|id| {
+                    api.api_torrent_details(librqbit::api::TorrentIdOrHash::Id(id))
+                        .ok()
+                })
+                .and_then(|d| d.files);
+            let item = self.build_torrent_item_from_details(details, extra_files.as_deref())?;
 
             total_dl_speed += item.download_speed;
             total_ul_speed += item.upload_speed;
@@ -627,6 +632,7 @@ impl TorrentService {
     fn build_torrent_item_from_details(
         &self,
         details: &librqbit::api::TorrentDetailsResponse,
+        extra_files: Option<&[librqbit::api::TorrentDetailsResponseFile]>,
     ) -> Result<TorrentItem> {
         let id = details.id.unwrap_or(0);
 
@@ -745,8 +751,9 @@ impl TorrentService {
             0.0
         };
 
-        // Build file list from details
-        let files = if let Some(ref detail_files) = details.files {
+        // Build file list from details (prefer inline files, fall back to separately-fetched)
+        let resolved_files = details.files.as_deref().or(extra_files);
+        let files = if let Some(detail_files) = resolved_files {
             detail_files
                 .iter()
                 .enumerate()
@@ -780,16 +787,16 @@ impl TorrentService {
             None
         };
 
-        // Approximate peer/seed counts from live stats snapshot
+        // Approximate peer/seed counts from live stats snapshot.
+        // librqbit StatsSnapshot has `peer_stats: AggregatePeerStats` with a `live` count.
         let (peers_connected, seeds_connected) = if let Some(ref stats) = details.stats {
             let json = serde_json::to_value(stats).unwrap_or(serde_json::Value::Null);
             if let Some(live) = json.get("live") {
                 let snapshot = live.get("snapshot").unwrap_or(&serde_json::Value::Null);
-                let peers = snapshot
-                    .get("peers")
-                    .or_else(|| snapshot.get("connected_peers"))
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0) as u32;
+                let peer_stats = snapshot
+                    .get("peer_stats")
+                    .unwrap_or(&serde_json::Value::Null);
+                let peers = peer_stats.get("live").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                 // Seeds are not separately tracked in librqbit; approximate as 0
                 (peers, 0u32)
             } else {

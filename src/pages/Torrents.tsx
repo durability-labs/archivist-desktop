@@ -344,26 +344,22 @@ export default function Torrents() {
                 <thead>
                   <tr>
                     <th>Address</th>
-                    <th>Client</th>
-                    <th>DL Speed</th>
-                    <th>UL Speed</th>
-                    <th>Progress</th>
-                    <th>Flags</th>
+                    <th>State</th>
+                    <th>Downloaded</th>
+                    <th>Pieces</th>
                   </tr>
                 </thead>
                 <tbody>
                   {peers.map((peer, i) => (
                     <tr key={i}>
                       <td>{peer.addr}</td>
-                      <td>{peer.client ?? '—'}</td>
-                      <td>{formatSpeed(peer.downloadSpeed)}</td>
-                      <td>{formatSpeed(peer.uploadSpeed)}</td>
-                      <td>{peer.progressPercent.toFixed(1)}%</td>
                       <td>{peer.flags}</td>
+                      <td>{formatBytes(peer.fetchedBytes)}</td>
+                      <td>{peer.checkedPieces}</td>
                     </tr>
                   ))}
                   {peers.length === 0 && (
-                    <tr><td colSpan={6} className="detail-empty">No peers connected</td></tr>
+                    <tr><td colSpan={4} className="detail-empty">No peers connected</td></tr>
                   )}
                 </tbody>
               </table>

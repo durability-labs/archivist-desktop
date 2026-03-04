@@ -28,6 +28,8 @@ export interface TorrentPeer {
   uploadSpeed: number;
   progressPercent: number;
   flags: string;
+  fetchedBytes: number;
+  checkedPieces: number;
 }
 
 export interface TorrentItem {
