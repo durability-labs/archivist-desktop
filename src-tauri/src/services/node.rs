@@ -446,17 +446,20 @@ impl NodeService {
                             "discovery_datastore_error" => {
                                 log::warn!("Detected corrupted discovery datastore, attempting auto-recovery...");
 
-                                // Clear the data directory
+                                // Only remove database directories, preserve keystore.json, key, torrents, node.log
                                 let data_path = std::path::Path::new(&data_dir_for_recovery);
-                                if data_path.exists() {
-                                    if let Err(e) = std::fs::remove_dir_all(data_path) {
-                                        log::error!("Failed to clear data directory for recovery: {}", e);
-                                        return;
+                                for subdir in &["dht", "meta"] {
+                                    let dir = data_path.join(subdir);
+                                    if dir.exists() {
+                                        if let Err(e) = std::fs::remove_dir_all(&dir) {
+                                            log::error!("Failed to clear {}: {}", subdir, e);
+                                        } else {
+                                            log::info!("Cleared corrupted directory: {:?}", dir);
+                                        }
                                     }
-                                    log::info!("Cleared corrupted data directory: {}", data_dir_for_recovery);
                                 }
 
-                                log::info!("Data directory cleared. Node will auto-restart via health monitor.");
+                                log::info!("Cleared database directories. Node will auto-restart via health monitor.");
                             }
                             "port_conflict" => {
                                 log::error!(
@@ -548,8 +551,19 @@ impl NodeService {
 
         #[cfg(not(unix))]
         {
-            // On Windows, we can't easily check process names, so just log
-            log::debug!("Orphaned process cleanup not implemented on this platform");
+            for port in [api_port, listen_port] {
+                if let Some(pid) = Self::find_process_on_port_windows(port) {
+                    log::warn!(
+                        "Found orphaned process (PID {}) on port {}, killing it",
+                        pid,
+                        port
+                    );
+                    let _ = std::process::Command::new("taskkill")
+                        .args(["/F", "/PID", &pid.to_string()])
+                        .output();
+                    tokio::time::sleep(Duration::from_millis(1000)).await;
+                }
+            }
         }
     }
 
@@ -612,6 +626,40 @@ impl NodeService {
         None
     }
 
+    /// Find a process listening on a specific port (Windows only)
+    #[cfg(not(unix))]
+    fn find_process_on_port_windows(port: u16) -> Option<u32> {
+        let output = std::process::Command::new("netstat")
+            .args(["-ano"])
+            .output()
+            .ok()?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let listen_pattern = format!(":{}", port);
+
+        for line in stdout.lines() {
+            if line.contains("LISTENING") && line.contains(&listen_pattern) {
+                // Verify the port matches exactly (not a substring like 80 matching 8080)
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 5 {
+                    // Local address is in parts[1], format like "127.0.0.1:8080" or "0.0.0.0:8080"
+                    if let Some(addr) = parts.get(1) {
+                        if addr.ends_with(&format!(":{}", port)) {
+                            // PID is the last column
+                            if let Some(pid_str) = parts.last() {
+                                if let Ok(pid) = pid_str.parse::<u32>() {
+                                    return Some(pid);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
     /// Stop the archivist-node sidecar
     pub async fn stop(&mut self) -> Result<()> {
         if self.status.state == NodeState::Stopped || self.status.state == NodeState::Stopping {
@@ -655,12 +703,32 @@ impl NodeService {
         // Stop if running
         if self.status.state == NodeState::Running {
             self.stop().await?;
-            // Brief pause to ensure clean shutdown
-            tokio::time::sleep(Duration::from_millis(500)).await;
+            // Wait for Windows to release file handles (LevelDB LOCK files)
+            tokio::time::sleep(Duration::from_millis(2000)).await;
         }
+
+        // Remove stale LevelDB lock files left behind after non-graceful shutdown
+        self.cleanup_stale_locks();
 
         self.status.restart_count += 1;
         self.start(app_handle).await
+    }
+
+    /// Remove stale LevelDB LOCK files that prevent database access after a crash
+    fn cleanup_stale_locks(&self) {
+        let data_dir = std::path::Path::new(&self.config.data_dir);
+        if !data_dir.exists() {
+            return;
+        }
+        for subdir in &["dht/providers", "meta"] {
+            let lock_path = data_dir.join(subdir).join("LOCK");
+            if lock_path.exists() {
+                match std::fs::remove_file(&lock_path) {
+                    Ok(_) => log::info!("Removed stale lock file: {:?}", lock_path),
+                    Err(e) => log::warn!("Failed to remove lock {:?}: {}", lock_path, e),
+                }
+            }
+        }
     }
 
     /// Get current node status with updated uptime
@@ -846,9 +914,18 @@ impl NodeService {
         }
 
         #[cfg(not(unix))]
-        if self.status.pid.is_some() {
-            // On non-Unix, fall back to checking process_state
-            true
+        if let Some(pid) = self.status.pid {
+            // Use tasklist to check if the process actually exists on Windows
+            match std::process::Command::new("tasklist")
+                .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+                .output()
+            {
+                Ok(output) => {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    stdout.contains(&pid.to_string())
+                }
+                Err(_) => true, // If tasklist fails, assume alive (safe default)
+            }
         } else {
             false
         }

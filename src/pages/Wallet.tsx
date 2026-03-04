@@ -23,6 +23,7 @@ export default function Wallet() {
 
   const [copied, setCopied] = useState(false);
   const [faucetMessage, setFaucetMessage] = useState<string | null>(null);
+  const [restarting, setRestarting] = useState(false);
 
   // Wallet setup state
   const [setupMode, setSetupMode] = useState<'none' | 'generate' | 'import'>('none');
@@ -72,11 +73,18 @@ export default function Wallet() {
       setSetupMode('none');
       setPassword('');
       setConfirmPassword('');
-      try { await invoke('restart_node'); } catch { /* node may not be running */ }
-      await refresh();
+      setSetupLoading(false);
+      setRestarting(true);
+      try {
+        await invoke('restart_node');
+        for (let i = 0; i < 5; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          await refresh();
+        }
+      } catch { /* node may not be running */ }
+      setRestarting(false);
     } catch (err) {
       setSetupError(String(err));
-    } finally {
       setSetupLoading(false);
     }
   };
@@ -95,11 +103,18 @@ export default function Wallet() {
       setPassword('');
       setConfirmPassword('');
       setImportKey('');
-      try { await invoke('restart_node'); } catch { /* node may not be running */ }
-      await refresh();
+      setSetupLoading(false);
+      setRestarting(true);
+      try {
+        await invoke('restart_node');
+        for (let i = 0; i < 5; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          await refresh();
+        }
+      } catch { /* node may not be running */ }
+      setRestarting(false);
     } catch (err) {
       setSetupError(String(err));
-    } finally {
       setSetupLoading(false);
     }
   };
@@ -271,11 +286,19 @@ export default function Wallet() {
             <div className="mp-error" style={{ background: 'rgba(255, 170, 0, 0.1)', borderColor: 'var(--color-warning, #ffaa00)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Marketplace not active. Restart the node to enable marketplace features with your wallet.</span>
               <button className="mp-submit-btn" style={{ marginLeft: '0.75rem', whiteSpace: 'nowrap' }}
+                disabled={restarting}
                 onClick={async () => {
-                  try { await invoke('restart_node'); } catch { /* node may not be running */ }
-                  setTimeout(() => refresh(), 3000);
+                  setRestarting(true);
+                  try {
+                    await invoke('restart_node');
+                    for (let i = 0; i < 5; i++) {
+                      await new Promise(r => setTimeout(r, 2000));
+                      await refresh();
+                    }
+                  } catch { /* node may not be running */ }
+                  setRestarting(false);
                 }}>
-                Restart Node
+                {restarting ? 'Restarting...' : 'Restart Node'}
               </button>
             </div>
           )}
