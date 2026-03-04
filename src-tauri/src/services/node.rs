@@ -255,9 +255,17 @@ impl NodeService {
         ];
 
         // Append marketplace flags when a private key is available
+        // The sidecar CLI expects: archivist [top-level-flags] persistence [marketplace-flags]
+        // --eth-private-key expects a file path, not the raw key contents
         if let Some(ref key) = self.config.eth_private_key {
             log::info!("Starting node with marketplace flags enabled");
-            args.push(format!("--eth-private-key={}", key));
+            let key_path = std::path::Path::new(&self.config.data_dir).join("eth.key");
+            std::fs::write(&key_path, key).map_err(|e| {
+                ArchivistError::NodeStartFailed(format!("Failed to write key file: {}", e))
+            })?;
+
+            args.push("persistence".to_string());
+            args.push(format!("--eth-private-key={}", key_path.to_string_lossy()));
             if let Some(ref addr) = self.config.marketplace_address {
                 args.push(format!("--marketplace-address={}", addr));
             }
