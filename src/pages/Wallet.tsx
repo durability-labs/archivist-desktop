@@ -37,6 +37,10 @@ export default function Wallet() {
   const [unlockPassword, setUnlockPassword] = useState('');
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
+  // Banner unlock+restart state
+  const [bannerPassword, setBannerPassword] = useState('');
+  const [bannerError, setBannerError] = useState<string | null>(null);
+
   // Export state
   const [showExport, setShowExport] = useState(false);
   const [exportPassword, setExportPassword] = useState('');
@@ -283,23 +287,67 @@ export default function Wallet() {
         <>
           {/* Marketplace status banner */}
           {!wallet?.marketplaceActive && (
-            <div className="mp-error" style={{ background: 'rgba(255, 170, 0, 0.1)', borderColor: 'var(--color-warning, #ffaa00)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>Marketplace not active. Restart the node to enable marketplace features with your wallet.</span>
-              <button className="mp-submit-btn" style={{ marginLeft: '0.75rem', whiteSpace: 'nowrap' }}
-                disabled={restarting}
-                onClick={async () => {
-                  setRestarting(true);
-                  try {
-                    await invoke('restart_node');
-                    for (let i = 0; i < 5; i++) {
-                      await new Promise(r => setTimeout(r, 2000));
-                      await refresh();
-                    }
-                  } catch { /* node may not be running */ }
-                  setRestarting(false);
-                }}>
-                {restarting ? 'Restarting...' : 'Restart Node'}
-              </button>
+            <div className="mp-error" style={{ background: 'rgba(255, 170, 0, 0.1)', borderColor: 'var(--color-warning, #ffaa00)' }}>
+              {!wallet?.isUnlocked ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <span>Wallet locked. Unlock your wallet to enable marketplace features.</span>
+                  </div>
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setBannerError(null);
+                      setRestarting(true);
+                      try {
+                        await invoke('unlock_wallet', { password: bannerPassword });
+                        setBannerPassword('');
+                        await invoke('restart_node');
+                        for (let i = 0; i < 5; i++) {
+                          await new Promise(r => setTimeout(r, 2000));
+                          await refresh();
+                        }
+                      } catch (err) {
+                        setBannerError(String(err));
+                      }
+                      setRestarting(false);
+                    }}
+                    style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.5rem', flexWrap: 'wrap' }}
+                  >
+                    <input
+                      type="password"
+                      value={bannerPassword}
+                      onChange={(e) => setBannerPassword(e.target.value)}
+                      placeholder="Wallet password"
+                      style={{ flex: 1, minWidth: '150px' }}
+                      disabled={restarting}
+                    />
+                    <button type="submit" className="mp-submit-btn" style={{ whiteSpace: 'nowrap' }}
+                      disabled={restarting || !bannerPassword}>
+                      {restarting ? 'Restarting...' : 'Unlock & Restart'}
+                    </button>
+                  </form>
+                  {bannerError && <div style={{ marginTop: '0.5rem', color: 'var(--color-error, #ff4444)', fontSize: '0.85rem' }}>{bannerError}</div>}
+                </>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Marketplace not active. Restart the node to enable marketplace features with your wallet.</span>
+                  <button className="mp-submit-btn" style={{ marginLeft: '0.75rem', whiteSpace: 'nowrap' }}
+                    disabled={restarting}
+                    onClick={async () => {
+                      setRestarting(true);
+                      try {
+                        await invoke('restart_node');
+                        for (let i = 0; i < 5; i++) {
+                          await new Promise(r => setTimeout(r, 2000));
+                          await refresh();
+                        }
+                      } catch { /* node may not be running */ }
+                      setRestarting(false);
+                    }}>
+                    {restarting ? 'Restarting...' : 'Restart Node'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
