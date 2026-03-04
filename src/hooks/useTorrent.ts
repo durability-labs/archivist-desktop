@@ -137,7 +137,7 @@ export function useTorrent() {
     await invoke('set_torrent_seeding_rules', { rules });
   }, []);
 
-  // Initialize + polling
+  // Initialize once — backend events push updates every 2s
   useEffect(() => {
     async function init() {
       setLoading(true);
@@ -145,15 +145,14 @@ export function useTorrent() {
       setLoading(false);
     }
     init();
-
-    const interval = setInterval(refreshStats, 2000);
-    return () => clearInterval(interval);
   }, [refreshStats]);
 
   // Listen for real-time stats from backend event
   useEffect(() => {
     const unlisten = listen<TorrentSessionStats>('torrent-stats-update', (event) => {
       setSessionStats(event.payload);
+      setLoading(false);
+      setError(null);
     });
 
     return () => {

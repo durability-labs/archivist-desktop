@@ -288,6 +288,7 @@ impl TorrentService {
             output_folder: params
                 .output_folder
                 .or_else(|| Some(self.config.download_directory.clone())),
+            overwrite: true,
             ..Default::default()
         };
 
@@ -490,6 +491,15 @@ impl TorrentService {
             }
 
             torrents.push(item);
+        }
+
+        if total_dl_speed > 0.0 || total_ul_speed > 0.0 {
+            log::debug!(
+                "Torrent stats: dl={:.2} bytes/s, ul={:.2} bytes/s, {} torrents",
+                total_dl_speed,
+                total_ul_speed,
+                torrents.len()
+            );
         }
 
         // Apply deferred mutable updates
@@ -826,7 +836,7 @@ fn extract_speed_bps(v: &serde_json::Value) -> Option<f64> {
     }
     // If it's an object, look for mbps and convert
     if let Some(mbps) = v.get("mbps").and_then(|m| m.as_f64()) {
-        return Some(mbps * 1_000_000.0 / 8.0);
+        return Some(mbps * 1024.0 * 1024.0);
     }
     // Try bytes_per_second field
     if let Some(bps) = v.get("bytes_per_second").and_then(|b| b.as_f64()) {

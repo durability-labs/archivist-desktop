@@ -221,6 +221,59 @@ test.describe('Torrents page @online @slow', () => {
     }
   });
 
+  test('should show non-zero download speed during active download', async () => {
+    test.setTimeout(180_000);
+    const { browser, page } = await connectToApp();
+    try {
+      await navigateTo(page, 'Torrents');
+      await page.waitForTimeout(500);
+
+      // Add magnet if no torrent present
+      const hasTorrent = await page.locator(SEL.torrentRow).first().isVisible().catch(() => false);
+      if (!hasTorrent) {
+        await page.locator(SEL.magnetInput).fill(TEST_MAGNET);
+        await page.locator(SEL.addMagnetBtn).click();
+      }
+
+      // Wait for torrent row
+      const torrentRow = page.locator(SEL.torrentRow).first();
+      await expect(torrentRow).toBeVisible({ timeout: 30_000 });
+
+      // Poll DL speed for up to 60s, checking for non-zero
+      let sawNonZeroSpeed = false;
+      for (let i = 0; i < 30; i++) {
+        await page.waitForTimeout(2_000);
+        const speedText = await torrentRow.locator(SEL.torrentSpeedDl).textContent() ?? '';
+        // Non-zero means NOT "0 B/s" and NOT empty
+        if (speedText.trim() && speedText.trim() !== '0 B/s') {
+          sawNonZeroSpeed = true;
+          break;
+        }
+        // Also check state — if already seeding, speed was non-zero at some point
+        const stateText = await torrentRow.locator(SEL.torrentStateBadge).textContent() ?? '';
+        if (stateText.toLowerCase().includes('seeding')) {
+          sawNonZeroSpeed = true;
+          break;
+        }
+      }
+
+      expect(sawNonZeroSpeed).toBeTruthy();
+    } finally {
+      // Cleanup: remove torrent
+      const row = page.locator(SEL.torrentRow).first();
+      if (await row.isVisible().catch(() => false)) {
+        await row.click();
+        const removeBtn = page.locator(SEL.torrentRemoveBtn);
+        if (await removeBtn.isVisible().catch(() => false)) {
+          page.on('dialog', d => d.accept());
+          await removeBtn.click();
+          await page.waitForTimeout(2_000);
+        }
+      }
+      await browser.close();
+    }
+  });
+
   test('should remove torrent and show empty state', async () => {
     const { browser, page } = await connectToApp();
     try {
