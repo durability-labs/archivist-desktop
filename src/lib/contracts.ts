@@ -29,7 +29,7 @@ export const NETWORK_PRESETS: Record<ArchivistNetworkId, {
     name: 'Devnet',
     rpcUrl: 'https://rpc.devnet.archivist.storage',
     marketplace: '0x766e6E608E1FeB762b429155574016D1106b8D04',
-    token: '0x3b7412Ee1144b9801341A4F391490eB735DDc005',
+    token: '0xe2566cc08913e2d8ece3517e635335880c1c400a',
     explorerBaseUrl: 'https://explorer.devnet.archivist.storage',
   },
   testnet: {

@@ -1,5 +1,7 @@
 use crate::error::{ArchivistError, Result};
-use crate::services::config::{fetch_remote_marketplace_contract, ArchivistNetwork};
+use crate::services::config::{
+    fetch_remote_marketplace_contract, fetch_token_from_marketplace, ArchivistNetwork,
+};
 use crate::services::wallet::{WalletBalances, WalletInfo};
 use crate::state::AppState;
 use serde::Serialize;
@@ -94,7 +96,9 @@ pub async fn switch_network(
         .unwrap_or_else(|| net.default_marketplace_contract().to_string());
 
     let rpc_url = net.rpc_url().to_string();
-    let token_contract = net.default_token_contract().to_string();
+    let token_contract = fetch_token_from_marketplace(&rpc_url, &marketplace_contract)
+        .await
+        .unwrap_or_else(|| net.default_token_contract().to_string());
 
     // Update config and save
     {

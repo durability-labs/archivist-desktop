@@ -33,8 +33,10 @@ impl ArchivistNetwork {
     }
 
     pub fn default_token_contract(&self) -> &'static str {
-        // Both networks currently use the same token contract
-        "0x3b7412Ee1144b9801341A4F391490eB735DDc005"
+        match self {
+            Self::Devnet => "0xe2566cc08913e2d8ece3517e635335880c1c400a",
+            Self::Testnet => "0x3b7412Ee1144b9801341A4F391490eB735DDc005",
+        }
     }
 
     pub fn display_name(&self) -> &'static str {
@@ -50,6 +52,35 @@ impl ArchivistNetwork {
             "testnet" => Some(Self::Testnet),
             _ => None,
         }
+    }
+}
+
+/// Fetch the token contract address from a marketplace contract via its `token()` view function.
+/// Returns `None` on any failure (network error, bad response, etc.).
+pub async fn fetch_token_from_marketplace(rpc_url: &str, marketplace: &str) -> Option<String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .ok()?;
+    let body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "eth_call",
+        "params": [{"to": marketplace, "data": "0xfc0c546a"}, "latest"],
+        "id": 1
+    });
+    let resp = client.post(rpc_url).json(&body).send().await.ok()?;
+    let json: serde_json::Value = resp.json().await.ok()?;
+    let result = json["result"].as_str()?;
+    // Result is 32-byte ABI-encoded address: 0x + 24 zero-padding + 40 hex address
+    if result.len() >= 66 {
+        let addr = format!("0x{}", &result[26..]);
+        if addr.len() == 42 {
+            Some(addr)
+        } else {
+            None
+        }
+    } else {
+        None
     }
 }
 

@@ -38,8 +38,23 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         // Load persisted configuration
-        let config_service = ConfigService::new();
-        let app_config = config_service.get();
+        let mut config_service = ConfigService::new();
+        let app_config = {
+            let mut cfg = config_service.get();
+            // Migrate: ensure token contract matches the active network's default
+            let expected_token = cfg.blockchain.active_network.default_token_contract();
+            if cfg.blockchain.token_contract != expected_token {
+                log::info!(
+                    "Config migration: updating token contract from {} to {} for {:?}",
+                    cfg.blockchain.token_contract,
+                    expected_token,
+                    cfg.blockchain.active_network
+                );
+                cfg.blockchain.token_contract = expected_token.to_string();
+                let _ = config_service.update(cfg.clone());
+            }
+            cfg
+        };
 
         // Create NodeConfig from persisted settings
         let node_config = NodeConfig::from_node_settings(&app_config.node);
