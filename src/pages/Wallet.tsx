@@ -441,7 +441,12 @@ export default function Wallet() {
           {/* Balances */}
           <div className="mp-section">
             <div className="mp-section-header">
-              <h2>Balances</h2>
+              <h2>
+                Balances
+                <span className="wallet-network-badge" style={{ marginLeft: '0.75rem', fontSize: '0.7rem', verticalAlign: 'middle' }}>
+                  {activeNetwork.toUpperCase()}
+                </span>
+              </h2>
               <button className="mp-refresh-btn" onClick={refreshBalances} disabled={balancesLoading}>
                 {balancesLoading ? 'Loading...' : 'Refresh'}
               </button>

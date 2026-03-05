@@ -121,11 +121,13 @@ export function useWallet() {
   }, [refresh]);
 
   const switchNetwork = useCallback(async (network: string) => {
+    setBalances(null); // Clear stale balances immediately
     const result = await invoke<NetworkSwitchResult>('switch_network', { network });
     await refreshBlockchainConfig();
     await refresh();
+    await refreshBalances(); // Fetch balances from the new network
     return result;
-  }, [refresh, refreshBlockchainConfig]);
+  }, [refresh, refreshBlockchainConfig, refreshBalances]);
 
   return {
     wallet,
