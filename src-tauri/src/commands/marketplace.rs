@@ -39,6 +39,7 @@ pub async fn create_storage_request(
     state: State<'_, AppState>,
     cid: String,
     duration: String,
+    proof_probability: String,
     price_per_byte_per_second: String,
     collateral_per_byte: String,
     slots: u64,
@@ -48,6 +49,7 @@ pub async fn create_storage_request(
 ) -> Result<Purchase> {
     let params = StorageRequestParams {
         duration,
+        proof_probability,
         price_per_byte_per_second,
         collateral_per_byte,
         slots,

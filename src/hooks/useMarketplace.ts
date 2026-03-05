@@ -55,6 +55,7 @@ export interface SetAvailabilityParams {
 export interface CreateStorageRequestParams {
   cid: string;
   duration: string;
+  proofProbability: string;
   pricePerBytePerSecond: string;
   collateralPerByte: string;
   slots: number;
@@ -126,6 +127,7 @@ export function useMarketplace(): UseMarketplace {
     const result = await invoke<Purchase>('create_storage_request', {
       cid: params.cid,
       duration: params.duration,
+      proofProbability: params.proofProbability,
       pricePerBytePerSecond: params.pricePerBytePerSecond,
       collateralPerByte: params.collateralPerByte,
       slots: params.slots,

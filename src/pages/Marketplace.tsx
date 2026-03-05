@@ -45,6 +45,7 @@ export default function Marketplace() {
   const [reqSlots, setReqSlots] = useState(3);
   const [reqSlotSize, setReqSlotSize] = useState(0);
   const [reqMaxSlotLoss, setReqMaxSlotLoss] = useState(1);
+  const [reqProofProbability, setReqProofProbability] = useState('1');
   const [reqExpiry, setReqExpiry] = useState(3600);
   const [clientSubmitting, setClientSubmitting] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
@@ -84,6 +85,7 @@ export default function Marketplace() {
       await createStorageRequest({
         cid: selectedCid,
         duration: reqDuration,
+        proofProbability: reqProofProbability,
         pricePerBytePerSecond: reqPrice,
         collateralPerByte: reqCollateral,
         slots: reqSlots,
@@ -295,6 +297,15 @@ export default function Marketplace() {
                 type="text"
                 value={reqPrice}
                 onChange={(e) => setReqPrice(e.target.value)}
+                placeholder="1"
+              />
+            </div>
+            <div className="mp-field">
+              <label>Proof Probability</label>
+              <input
+                type="text"
+                value={reqProofProbability}
+                onChange={(e) => setReqProofProbability(e.target.value)}
                 placeholder="1"
               />
             </div>

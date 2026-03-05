@@ -186,6 +186,7 @@ pub struct AvailabilityRequest {
 #[serde(rename_all = "camelCase")]
 pub struct StorageRequestParams {
     pub duration: String,
+    pub proof_probability: String,
     #[serde(rename = "pricePerBytePerSecond")]
     pub price_per_byte_per_second: String,
     #[serde(rename = "collateralPerByte")]
