@@ -18,7 +18,6 @@ export default function Wallet() {
     generateWallet,
     importWallet,
     exportWallet,
-    unlockWallet,
     deleteWallet,
     switchNetwork,
   } = useWallet();
@@ -34,10 +33,6 @@ export default function Wallet() {
   const [importKey, setImportKey] = useState('');
   const [setupError, setSetupError] = useState<string | null>(null);
   const [setupLoading, setSetupLoading] = useState(false);
-
-  // Unlock state
-  const [unlockPassword, setUnlockPassword] = useState('');
-  const [unlockError, setUnlockError] = useState<string | null>(null);
 
   // Banner unlock+restart state
   const [bannerPassword, setBannerPassword] = useState('');
@@ -148,17 +143,6 @@ export default function Wallet() {
     } catch (err) {
       setSetupError(String(err));
       setSetupLoading(false);
-    }
-  };
-
-  const handleUnlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setUnlockError(null);
-    try {
-      await unlockWallet(unlockPassword);
-      setUnlockPassword('');
-    } catch (err) {
-      setUnlockError(String(err));
     }
   };
 
@@ -468,11 +452,12 @@ export default function Wallet() {
           <div className="mp-section">
             <h2>{activeNetwork.charAt(0).toUpperCase() + activeNetwork.slice(1)} Faucets</h2>
             <p style={{ color: 'var(--text-dim)', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
-              Get free testnet tokens. Your address will be copied to clipboard so you can paste it in the faucet page.
+              Get free {activeNetwork} tokens. Your address will be copied to clipboard so you can paste it in the faucet page.
             </p>
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button
                 className="mp-submit-btn"
+                disabled={isZeroAddr}
                 onClick={async () => {
                   if (!wallet?.address) return;
                   try { await navigator.clipboard.writeText(wallet.address); } catch { /* clipboard unavailable */ }
@@ -485,6 +470,7 @@ export default function Wallet() {
               </button>
               <button
                 className="mp-submit-btn"
+                disabled={isZeroAddr}
                 onClick={async () => {
                   if (!wallet?.address) return;
                   try { await navigator.clipboard.writeText(wallet.address); } catch { /* clipboard unavailable */ }
@@ -502,31 +488,6 @@ export default function Wallet() {
               </div>
             )}
           </div>
-
-          {/* Unlock (if wallet exists but key not in memory) */}
-          {hasWallet && !wallet?.isUnlocked && (
-            <div className="mp-section">
-              <h2>Unlock Wallet</h2>
-              <p style={{ color: 'var(--text-dim)', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
-                Unlock your wallet to enable marketplace features on next node start.
-              </p>
-              <form onSubmit={handleUnlock} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
-                <div className="mp-field" style={{ flex: 1 }}>
-                  <label>Password</label>
-                  <input
-                    type="password"
-                    value={unlockPassword}
-                    onChange={(e) => setUnlockPassword(e.target.value)}
-                    placeholder="Keystore password"
-                  />
-                </div>
-                <button type="submit" className="mp-submit-btn" style={{ marginBottom: '0.35rem' }}>
-                  Unlock
-                </button>
-              </form>
-              {unlockError && <div className="mp-error" style={{ marginTop: '0.5rem' }}>{unlockError}</div>}
-            </div>
-          )}
 
           {/* Export Key */}
           <div className="mp-section">

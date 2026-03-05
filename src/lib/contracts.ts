@@ -30,7 +30,7 @@ export const NETWORK_PRESETS: Record<ArchivistNetworkId, {
     rpcUrl: 'https://rpc.devnet.archivist.storage',
     marketplace: '0x766e6E608E1FeB762b429155574016D1106b8D04',
     token: '0x3b7412Ee1144b9801341A4F391490eB735DDc005',
-    explorerBaseUrl: 'https://sepolia.arbiscan.io',
+    explorerBaseUrl: 'https://explorer.devnet.archivist.storage',
   },
   testnet: {
     name: 'Testnet',
