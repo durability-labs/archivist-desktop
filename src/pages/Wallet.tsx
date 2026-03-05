@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-shell';
 import { useWallet } from '../hooks/useWallet';
-import { CONTRACT_ADDRESSES, getExplorerUrl, type NetworkId } from '../lib/contracts';
+import { getExplorerUrl, type ArchivistNetworkId } from '../lib/contracts';
 import '../styles/Marketplace.css';
 
 export default function Wallet() {
@@ -12,6 +12,7 @@ export default function Wallet() {
     loading,
     error,
     balancesLoading,
+    blockchainConfig,
     refresh,
     refreshBalances,
     generateWallet,
@@ -19,6 +20,7 @@ export default function Wallet() {
     exportWallet,
     unlockWallet,
     deleteWallet,
+    switchNetwork,
   } = useWallet();
 
   const [copied, setCopied] = useState(false);
@@ -50,8 +52,34 @@ export default function Wallet() {
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const network = (wallet?.network || 'arbitrum-sepolia') as NetworkId;
-  const contracts = CONTRACT_ADDRESSES[network] || CONTRACT_ADDRESSES['arbitrum-sepolia'];
+  // Network switching
+  const [networkSwitching, setNetworkSwitching] = useState(false);
+
+  const activeNetwork = (blockchainConfig?.activeNetwork || 'devnet') as ArchivistNetworkId;
+  const otherNetwork = activeNetwork === 'devnet' ? 'testnet' : 'devnet';
+
+  const handleNetworkSwitch = async (newNetwork: string) => {
+    if (newNetwork === activeNetwork || networkSwitching) return;
+    setNetworkSwitching(true);
+    try {
+      const result = await switchNetwork(newNetwork);
+      if (result.needsRestart) {
+        setRestarting(true);
+        try {
+          await invoke('restart_node');
+          for (let i = 0; i < 5; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            await refresh();
+          }
+        } catch { /* node may not be running */ }
+        setRestarting(false);
+      }
+    } catch (err) {
+      console.error('Failed to switch network:', err);
+    } finally {
+      setNetworkSwitching(false);
+    }
+  };
 
   const copyAddress = async () => {
     if (!wallet?.address) return;
@@ -330,7 +358,7 @@ export default function Wallet() {
                 </>
               ) : wallet?.marketplaceUnavailable ? (
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span>Marketplace unavailable — contract not deployed on current network.</span>
+                  <span>Marketplace unavailable — contract not deployed on current network. Try switching to {otherNetwork} above.</span>
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -362,7 +390,31 @@ export default function Wallet() {
               <button className="mp-refresh-btn" onClick={refresh}>Refresh</button>
             </div>
 
-            <div className="wallet-network-badge">{network}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>Network:</label>
+              <select
+                value={activeNetwork}
+                onChange={(e) => handleNetworkSwitch(e.target.value)}
+                disabled={networkSwitching || restarting}
+                style={{
+                  padding: '0.3rem 0.5rem',
+                  background: 'var(--bg-secondary, #1a1a2e)',
+                  color: 'var(--text-primary, #e0e0e0)',
+                  border: '1px solid var(--border-color, #333)',
+                  borderRadius: '4px',
+                  fontSize: '0.85rem',
+                  cursor: networkSwitching ? 'wait' : 'pointer',
+                }}
+              >
+                <option value="devnet">Devnet</option>
+                <option value="testnet">Testnet</option>
+              </select>
+              {(networkSwitching || restarting) && (
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                  {networkSwitching ? 'Switching...' : 'Restarting node...'}
+                </span>
+              )}
+            </div>
 
             <h3>ETH Address</h3>
             <div className="wallet-address">
@@ -376,7 +428,7 @@ export default function Wallet() {
 
             {!isZeroAddr && (
               <a
-                href={getExplorerUrl(network, wallet!.address)}
+                href={getExplorerUrl(activeNetwork, wallet!.address)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: 'var(--ui-green)', fontSize: '0.8rem' }}
@@ -554,10 +606,10 @@ export default function Wallet() {
             <div className="wallet-contracts">
               <div className="wallet-contract-row">
                 <span className="contract-label">Marketplace</span>
-                {contracts.marketplace ? (
+                {blockchainConfig?.marketplaceContract ? (
                   <>
-                    <code>{contracts.marketplace}</code>
-                    <a href={getExplorerUrl(network, contracts.marketplace)} target="_blank" rel="noopener noreferrer">View</a>
+                    <code>{blockchainConfig.marketplaceContract}</code>
+                    <a href={getExplorerUrl(activeNetwork, blockchainConfig.marketplaceContract)} target="_blank" rel="noopener noreferrer">View</a>
                   </>
                 ) : (
                   <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>Not deployed</span>
@@ -566,22 +618,10 @@ export default function Wallet() {
 
               <div className="wallet-contract-row">
                 <span className="contract-label">Token</span>
-                {contracts.token ? (
+                {blockchainConfig?.tokenContract ? (
                   <>
-                    <code>{contracts.token}</code>
-                    <a href={getExplorerUrl(network, contracts.token)} target="_blank" rel="noopener noreferrer">View</a>
-                  </>
-                ) : (
-                  <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>Not deployed</span>
-                )}
-              </div>
-
-              <div className="wallet-contract-row">
-                <span className="contract-label">Verifier</span>
-                {contracts.verifier ? (
-                  <>
-                    <code>{contracts.verifier}</code>
-                    <a href={getExplorerUrl(network, contracts.verifier)} target="_blank" rel="noopener noreferrer">View</a>
+                    <code>{blockchainConfig.tokenContract}</code>
+                    <a href={getExplorerUrl(activeNetwork, blockchainConfig.tokenContract)} target="_blank" rel="noopener noreferrer">View</a>
                   </>
                 ) : (
                   <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>Not deployed</span>

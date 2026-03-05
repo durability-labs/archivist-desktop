@@ -17,12 +17,28 @@ export interface WalletBalances {
   tstBalanceRaw: string;
 }
 
+export interface BlockchainConfig {
+  activeNetwork: string;
+  rpcUrl: string;
+  marketplaceContract: string;
+  tokenContract: string;
+}
+
+export interface NetworkSwitchResult {
+  network: string;
+  rpcUrl: string;
+  marketplaceContract: string;
+  tokenContract: string;
+  needsRestart: boolean;
+}
+
 export function useWallet() {
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [balances, setBalances] = useState<WalletBalances | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [balancesLoading, setBalancesLoading] = useState(false);
+  const [blockchainConfig, setBlockchainConfig] = useState<BlockchainConfig | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -33,6 +49,15 @@ export function useWallet() {
       setError(String(e));
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const refreshBlockchainConfig = useCallback(async () => {
+    try {
+      const cfg = await invoke<BlockchainConfig>('get_blockchain_config');
+      setBlockchainConfig(cfg);
+    } catch (e) {
+      console.warn('Failed to fetch blockchain config:', e);
     }
   }, []);
 
@@ -51,7 +76,8 @@ export function useWallet() {
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
+    refreshBlockchainConfig();
+  }, [refresh, refreshBlockchainConfig]);
 
   // Auto-fetch balances when wallet has a key
   useEffect(() => {
@@ -94,12 +120,20 @@ export function useWallet() {
     await refresh();
   }, [refresh]);
 
+  const switchNetwork = useCallback(async (network: string) => {
+    const result = await invoke<NetworkSwitchResult>('switch_network', { network });
+    await refreshBlockchainConfig();
+    await refresh();
+    return result;
+  }, [refresh, refreshBlockchainConfig]);
+
   return {
     wallet,
     balances,
     loading,
     error,
     balancesLoading,
+    blockchainConfig,
     refresh,
     refreshBalances,
     generateWallet,
@@ -107,5 +141,6 @@ export function useWallet() {
     exportWallet,
     unlockWallet,
     deleteWallet,
+    switchNetwork,
   };
 }

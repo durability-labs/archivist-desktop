@@ -179,6 +179,8 @@ pub fn run() {
             commands::unlock_wallet,
             commands::delete_wallet,
             commands::get_wallet_balances,
+            commands::switch_network,
+            commands::get_blockchain_config,
             // Torrent commands
             commands::get_torrent_session_stats,
             commands::add_torrent,

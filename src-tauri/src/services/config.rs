@@ -1,6 +1,82 @@
 use crate::error::{ArchivistError, Result};
 use serde::{Deserialize, Serialize};
 
+/// Archivist network environment (devnet vs testnet)
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ArchivistNetwork {
+    #[default]
+    Devnet,
+    Testnet,
+}
+
+impl ArchivistNetwork {
+    pub fn rpc_url(&self) -> &'static str {
+        match self {
+            Self::Devnet => "https://rpc.devnet.archivist.storage",
+            Self::Testnet => "https://rpc.testnet.archivist.storage",
+        }
+    }
+
+    pub fn config_base_url(&self) -> &'static str {
+        match self {
+            Self::Devnet => "https://config.archivist.storage/devnet",
+            Self::Testnet => "https://config.archivist.storage/testnet",
+        }
+    }
+
+    pub fn default_marketplace_contract(&self) -> &'static str {
+        match self {
+            Self::Devnet => "0x766e6E608E1FeB762b429155574016D1106b8D04",
+            Self::Testnet => "0x9A110Ae7DC8916Fa741e38caAf204c3ace3eAB0c",
+        }
+    }
+
+    pub fn default_token_contract(&self) -> &'static str {
+        // Both networks currently use the same token contract
+        "0x3b7412Ee1144b9801341A4F391490eB735DDc005"
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Devnet => "Devnet",
+            Self::Testnet => "Testnet",
+        }
+    }
+
+    pub fn from_str_loose(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "devnet" => Some(Self::Devnet),
+            "testnet" => Some(Self::Testnet),
+            _ => None,
+        }
+    }
+}
+
+/// Fetch the marketplace contract address from the remote config endpoint.
+/// Returns `None` on any failure (network error, bad format, etc.).
+pub async fn fetch_remote_marketplace_contract(network: ArchivistNetwork) -> Option<String> {
+    let url = format!("{}/marketplace", network.config_base_url());
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .ok()?;
+    let resp = client.get(&url).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let text = resp.text().await.ok()?.trim().to_string();
+    // Validate: must start with 0x and be 42 chars (20 bytes hex address)
+    if text.starts_with("0x")
+        && text.len() == 42
+        && text[2..].chars().all(|c| c.is_ascii_hexdigit())
+    {
+        Some(text)
+    } else {
+        None
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     // General settings
@@ -242,6 +318,9 @@ impl Default for ManifestServerSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockchainSettings {
+    /// Which archivist network to use (devnet or testnet)
+    #[serde(default)]
+    pub active_network: ArchivistNetwork,
     pub network: String,
     pub rpc_url: String,
     pub wallet_address: Option<String>,
@@ -254,21 +333,27 @@ pub struct BlockchainSettings {
 }
 
 fn default_marketplace_contract() -> String {
-    "0x9A110Ae7DC8916Fa741e38caAf204c3ace3eAB0c".to_string()
+    ArchivistNetwork::default()
+        .default_marketplace_contract()
+        .to_string()
 }
 
 fn default_token_contract() -> String {
-    "0x3b7412Ee1144b9801341A4F391490eB735DDc005".to_string()
+    ArchivistNetwork::default()
+        .default_token_contract()
+        .to_string()
 }
 
 impl Default for BlockchainSettings {
     fn default() -> Self {
+        let net = ArchivistNetwork::default();
         Self {
+            active_network: net,
             network: "arbitrum-sepolia".to_string(),
-            rpc_url: "https://rpc.devnet.archivist.storage".to_string(),
+            rpc_url: net.rpc_url().to_string(),
             wallet_address: None,
-            marketplace_contract: default_marketplace_contract(),
-            token_contract: default_token_contract(),
+            marketplace_contract: net.default_marketplace_contract().to_string(),
+            token_contract: net.default_token_contract().to_string(),
         }
     }
 }
@@ -441,7 +526,22 @@ impl ConfigService {
             .map(|p| p.join("archivist").join("config.toml"))
             .unwrap_or_else(|| std::path::PathBuf::from("config.toml"));
 
-        let config = Self::load_from_file(&config_path).unwrap_or_default();
+        let mut config = Self::load_from_file(&config_path).unwrap_or_default();
+
+        // Migration: if rpc_url points to devnet but marketplace_contract is the testnet address,
+        // fix it to devnet's contract and ensure active_network is Devnet
+        if config.blockchain.rpc_url.contains("devnet")
+            && config.blockchain.marketplace_contract
+                == ArchivistNetwork::Testnet.default_marketplace_contract()
+        {
+            log::info!(
+                "Config migration: fixing devnet marketplace contract (was testnet address)"
+            );
+            config.blockchain.active_network = ArchivistNetwork::Devnet;
+            config.blockchain.marketplace_contract = ArchivistNetwork::Devnet
+                .default_marketplace_contract()
+                .to_string();
+        }
 
         Self {
             config,

@@ -277,6 +277,13 @@ impl WalletService {
         self.cached_private_key.is_some()
     }
 
+    /// Update network-related fields so balance queries use the correct RPC immediately
+    pub fn update_network(&mut self, network: String, rpc_url: String, token_contract: String) {
+        self.network = network;
+        self.rpc_url = rpc_url;
+        self.token_contract = token_contract;
+    }
+
     // ── Balance Queries ─────────────────────────────────────────────
 
     /// Get ETH and TST balances via JSON-RPC
