@@ -12,6 +12,14 @@ interface UploadProgressEvent {
   percent: number;
 }
 
+interface DownloadProgressEvent {
+  cid: string;
+  phase: 'network' | 'saving' | 'complete';
+  bytesReceived: number;
+  totalBytes: number | null;
+  percent: number | null;
+}
+
 interface FileInfo {
   cid: string;
   name: string;
@@ -47,6 +55,7 @@ function Files() {
   const [autoDownloadPending, setAutoDownloadPending] = useState(false);
   const autoDownloadTimerRef = useRef<number | null>(null);
   const [uploadProgressData, setUploadProgressData] = useState<UploadProgressEvent | null>(null);
+  const [downloadProgressData, setDownloadProgressData] = useState<DownloadProgressEvent | null>(null);
 
   const checkNodeConnection = useCallback(async () => {
     try {
@@ -88,6 +97,22 @@ function Files() {
   useEffect(() => {
     const unlisten = listen<UploadProgressEvent>('upload-progress', (event) => {
       setUploadProgressData(event.payload);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  // Listen for download progress events
+  useEffect(() => {
+    const unlisten = listen<DownloadProgressEvent>('download-progress', (event) => {
+      if (event.payload.phase === 'complete') {
+        // Keep the complete state briefly visible, then clear
+        setDownloadProgressData(event.payload);
+        setTimeout(() => setDownloadProgressData(null), 500);
+      } else {
+        setDownloadProgressData(event.payload);
+      }
     });
     return () => {
       unlisten.then((fn) => fn());
@@ -154,6 +179,7 @@ function Files() {
     } catch (e) {
       const msg = typeof e === 'string' ? e : (e instanceof Error ? e.message : 'Failed to download file');
       setError(msg);
+      setDownloadProgressData(null);
     } finally {
       setLoading(false);
     }
@@ -221,6 +247,7 @@ function Files() {
       const msg = typeof e === 'string' ? e : (e instanceof Error ? e.message : 'Failed to download file');
       setError(`Download failed: ${msg}`);
       setDownloadStatus(null);
+      setDownloadProgressData(null);
     } finally {
       setLoading(false);
     }
@@ -400,7 +427,29 @@ function Files() {
         {cidValidation && !cidValidation.valid && (
           <div className="cid-validation-error">{cidValidation.error}</div>
         )}
-        {downloadStatus && <div className="info-banner">{downloadStatus}</div>}
+        {downloadProgressData && downloadProgressData.phase !== 'complete' && (
+          <div className="download-progress-container">
+            <div className="download-progress-text">
+              {downloadProgressData.phase === 'network' && 'Fetching from P2P network...'}
+              {downloadProgressData.phase === 'saving' && downloadProgressData.percent != null && downloadProgressData.totalBytes != null
+                ? `Saving to disk: ${downloadProgressData.percent}% (${formatBytes(downloadProgressData.bytesReceived)} / ${formatBytes(downloadProgressData.totalBytes)})`
+                : downloadProgressData.phase === 'saving' && downloadProgressData.bytesReceived > 0
+                  ? `Saving to disk: ${formatBytes(downloadProgressData.bytesReceived)} received...`
+                  : downloadProgressData.phase === 'saving'
+                    ? 'Saving to disk...'
+                    : ''}
+            </div>
+            <div className="download-progress-bar">
+              <div
+                className={`download-progress-fill${downloadProgressData.phase === 'network' || downloadProgressData.percent == null ? ' indeterminate' : ''}`}
+                style={downloadProgressData.percent != null && downloadProgressData.phase === 'saving'
+                  ? { width: `${downloadProgressData.percent}%` }
+                  : undefined}
+              />
+            </div>
+          </div>
+        )}
+        {downloadStatus && !downloadProgressData && <div className="info-banner">{downloadStatus}</div>}
       </div>
 
       <div className="file-stats">

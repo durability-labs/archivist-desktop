@@ -548,6 +548,95 @@ impl NodeApiClient {
         Ok(())
     }
 
+    /// Download a file by CID directly to a file path with progress reporting via Tauri events.
+    ///
+    /// Reads `content-length` from the response and emits `download-progress` events
+    /// as chunks are written to disk. If `app_handle` is `None`, behaves identically
+    /// to `download_file_to_path`.
+    pub async fn download_file_to_path_with_progress(
+        &self,
+        cid: &str,
+        dest: &Path,
+        app_handle: Option<&tauri::AppHandle>,
+    ) -> Result<()> {
+        let url = format!("{}/api/archivist/v1/data/{}", self.base_url, cid);
+
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ArchivistError::ApiError(format!("Download failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(ArchivistError::ApiError(format!(
+                "Download failed: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let total_bytes = response.content_length();
+
+        let mut file = File::create(dest).await.map_err(|e| {
+            ArchivistError::FileOperationFailed(format!("Failed to create file: {}", e))
+        })?;
+
+        let mut stream = response.bytes_stream();
+        let mut bytes_received: u64 = 0;
+        let mut last_reported_percent: u64 = 0;
+
+        while let Some(chunk) = stream.next().await {
+            let data = chunk.map_err(|e| {
+                ArchivistError::ApiError(format!("Failed to read download stream: {}", e))
+            })?;
+            file.write_all(&data).await.map_err(|e| {
+                ArchivistError::FileOperationFailed(format!("Failed to write to file: {}", e))
+            })?;
+
+            bytes_received += data.len() as u64;
+
+            if let Some(handle) = app_handle {
+                use tauri::Emitter;
+                let percent = total_bytes.map(|total| {
+                    if total > 0 {
+                        (bytes_received as f64 / total as f64 * 100.0) as u64
+                    } else {
+                        0
+                    }
+                });
+
+                // Throttle: report every 1% or every 1MB
+                let should_report = match percent {
+                    Some(p) => p > last_reported_percent,
+                    None => {
+                        bytes_received.saturating_sub(last_reported_percent * 1_048_576)
+                            >= 1_048_576
+                    }
+                };
+
+                if should_report {
+                    last_reported_percent = percent.unwrap_or(bytes_received / 1_048_576);
+                    let _ = handle.emit(
+                        "download-progress",
+                        serde_json::json!({
+                            "cid": cid,
+                            "phase": "saving",
+                            "bytesReceived": bytes_received,
+                            "totalBytes": total_bytes,
+                            "percent": percent
+                        }),
+                    );
+                }
+            }
+        }
+
+        file.flush().await.map_err(|e| {
+            ArchivistError::FileOperationFailed(format!("Failed to flush file: {}", e))
+        })?;
+
+        Ok(())
+    }
+
     /// Trigger the sidecar to fetch a CID from the P2P network.
     /// Does NOT download the file content — just tells the sidecar to store it locally.
     pub async fn request_network_download(&self, cid: &str) -> Result<()> {
@@ -560,7 +649,10 @@ impl NodeApiClient {
             .send()
             .await
             .map_err(|e| {
-                ArchivistError::ApiError(format!("Network download request failed: {}", e))
+                ArchivistError::ApiError(format!(
+                    "Network download request failed: {}",
+                    describe_reqwest_error(&e)
+                ))
             })?;
 
         if !response.status().is_success() {

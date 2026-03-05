@@ -260,7 +260,33 @@ impl FileService {
     }
 
     /// Download a file by CID to a destination path
+    #[allow(dead_code)]
     pub async fn download_file(&self, cid: &str, destination: &str) -> Result<()> {
+        self.download_file_inner(cid, destination, None).await
+    }
+
+    /// Download a file by CID with progress reporting via Tauri events.
+    ///
+    /// Emits `download-progress` events with phase transitions:
+    /// - `network`: indeterminate (P2P fetch in progress)
+    /// - `saving`: determinate if content-length known (streaming to disk)
+    /// - `complete`: download finished
+    pub async fn download_file_with_progress(
+        &self,
+        cid: &str,
+        destination: &str,
+        app_handle: Option<&tauri::AppHandle>,
+    ) -> Result<()> {
+        self.download_file_inner(cid, destination, app_handle).await
+    }
+
+    /// Internal download implementation shared by both download methods.
+    async fn download_file_inner(
+        &self,
+        cid: &str,
+        destination: &str,
+        app_handle: Option<&tauri::AppHandle>,
+    ) -> Result<()> {
         // Validate CID format (basic check - should be alphanumeric with some special chars)
         if cid.is_empty() || cid.len() > 100 {
             return Err(ArchivistError::FileOperationFailed(
@@ -339,17 +365,70 @@ impl FileService {
 
         // Try streaming download (local first, then network fallback)
         let dest = std::path::Path::new(destination);
-        match self.api_client.download_file_to_path(cid, dest).await {
+        match self
+            .api_client
+            .download_file_to_path_with_progress(cid, dest, app_handle)
+            .await
+        {
             Ok(()) => {
                 log::info!("Downloaded file {} to {}", cid, destination);
             }
             Err(_) => {
                 log::info!("File not found locally, fetching from network...");
+
+                // Emit network phase (indeterminate)
+                if let Some(handle) = app_handle {
+                    use tauri::Emitter;
+                    let _ = handle.emit(
+                        "download-progress",
+                        serde_json::json!({
+                            "cid": cid,
+                            "phase": "network",
+                            "bytesReceived": 0,
+                            "totalBytes": null,
+                            "percent": null
+                        }),
+                    );
+                }
+
                 // Network download: trigger fetch via POST then stream from local to file
                 self.api_client.request_network_download(cid).await?;
-                self.api_client.download_file_to_path(cid, dest).await?;
+
+                // Emit saving phase transition
+                if let Some(handle) = app_handle {
+                    use tauri::Emitter;
+                    let _ = handle.emit(
+                        "download-progress",
+                        serde_json::json!({
+                            "cid": cid,
+                            "phase": "saving",
+                            "bytesReceived": 0,
+                            "totalBytes": null,
+                            "percent": 0
+                        }),
+                    );
+                }
+
+                self.api_client
+                    .download_file_to_path_with_progress(cid, dest, app_handle)
+                    .await?;
                 log::info!("Downloaded file {} from network to {}", cid, destination);
             }
+        }
+
+        // Emit complete phase
+        if let Some(handle) = app_handle {
+            use tauri::Emitter;
+            let _ = handle.emit(
+                "download-progress",
+                serde_json::json!({
+                    "cid": cid,
+                    "phase": "complete",
+                    "bytesReceived": 0,
+                    "totalBytes": null,
+                    "percent": 100
+                }),
+            );
         }
 
         Ok(())

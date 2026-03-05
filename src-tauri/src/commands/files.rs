@@ -32,7 +32,9 @@ pub async fn download_file(
     destination: String,
 ) -> Result<()> {
     let files = state.files.read().await;
-    files.download_file(&cid, &destination).await?;
+    files
+        .download_file_with_progress(&cid, &destination, Some(&app_handle))
+        .await?;
 
     // Emit event for sound notification
     let _ = app_handle.emit("file-downloaded", &cid);

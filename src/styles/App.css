@@ -865,6 +865,48 @@ tr:hover td {
   margin-top: var(--spacing-xs);
 }
 
+/* Download Progress Bar */
+.download-progress-container {
+  margin-top: var(--spacing-sm);
+}
+
+.download-progress-text {
+  font-size: 0.8125rem;
+  color: var(--ui-green);
+  margin-bottom: var(--spacing-xs);
+  font-family: var(--font-mono);
+}
+
+.download-progress-bar {
+  height: 6px;
+  background-color: var(--term-panel);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--term-border);
+}
+
+.download-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ui-green) 0%, var(--phosphor) 100%);
+  border-radius: 3px;
+  transition: width 0.2s ease;
+  box-shadow: 0 0 10px var(--phosphor-glow);
+}
+
+.download-progress-fill.indeterminate {
+  width: 30% !important;
+  animation: download-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes download-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(333%);
+  }
+}
+
 .file-stats {
   display: flex;
   gap: var(--spacing-lg);
