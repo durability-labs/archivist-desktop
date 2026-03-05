@@ -6,7 +6,22 @@ use tauri::State;
 #[tauri::command]
 pub async fn get_wallet_info(state: State<'_, AppState>) -> Result<WalletInfo> {
     let wallet = state.wallet.read().await;
-    wallet.get_wallet_info().await
+    let mut info = wallet.get_wallet_info().await?;
+    drop(wallet);
+
+    // If wallet is unlocked but marketplace isn't active, check if the contract exists on-chain
+    if info.has_key && info.is_unlocked && !info.marketplace_active {
+        let config = state.config.read().await;
+        let app_config = config.get();
+        let rpc_url = app_config.blockchain.rpc_url.clone();
+        let contract = app_config.blockchain.marketplace_contract.clone();
+        drop(config);
+
+        let available = super::node::is_marketplace_contract_available(&rpc_url, &contract).await;
+        info.marketplace_unavailable = !available;
+    }
+
+    Ok(info)
 }
 
 #[tauri::command]

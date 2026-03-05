@@ -328,6 +328,10 @@ export default function Wallet() {
                   </form>
                   {bannerError && <div style={{ marginTop: '0.5rem', color: 'var(--color-error, #ff4444)', fontSize: '0.85rem' }}>{bannerError}</div>}
                 </>
+              ) : wallet?.marketplaceUnavailable ? (
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span>Marketplace unavailable — contract not deployed on current network.</span>
+                </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>Marketplace not active. Restart the node to enable marketplace features with your wallet.</span>

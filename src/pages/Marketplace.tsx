@@ -129,7 +129,9 @@ export default function Marketplace() {
 
       {wallet?.hasKey && !wallet?.marketplaceActive && (
         <div className="mp-error" style={{ background: 'rgba(255, 170, 0, 0.1)', borderColor: 'var(--color-warning, #ffaa00)' }}>
-          Wallet configured but marketplace not active. Unlock your wallet and restart the node from the Wallet page.
+          {wallet?.marketplaceUnavailable
+            ? 'Marketplace contract not available on current network.'
+            : 'Wallet configured but marketplace not active. Unlock your wallet and restart the node from the Wallet page.'}
         </div>
       )}
 

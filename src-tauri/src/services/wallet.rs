@@ -23,6 +23,7 @@ pub struct WalletInfo {
     pub has_key: bool,
     pub marketplace_active: bool,
     pub is_unlocked: bool,
+    pub marketplace_unavailable: bool,
 }
 
 /// Token balances returned to the frontend
@@ -124,6 +125,7 @@ impl WalletService {
             has_key: true,
             marketplace_active: false, // Will be true after node restart with key
             is_unlocked: true,
+            marketplace_unavailable: false,
         })
     }
 
@@ -167,6 +169,7 @@ impl WalletService {
             has_key: true,
             marketplace_active: false,
             is_unlocked: true,
+            marketplace_unavailable: false,
         })
     }
 
@@ -186,6 +189,7 @@ impl WalletService {
             has_key: true,
             marketplace_active: false,
             is_unlocked: true,
+            marketplace_unavailable: false,
         })
     }
 
@@ -248,6 +252,7 @@ impl WalletService {
             has_key,
             marketplace_active,
             is_unlocked: self.cached_private_key.is_some(),
+            marketplace_unavailable: false,
         })
     }
 

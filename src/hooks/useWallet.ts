@@ -7,6 +7,7 @@ export interface WalletInfo {
   hasKey: boolean;
   marketplaceActive: boolean;
   isUnlocked: boolean;
+  marketplaceUnavailable: boolean;
 }
 
 export interface WalletBalances {

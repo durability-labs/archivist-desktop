@@ -8,7 +8,10 @@ use tauri::{AppHandle, State};
 /// Check if the marketplace contract has bytecode deployed at the given RPC endpoint.
 /// Returns `false` when the contract address is empty, the RPC is unreachable, or the
 /// address has no code (i.e. eth_getCode returns "0x").
-async fn is_marketplace_contract_available(rpc_url: &str, contract_address: &str) -> bool {
+pub(crate) async fn is_marketplace_contract_available(
+    rpc_url: &str,
+    contract_address: &str,
+) -> bool {
     let client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
         .build()
