@@ -466,7 +466,7 @@ export default function Wallet() {
 
           {/* Faucets */}
           <div className="mp-section">
-            <h2>Testnet Faucets</h2>
+            <h2>{activeNetwork.charAt(0).toUpperCase() + activeNetwork.slice(1)} Faucets</h2>
             <p style={{ color: 'var(--text-dim)', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
               Get free testnet tokens. Your address will be copied to clipboard so you can paste it in the faucet page.
             </p>
@@ -478,7 +478,7 @@ export default function Wallet() {
                   try { await navigator.clipboard.writeText(wallet.address); } catch { /* clipboard unavailable */ }
                   setFaucetMessage('Address copied to clipboard. Paste it in the faucet page.');
                   setTimeout(() => setFaucetMessage(null), 5000);
-                  await open('https://faucet-arb.testnet.archivist.storage');
+                  await open(`https://faucet-arb.${activeNetwork}.archivist.storage`);
                 }}
               >
                 Get ETH
@@ -490,7 +490,7 @@ export default function Wallet() {
                   try { await navigator.clipboard.writeText(wallet.address); } catch { /* clipboard unavailable */ }
                   setFaucetMessage('Address copied to clipboard. Paste it in the faucet page.');
                   setTimeout(() => setFaucetMessage(null), 5000);
-                  await open('https://faucet-tst.testnet.archivist.storage');
+                  await open(`https://faucet-tst.${activeNetwork}.archivist.storage`);
                 }}
               >
                 Get TST
