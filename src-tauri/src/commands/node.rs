@@ -5,6 +5,91 @@ use serde::{Deserialize, Serialize};
 use std::io::BufRead;
 use tauri::{AppHandle, State};
 
+/// Check if the marketplace contract has bytecode deployed at the given RPC endpoint.
+/// Returns `false` when the contract address is empty, the RPC is unreachable, or the
+/// address has no code (i.e. eth_getCode returns "0x").
+async fn is_marketplace_contract_available(rpc_url: &str, contract_address: &str) -> bool {
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    let body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "eth_getCode",
+        "params": [contract_address, "latest"],
+        "id": 1
+    });
+
+    match client.post(rpc_url).json(&body).send().await {
+        Ok(response) => match response.json::<serde_json::Value>().await {
+            Ok(json) => {
+                let code = json["result"].as_str().unwrap_or("0x");
+                let available = code != "0x" && code != "0x0" && code.len() > 4;
+                if !available {
+                    log::warn!(
+                        "Marketplace contract {} has no code deployed on RPC {}",
+                        contract_address,
+                        rpc_url
+                    );
+                }
+                available
+            }
+            Err(e) => {
+                log::warn!("Failed to parse eth_getCode response: {}", e);
+                false
+            }
+        },
+        Err(e) => {
+            log::warn!(
+                "Cannot reach RPC endpoint {} for marketplace contract check: {}",
+                rpc_url,
+                e
+            );
+            false
+        }
+    }
+}
+
+/// If the wallet is unlocked and the marketplace contract is available on-chain,
+/// inject the marketplace credentials into the node config so the sidecar starts
+/// with `persistence` flags.  Otherwise the node starts without marketplace.
+async fn try_inject_marketplace_config(state: &AppState) {
+    let wallet = state.wallet.read().await;
+    if !wallet.is_unlocked() {
+        return;
+    }
+
+    let config = state.config.read().await;
+    let app_config = config.get();
+    let rpc_url = app_config.blockchain.rpc_url.clone();
+    let contract = app_config.blockchain.marketplace_contract.clone();
+    drop(config);
+
+    if !is_marketplace_contract_available(&rpc_url, &contract).await {
+        log::warn!(
+            "Skipping marketplace flags — contract not available. \
+             Node will start without marketplace features."
+        );
+        // Clear any previously-set marketplace config so the node starts clean
+        let mut node = state.node.write().await;
+        node.set_marketplace_config(None, None, None);
+        return;
+    }
+
+    let config = state.config.read().await;
+    let app_config = config.get();
+    let mut node = state.node.write().await;
+    node.set_marketplace_config(
+        wallet.get_private_key().map(|s| s.to_string()),
+        Some(app_config.blockchain.marketplace_contract.clone()),
+        Some(app_config.blockchain.rpc_url.clone()),
+    );
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticInfo {
@@ -21,20 +106,8 @@ pub struct DiagnosticInfo {
 
 #[tauri::command]
 pub async fn start_node(app_handle: AppHandle, state: State<'_, AppState>) -> Result<NodeStatus> {
-    // Inject marketplace credentials from wallet into node config before starting
-    {
-        let wallet = state.wallet.read().await;
-        if wallet.is_unlocked() {
-            let config = state.config.read().await;
-            let app_config = config.get();
-            let mut node = state.node.write().await;
-            node.set_marketplace_config(
-                wallet.get_private_key().map(|s| s.to_string()),
-                Some(app_config.blockchain.marketplace_contract.clone()),
-                Some(app_config.blockchain.rpc_url.clone()),
-            );
-        }
-    }
+    // Inject marketplace credentials only if the contract is actually deployed
+    try_inject_marketplace_config(&state).await;
 
     let mut node = state.node.write().await;
     node.start(&app_handle).await?;
@@ -69,20 +142,8 @@ pub async fn stop_node(state: State<'_, AppState>) -> Result<NodeStatus> {
 
 #[tauri::command]
 pub async fn restart_node(app_handle: AppHandle, state: State<'_, AppState>) -> Result<NodeStatus> {
-    // Inject marketplace credentials from wallet into node config before restarting
-    {
-        let wallet = state.wallet.read().await;
-        if wallet.is_unlocked() {
-            let config = state.config.read().await;
-            let app_config = config.get();
-            let mut node = state.node.write().await;
-            node.set_marketplace_config(
-                wallet.get_private_key().map(|s| s.to_string()),
-                Some(app_config.blockchain.marketplace_contract.clone()),
-                Some(app_config.blockchain.rpc_url.clone()),
-            );
-        }
-    }
+    // Inject marketplace credentials only if the contract is actually deployed
+    try_inject_marketplace_config(&state).await;
 
     let mut node = state.node.write().await;
     node.restart(&app_handle).await?;
