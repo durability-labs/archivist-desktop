@@ -7,11 +7,52 @@ use crate::error::{ArchivistError, Result};
 use futures::StreamExt;
 use reqwest::{header, Client};
 use serde::{Deserialize, Serialize};
+use std::error::Error as StdError;
 use std::path::Path;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
+
+/// Build a detailed error description from a reqwest error by walking the source chain.
+///
+/// `format!("{}", e)` on reqwest errors only shows the top-level message, losing the
+/// actual root cause (connection refused, timed out, connection reset, etc.). This
+/// function classifies the error and appends the full `.source()` chain.
+fn describe_reqwest_error(e: &reqwest::Error) -> String {
+    let mut desc = format!("{}", e);
+
+    // Classify the error type
+    let classification = if e.is_timeout() {
+        "timed out"
+    } else if e.is_connect() {
+        "connection failed"
+    } else if e.is_body() {
+        "body error"
+    } else if e.is_request() {
+        "request error"
+    } else if e.is_decode() {
+        "decode error"
+    } else {
+        "unknown"
+    };
+
+    // Walk the source chain for the root cause
+    let mut causes = Vec::new();
+    let mut current: Option<&dyn StdError> = e.source();
+    while let Some(cause) = current {
+        causes.push(format!("{}", cause));
+        current = cause.source();
+    }
+
+    if !causes.is_empty() {
+        desc = format!("{} ({}: {})", desc, classification, causes.join(": "));
+    } else {
+        desc = format!("{} ({})", desc, classification);
+    }
+
+    desc
+}
 
 /// Response from /api/archivist/v1/debug/info
 /// Matches archivist-node v0.2.0 API format
@@ -796,7 +837,10 @@ impl NodeApiClient {
         })
     }
 
-    /// Create a storage request with full marketplace parameters
+    /// Create a storage request with full marketplace parameters.
+    ///
+    /// Retries once on transient connection errors (e.g., connection refused/reset)
+    /// since the sidecar may momentarily drop connections under load.
     pub async fn create_storage_request(
         &self,
         cid: &str,
@@ -804,14 +848,49 @@ impl NodeApiClient {
     ) -> Result<Purchase> {
         let url = format!("{}/api/archivist/v1/storage/request/{}", self.base_url, cid);
 
-        let response = self
-            .client
-            .post(&url)
-            .json(params)
-            .timeout(Duration::from_secs(60))
-            .send()
-            .await
-            .map_err(|e| ArchivistError::ApiError(format!("Storage request failed: {}", e)))?;
+        let send_request = || {
+            self.client
+                .post(&url)
+                .json(params)
+                .timeout(Duration::from_secs(60))
+                .send()
+        };
+
+        // First attempt
+        let response = match send_request().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                let detail = describe_reqwest_error(&e);
+
+                if e.is_connect() {
+                    // Connection error — retry once after a short delay
+                    log::warn!(
+                        "Storage request connection failed, retrying in 1s: {}",
+                        detail
+                    );
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+
+                    match send_request().await {
+                        Ok(resp) => resp,
+                        Err(retry_err) => {
+                            let retry_detail = describe_reqwest_error(&retry_err);
+                            log::error!("Storage request failed after retry: {}", retry_detail);
+                            return Err(ArchivistError::ApiError(format!(
+                                "Storage request failed after retry: {}",
+                                retry_detail
+                            )));
+                        }
+                    }
+                } else {
+                    // Non-connection error (timeout, body, etc.) — fail immediately
+                    log::error!("Storage request failed: {}", detail);
+                    return Err(ArchivistError::ApiError(format!(
+                        "Storage request failed: {}",
+                        detail
+                    )));
+                }
+            }
+        };
 
         if !response.status().is_success() {
             let status = response.status();
