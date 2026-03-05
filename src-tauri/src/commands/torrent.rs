@@ -9,6 +9,7 @@ use tauri::State;
 #[tauri::command]
 pub async fn get_torrent_session_stats(state: State<'_, AppState>) -> Result<TorrentSessionStats> {
     let mut torrent = state.torrent.write().await;
+    torrent.ensure_initialized().await?;
     torrent.get_session_stats()
 }
 
@@ -19,20 +20,23 @@ pub async fn add_torrent(
     params: AddTorrentParams,
 ) -> Result<TorrentItem> {
     let mut torrent = state.torrent.write().await;
+    torrent.ensure_initialized().await?;
     torrent.add_torrent(params).await
 }
 
 /// Pause a torrent
 #[tauri::command]
 pub async fn pause_torrent(state: State<'_, AppState>, id: usize) -> Result<()> {
-    let torrent = state.torrent.read().await;
+    let mut torrent = state.torrent.write().await;
+    torrent.ensure_initialized().await?;
     torrent.pause_torrent(id).await
 }
 
 /// Resume a paused torrent
 #[tauri::command]
 pub async fn resume_torrent(state: State<'_, AppState>, id: usize) -> Result<()> {
-    let torrent = state.torrent.read().await;
+    let mut torrent = state.torrent.write().await;
+    torrent.ensure_initialized().await?;
     torrent.resume_torrent(id).await
 }
 
@@ -44,6 +48,7 @@ pub async fn remove_torrent(
     delete_files: bool,
 ) -> Result<()> {
     let mut torrent = state.torrent.write().await;
+    torrent.ensure_initialized().await?;
     torrent.remove_torrent(id, delete_files).await
 }
 
@@ -54,21 +59,24 @@ pub async fn set_torrent_files(
     id: usize,
     file_indices: Vec<usize>,
 ) -> Result<()> {
-    let torrent = state.torrent.read().await;
+    let mut torrent = state.torrent.write().await;
+    torrent.ensure_initialized().await?;
     torrent.set_selected_files(id, file_indices).await
 }
 
 /// Get peer connection details for a torrent
 #[tauri::command]
 pub async fn get_torrent_peers(state: State<'_, AppState>, id: usize) -> Result<Vec<TorrentPeer>> {
-    let torrent = state.torrent.read().await;
+    let mut torrent = state.torrent.write().await;
+    torrent.ensure_initialized().await?;
     torrent.get_torrent_peers(id)
 }
 
 /// Get details for a single torrent
 #[tauri::command]
 pub async fn get_torrent_details(state: State<'_, AppState>, id: usize) -> Result<TorrentItem> {
-    let torrent = state.torrent.read().await;
+    let mut torrent = state.torrent.write().await;
+    torrent.ensure_initialized().await?;
     torrent.get_torrent(id)
 }
 
@@ -79,6 +87,7 @@ pub async fn set_torrent_speed_limits(
     limits: SpeedLimits,
 ) -> Result<()> {
     let mut torrent = state.torrent.write().await;
+    torrent.ensure_initialized().await?;
     torrent.set_speed_limits(limits)
 }
 
@@ -89,6 +98,7 @@ pub async fn set_torrent_seeding_rules(
     rules: SeedingRules,
 ) -> Result<()> {
     let mut torrent = state.torrent.write().await;
+    torrent.ensure_initialized().await?;
     torrent.set_seeding_rules(rules);
     Ok(())
 }

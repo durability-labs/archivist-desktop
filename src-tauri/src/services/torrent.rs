@@ -236,6 +236,14 @@ impl TorrentService {
         Ok(())
     }
 
+    /// Ensure the session is initialized, initializing on first call or retrying after failure
+    pub async fn ensure_initialized(&mut self) -> Result<()> {
+        if self.initialized {
+            return Ok(());
+        }
+        self.initialize().await
+    }
+
     /// Graceful shutdown
     pub async fn shutdown(&mut self) -> Result<()> {
         if let Some(ref session) = self.session {
