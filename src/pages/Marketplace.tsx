@@ -167,7 +167,7 @@ export default function Marketplace() {
                   <th>Free Size</th>
                   <th>Duration</th>
                   <th>Min Price/Byte/s</th>
-                  <th>Max Collateral/Byte</th>
+                  <th>Total Collateral</th>
                 </tr>
               </thead>
               <tbody>
@@ -178,7 +178,7 @@ export default function Marketplace() {
                     <td>{a.freeSize}</td>
                     <td>{a.duration}</td>
                     <td>{a.minPricePerBytePerSecond}</td>
-                    <td>{a.maxCollateralPerByte}</td>
+                    <td>{a.totalCollateral}</td>
                   </tr>
                 ))}
               </tbody>

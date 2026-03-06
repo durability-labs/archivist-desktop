@@ -35,7 +35,11 @@ export interface Availability {
   freeSize: string;
   duration: string;
   minPricePerBytePerSecond: string;
-  maxCollateralPerByte: string;
+  maxCollateralPerByte?: string;
+  totalCollateral: string;
+  totalRemainingCollateral?: string;
+  enabled?: boolean;
+  until?: string;
 }
 
 export interface Purchase {

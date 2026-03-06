@@ -195,23 +195,59 @@ pub struct SalesSlot {
     pub slot_index: u64,
 }
 
+/// Deserialize a JSON value that may be a number or string into a String.
+/// The sidecar returns integers for some fields that could also be strings.
+fn deserialize_number_or_string<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::String(s) => Ok(s),
+        serde_json::Value::Number(n) => Ok(n.to_string()),
+        serde_json::Value::Null => Ok(String::new()),
+        other => Ok(other.to_string()),
+    }
+}
+
+fn deserialize_number_or_string_opt<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::String(s) => Ok(Some(s)),
+        serde_json::Value::Number(n) => Ok(Some(n.to_string())),
+        other => Ok(Some(other.to_string())),
+    }
+}
+
 /// Provider availability offer
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Availability {
     pub id: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_number_or_string")]
     pub total_size: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_number_or_string")]
     pub free_size: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_number_or_string")]
     pub duration: String,
     #[serde(default, rename = "minPricePerBytePerSecond")]
     pub min_price_per_byte_per_second: String,
     #[serde(default, rename = "maxCollateralPerByte")]
-    pub max_collateral_per_byte: String,
+    pub max_collateral_per_byte: Option<String>,
     #[serde(default)]
     pub total_collateral: String,
+    #[serde(default)]
+    pub total_remaining_collateral: Option<String>,
+    #[serde(default)]
+    pub enabled: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_number_or_string_opt")]
+    pub until: Option<String>,
 }
 
 /// Request body for creating an availability offer
@@ -902,10 +938,17 @@ impl NodeApiClient {
             )));
         }
 
-        response
-            .json::<Vec<Availability>>()
-            .await
-            .map_err(|e| ArchivistError::ApiError(format!("Failed to parse availability: {}", e)))
+        let body = response.text().await.map_err(|e| {
+            ArchivistError::ApiError(format!("Failed to read availability response body: {}", e))
+        })?;
+        log::debug!("Availability GET response body: {}", body);
+        serde_json::from_str::<Vec<Availability>>(&body).map_err(|e| {
+            log::error!("Failed to parse availability: {} — body: {}", e, body);
+            ArchivistError::ApiError(format!(
+                "Failed to parse availability: {} — body: {}",
+                e, body
+            ))
+        })
     }
 
     /// Create a new availability offer (provider)
@@ -929,8 +972,20 @@ impl NodeApiClient {
             )));
         }
 
-        response.json::<Availability>().await.map_err(|e| {
-            ArchivistError::ApiError(format!("Failed to parse availability response: {}", e))
+        let body = response.text().await.map_err(|e| {
+            ArchivistError::ApiError(format!("Failed to read availability response body: {}", e))
+        })?;
+        log::debug!("Availability POST response body: {}", body);
+        serde_json::from_str::<Availability>(&body).map_err(|e| {
+            log::error!(
+                "Failed to parse availability response: {} — body: {}",
+                e,
+                body
+            );
+            ArchivistError::ApiError(format!(
+                "Failed to parse availability response: {} — body: {}",
+                e, body
+            ))
         })
     }
 
