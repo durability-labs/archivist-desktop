@@ -47,11 +47,12 @@
   cursor: pointer;
   font-weight: 600;
   font-size: 0.875rem;
-  transition: all 0.2s;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .setup-banner .install-btn:hover {
   background: var(--phosphor);
+  color: var(--term-black);
   box-shadow: 0 0 12px var(--phosphor-glow);
 }
 
@@ -122,11 +123,12 @@
   font-weight: 600;
   font-size: 0.875rem;
   white-space: nowrap;
-  transition: all 0.2s;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .fetch-btn:hover {
   background: var(--phosphor);
+  color: var(--term-black);
   box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
@@ -240,7 +242,7 @@
 }
 
 .download-btn {
-  background: var(--phosphor);
+  background: var(--ui-green);
   color: var(--term-black);
   border: none;
   padding: 0.6rem 1.5rem;
@@ -248,10 +250,12 @@
   cursor: pointer;
   font-weight: 700;
   font-size: 0.9rem;
-  transition: all 0.2s;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .download-btn:hover {
+  background: var(--phosphor);
+  color: var(--term-black);
   box-shadow: 0 0 15px var(--phosphor-glow);
   transform: translateY(-1px);
 }

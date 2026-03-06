@@ -70,12 +70,13 @@
   font-weight: 600;
   font-size: 0.875rem;
   white-space: nowrap;
-  transition: all 0.2s;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .add-magnet-btn:hover,
 .add-file-btn:hover {
   background: var(--phosphor);
+  color: var(--term-black);
   box-shadow: 0 0 12px var(--phosphor-glow, rgba(0, 255, 128, 0.2));
 }
 
@@ -92,6 +93,7 @@
 
 .add-file-btn:hover {
   background: var(--border-color, #333);
+  color: var(--text-primary, #e0e0e0);
   box-shadow: none;
 }
 

@@ -98,11 +98,12 @@
   cursor: pointer;
   font-weight: 700;
   font-size: 0.875rem;
-  transition: all 0.2s;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .mp-submit-btn:hover {
   background: var(--phosphor);
+  color: var(--term-black);
   box-shadow: 0 0 12px var(--phosphor-glow);
 }
 
