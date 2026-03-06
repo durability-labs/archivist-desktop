@@ -33,6 +33,7 @@ export default function Marketplace() {
   const [duration, setDuration] = useState('86400'); // 1 day in seconds
   const [minPricePerBytePerSecond, setMinPricePerBytePerSecond] = useState('1');
   const [maxCollateralPerByte, setMaxCollateralPerByte] = useState('1');
+  const [totalCollateral, setTotalCollateral] = useState('1');
   const [providerSubmitting, setProviderSubmitting] = useState(false);
   const [providerError, setProviderError] = useState<string | null>(null);
 
@@ -68,7 +69,7 @@ export default function Marketplace() {
     setProviderSubmitting(true);
     setProviderError(null);
     try {
-      await setAvailability({ totalSize, duration, minPricePerBytePerSecond, maxCollateralPerByte });
+      await setAvailability({ totalSize, duration, minPricePerBytePerSecond, maxCollateralPerByte, totalCollateral });
     } catch (err) {
       setProviderError(String(err));
     } finally {
@@ -221,6 +222,15 @@ export default function Marketplace() {
                 type="text"
                 value={maxCollateralPerByte}
                 onChange={(e) => setMaxCollateralPerByte(e.target.value)}
+                placeholder="1"
+              />
+            </div>
+            <div className="mp-field">
+              <label>Total Collateral</label>
+              <input
+                type="text"
+                value={totalCollateral}
+                onChange={(e) => setTotalCollateral(e.target.value)}
                 placeholder="1"
               />
             </div>

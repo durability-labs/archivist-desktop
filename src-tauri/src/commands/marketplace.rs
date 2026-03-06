@@ -24,6 +24,7 @@ pub async fn set_availability(
     duration: String,
     min_price_per_byte_per_second: String,
     max_collateral_per_byte: String,
+    total_collateral: String,
 ) -> Result<Availability> {
     let marketplace = state.marketplace.read().await;
     marketplace
@@ -32,6 +33,7 @@ pub async fn set_availability(
             duration,
             min_price_per_byte_per_second,
             max_collateral_per_byte,
+            total_collateral,
         )
         .await
 }

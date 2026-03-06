@@ -33,12 +33,14 @@ impl MarketplaceService {
         duration: String,
         min_price_per_byte_per_second: String,
         max_collateral_per_byte: String,
+        total_collateral: String,
     ) -> Result<Availability> {
         let req = AvailabilityRequest {
             total_size,
             duration,
             min_price_per_byte_per_second,
             max_collateral_per_byte,
+            total_collateral,
         };
         self.api_client.post_availability(&req).await
     }

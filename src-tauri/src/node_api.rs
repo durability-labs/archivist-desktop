@@ -210,6 +210,8 @@ pub struct Availability {
     pub min_price_per_byte_per_second: String,
     #[serde(default, rename = "maxCollateralPerByte")]
     pub max_collateral_per_byte: String,
+    #[serde(default)]
+    pub total_collateral: String,
 }
 
 /// Request body for creating an availability offer
@@ -222,6 +224,7 @@ pub struct AvailabilityRequest {
     pub min_price_per_byte_per_second: String,
     #[serde(rename = "maxCollateralPerByte")]
     pub max_collateral_per_byte: String,
+    pub total_collateral: String,
 }
 
 /// Request body for creating a storage request

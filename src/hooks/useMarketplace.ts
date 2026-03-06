@@ -50,6 +50,7 @@ export interface SetAvailabilityParams {
   duration: string;
   minPricePerBytePerSecond: string;
   maxCollateralPerByte: string;
+  totalCollateral: string;
 }
 
 export interface CreateStorageRequestParams {
@@ -118,6 +119,7 @@ export function useMarketplace(): UseMarketplace {
       duration: params.duration,
       minPricePerBytePerSecond: params.minPricePerBytePerSecond,
       maxCollateralPerByte: params.maxCollateralPerByte,
+      totalCollateral: params.totalCollateral,
     });
     await refresh();
     return result;
