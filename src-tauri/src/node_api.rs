@@ -931,8 +931,9 @@ impl NodeApiClient {
 
     /// Create a storage request with full marketplace parameters.
     ///
-    /// Retries once on transient connection errors (e.g., connection refused/reset)
-    /// since the sidecar may momentarily drop connections under load.
+    /// Retries once on transient connection or timeout errors, since blockchain
+    /// operations (gas estimation, tx submission) can be slow and the sidecar may
+    /// momentarily drop connections under load.
     pub async fn create_storage_request(
         &self,
         cid: &str,
@@ -944,7 +945,7 @@ impl NodeApiClient {
             self.client
                 .post(&url)
                 .json(params)
-                .timeout(Duration::from_secs(60))
+                .timeout(Duration::from_secs(300)) // 5 min for blockchain ops
                 .send()
         };
 
@@ -954,13 +955,15 @@ impl NodeApiClient {
             Err(e) => {
                 let detail = describe_reqwest_error(&e);
 
-                if e.is_connect() {
-                    // Connection error — retry once after a short delay
-                    log::warn!(
-                        "Storage request connection failed, retrying in 1s: {}",
-                        detail
-                    );
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                if e.is_connect() || e.is_timeout() {
+                    // Connection or timeout error — retry once after a short delay
+                    let kind = if e.is_timeout() {
+                        "timed out"
+                    } else {
+                        "connection failed"
+                    };
+                    log::warn!("Storage request {} ({}), retrying in 2s...", kind, detail);
+                    tokio::time::sleep(Duration::from_secs(2)).await;
 
                     match send_request().await {
                         Ok(resp) => resp,
@@ -974,7 +977,7 @@ impl NodeApiClient {
                         }
                     }
                 } else {
-                    // Non-connection error (timeout, body, etc.) — fail immediately
+                    // Other error (body parse, redirect, etc.) — fail immediately
                     log::error!("Storage request failed: {}", detail);
                     return Err(ArchivistError::ApiError(format!(
                         "Storage request failed: {}",

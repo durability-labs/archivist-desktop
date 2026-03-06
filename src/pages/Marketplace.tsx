@@ -356,12 +356,17 @@ export default function Marketplace() {
             </div>
           </div>
           {clientError && <div className="mp-error">{clientError}</div>}
+          {clientSubmitting && (
+            <div className="mp-info">
+              Submitting blockchain transaction... This may take several minutes while gas is estimated and the transaction is processed.
+            </div>
+          )}
           <button
             type="submit"
             className="mp-submit-btn"
             disabled={clientSubmitting || !selectedCid}
           >
-            {clientSubmitting ? 'Submitting...' : 'Create Storage Request'}
+            {clientSubmitting ? 'Submitting (please wait)...' : 'Create Storage Request'}
           </button>
         </form>
 

@@ -316,7 +316,7 @@
   text-decoration: underline;
 }
 
-/* ── Error state ─────────────────────────────────────────────────────── */
+/* ── Error / info states ─────────────────────────────────────────────── */
 
 .mp-error {
   color: var(--color-error);
@@ -325,6 +325,16 @@
   padding: 0.75rem;
   border-radius: 6px;
   margin-bottom: 1rem;
+  font-size: 0.8rem;
+}
+
+.mp-info {
+  color: var(--phosphor-dim);
+  background: rgba(0, 255, 65, 0.06);
+  border: 1px solid rgba(0, 255, 65, 0.15);
+  padding: 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
   font-size: 0.8rem;
 }
 
