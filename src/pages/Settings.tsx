@@ -1387,6 +1387,16 @@ function Settings() {
           </div>
         </div>
       </div>
+
+      {/* Credits */}
+      <div className="settings-section">
+        <h3>Credits to Our Supporters</h3>
+        <p className="hint" style={{ lineHeight: '1.8' }}>
+          <a href="https://github.com/SavageYoda24" target="_blank" rel="noopener noreferrer" className="about-link">SavageYoda24</a>,{' '}
+          <a href="https://github.com/Zorlin" target="_blank" rel="noopener noreferrer" className="about-link">Wings</a>,{' '}
+          k123_tupolev, corpetty, mghawzi, arnaud8803, giuliano.mega, cskiraly, rahullenkala, ayoonchain_, vrycmfy, cpstl, 0xguylouis, ashiskumarnaik, magnusss5276, qnou, alexanderm3666, warfront1, emdee4570, hackyguru, sohag.sarkar, vpavlin, ali_kaleab, cnanakos, .lanski, fergulati, crypto_marina, godlikexi, egonatura, auhau, robogod_42, nipsysdev AKA Xav, samuel.ing, 0xenosis, wfschrec, danisharora099, bkomuves, jonny.derp, a.im, marcin.czenko, izikdepth, .trevligt, motionfactory, and so many others...
+        </p>
+      </div>
     </div>
   );
 }
