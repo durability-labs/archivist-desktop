@@ -31,8 +31,8 @@ export default function Marketplace() {
   // Provider form state
   const [totalSize, setTotalSize] = useState('1073741824'); // 1 GB
   const [duration, setDuration] = useState('86400'); // 1 day in seconds
-  const [minPrice, setMinPrice] = useState('1');
-  const [maxCollateral, setMaxCollateral] = useState('1');
+  const [minPricePerBytePerSecond, setMinPricePerBytePerSecond] = useState('1');
+  const [maxCollateralPerByte, setMaxCollateralPerByte] = useState('1');
   const [providerSubmitting, setProviderSubmitting] = useState(false);
   const [providerError, setProviderError] = useState<string | null>(null);
 
@@ -68,7 +68,7 @@ export default function Marketplace() {
     setProviderSubmitting(true);
     setProviderError(null);
     try {
-      await setAvailability({ totalSize, duration, minPrice, maxCollateral });
+      await setAvailability({ totalSize, duration, minPricePerBytePerSecond, maxCollateralPerByte });
     } catch (err) {
       setProviderError(String(err));
     } finally {
@@ -165,8 +165,8 @@ export default function Marketplace() {
                   <th>Total Size</th>
                   <th>Free Size</th>
                   <th>Duration</th>
-                  <th>Min Price</th>
-                  <th>Max Collateral</th>
+                  <th>Min Price/Byte/s</th>
+                  <th>Max Collateral/Byte</th>
                 </tr>
               </thead>
               <tbody>
@@ -176,8 +176,8 @@ export default function Marketplace() {
                     <td>{a.totalSize}</td>
                     <td>{a.freeSize}</td>
                     <td>{a.duration}</td>
-                    <td>{a.minPrice}</td>
-                    <td>{a.maxCollateral}</td>
+                    <td>{a.minPricePerBytePerSecond}</td>
+                    <td>{a.maxCollateralPerByte}</td>
                   </tr>
                 ))}
               </tbody>
@@ -207,20 +207,20 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Min Price</label>
+              <label>Min Price per Byte/Second</label>
               <input
                 type="text"
-                value={minPrice}
-                onChange={(e) => setMinPrice(e.target.value)}
+                value={minPricePerBytePerSecond}
+                onChange={(e) => setMinPricePerBytePerSecond(e.target.value)}
                 placeholder="1"
               />
             </div>
             <div className="mp-field">
-              <label>Max Collateral</label>
+              <label>Max Collateral per Byte</label>
               <input
                 type="text"
-                value={maxCollateral}
-                onChange={(e) => setMaxCollateral(e.target.value)}
+                value={maxCollateralPerByte}
+                onChange={(e) => setMaxCollateralPerByte(e.target.value)}
                 placeholder="1"
               />
             </div>

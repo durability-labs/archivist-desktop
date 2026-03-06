@@ -34,8 +34,8 @@ export interface Availability {
   totalSize: string;
   freeSize: string;
   duration: string;
-  minPrice: string;
-  maxCollateral: string;
+  minPricePerBytePerSecond: string;
+  maxCollateralPerByte: string;
 }
 
 export interface Purchase {
@@ -48,8 +48,8 @@ export interface Purchase {
 export interface SetAvailabilityParams {
   totalSize: string;
   duration: string;
-  minPrice: string;
-  maxCollateral: string;
+  minPricePerBytePerSecond: string;
+  maxCollateralPerByte: string;
 }
 
 export interface CreateStorageRequestParams {
@@ -116,8 +116,8 @@ export function useMarketplace(): UseMarketplace {
     const result = await invoke<Availability>('set_availability', {
       totalSize: params.totalSize,
       duration: params.duration,
-      minPrice: params.minPrice,
-      maxCollateral: params.maxCollateral,
+      minPricePerBytePerSecond: params.minPricePerBytePerSecond,
+      maxCollateralPerByte: params.maxCollateralPerByte,
     });
     await refresh();
     return result;

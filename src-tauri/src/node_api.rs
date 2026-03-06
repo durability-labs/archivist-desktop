@@ -206,10 +206,10 @@ pub struct Availability {
     pub free_size: String,
     #[serde(default)]
     pub duration: String,
-    #[serde(default)]
-    pub min_price: String,
-    #[serde(default)]
-    pub max_collateral: String,
+    #[serde(default, rename = "minPricePerBytePerSecond")]
+    pub min_price_per_byte_per_second: String,
+    #[serde(default, rename = "maxCollateralPerByte")]
+    pub max_collateral_per_byte: String,
 }
 
 /// Request body for creating an availability offer
@@ -218,8 +218,10 @@ pub struct Availability {
 pub struct AvailabilityRequest {
     pub total_size: String,
     pub duration: String,
-    pub min_price: String,
-    pub max_collateral: String,
+    #[serde(rename = "minPricePerBytePerSecond")]
+    pub min_price_per_byte_per_second: String,
+    #[serde(rename = "maxCollateralPerByte")]
+    pub max_collateral_per_byte: String,
 }
 
 /// Request body for creating a storage request
