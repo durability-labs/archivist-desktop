@@ -46,7 +46,7 @@ pub async fn create_storage_request(
     slot_size: u64,
     max_slot_loss: u64,
     expiry: u64,
-) -> Result<Purchase> {
+) -> Result<String> {
     let params = StorageRequestParams {
         duration,
         proof_probability,
@@ -62,7 +62,7 @@ pub async fn create_storage_request(
 }
 
 #[tauri::command]
-pub async fn get_purchases(state: State<'_, AppState>) -> Result<Vec<Purchase>> {
+pub async fn get_purchases(state: State<'_, AppState>) -> Result<Vec<String>> {
     let marketplace = state.marketplace.read().await;
     marketplace.get_purchases().await
 }

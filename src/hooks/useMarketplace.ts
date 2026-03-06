@@ -20,7 +20,7 @@ export interface StorageRequest {
   client: string;
   ask: StorageAsk;
   content: StorageContent;
-  expiry: string;
+  expiry: number;
   nonce: string;
 }
 
@@ -70,8 +70,8 @@ export interface UseMarketplace {
   availability: Availability[];
   setAvailability: (params: SetAvailabilityParams) => Promise<Availability>;
   // Client
-  purchases: Purchase[];
-  createStorageRequest: (params: CreateStorageRequestParams) => Promise<Purchase>;
+  purchases: string[];
+  createStorageRequest: (params: CreateStorageRequestParams) => Promise<string>;
   getPurchase: (id: string) => Promise<Purchase>;
   // State
   loading: boolean;
@@ -82,7 +82,7 @@ export interface UseMarketplace {
 export function useMarketplace(): UseMarketplace {
   const [slots, setSlots] = useState<SalesSlot[]>([]);
   const [availability, setAvailability] = useState<Availability[]>([]);
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [purchases, setPurchases] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,7 +91,7 @@ export function useMarketplace(): UseMarketplace {
       const [slotsResult, availResult, purchasesResult] = await Promise.allSettled([
         invoke<SalesSlot[]>('get_sales_slots'),
         invoke<Availability[]>('get_availability'),
-        invoke<Purchase[]>('get_purchases'),
+        invoke<string[]>('get_purchases'),
       ]);
 
       if (slotsResult.status === 'fulfilled') setSlots(slotsResult.value);
@@ -124,7 +124,7 @@ export function useMarketplace(): UseMarketplace {
   }, [refresh]);
 
   const doCreateStorageRequest = useCallback(async (params: CreateStorageRequestParams) => {
-    const result = await invoke<Purchase>('create_storage_request', {
+    const result = await invoke<string>('create_storage_request', {
       cid: params.cid,
       duration: params.duration,
       proofProbability: params.proofProbability,

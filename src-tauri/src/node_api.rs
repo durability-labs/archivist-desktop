@@ -181,7 +181,7 @@ pub struct StorageRequest {
     pub ask: StorageAsk,
     pub content: StorageContent,
     #[serde(default)]
-    pub expiry: String,
+    pub expiry: u64,
     #[serde(default)]
     pub nonce: String,
 }
@@ -938,7 +938,7 @@ impl NodeApiClient {
         &self,
         cid: &str,
         params: &StorageRequestParams,
-    ) -> Result<Purchase> {
+    ) -> Result<String> {
         let url = format!("{}/api/archivist/v1/storage/request/{}", self.base_url, cid);
 
         let send_request = || {
@@ -997,20 +997,18 @@ impl NodeApiClient {
         }
 
         let body = response.text().await.map_err(|e| {
-            ArchivistError::ApiError(format!("Failed to read purchase response body: {}", e))
-        })?;
-        log::debug!("Storage request response body: {}", body);
-        serde_json::from_str::<Purchase>(&body).map_err(|e| {
-            log::error!("Failed to parse purchase response: {} — body: {}", e, body);
             ArchivistError::ApiError(format!(
-                "Failed to parse purchase response: {} — body: {}",
-                e, body
+                "Failed to read storage request response body: {}",
+                e
             ))
-        })
+        })?;
+        let request_id = body.trim().trim_matches('"').to_string();
+        log::info!("Storage request created: {}", request_id);
+        Ok(request_id)
     }
 
-    /// List client's storage purchases
-    pub async fn get_purchases(&self) -> Result<Vec<Purchase>> {
+    /// List client's storage purchases (returns list of purchase ID strings)
+    pub async fn get_purchases(&self) -> Result<Vec<String>> {
         let url = format!("{}/api/archivist/v1/storage/purchases", self.base_url);
 
         let response = self
@@ -1028,7 +1026,7 @@ impl NodeApiClient {
         }
 
         response
-            .json::<Vec<Purchase>>()
+            .json::<Vec<String>>()
             .await
             .map_err(|e| ArchivistError::ApiError(format!("Failed to parse purchases: {}", e)))
     }
@@ -1054,10 +1052,14 @@ impl NodeApiClient {
             )));
         }
 
-        response
-            .json::<Purchase>()
-            .await
-            .map_err(|e| ArchivistError::ApiError(format!("Failed to parse purchase: {}", e)))
+        let body = response.text().await.map_err(|e| {
+            ArchivistError::ApiError(format!("Failed to read purchase response body: {}", e))
+        })?;
+        log::debug!("Purchase response body: {}", body);
+        serde_json::from_str::<Purchase>(&body).map_err(|e| {
+            log::error!("Failed to parse purchase: {} — body: {}", e, body);
+            ArchivistError::ApiError(format!("Failed to parse purchase: {} — body: {}", e, body))
+        })
     }
 }
 

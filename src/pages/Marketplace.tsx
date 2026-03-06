@@ -376,29 +376,20 @@ export default function Marketplace() {
             <table className="mp-table">
               <thead>
                 <tr>
-                  <th>Request ID</th>
-                  <th>CID</th>
-                  <th>State</th>
-                  <th>Slots</th>
-                  <th>Duration</th>
+                  <th>Purchase ID</th>
                 </tr>
               </thead>
               <tbody>
-                {purchases.map((p) => (
-                  <tr key={p.requestId}>
-                    <td title={p.requestId}>{p.requestId.slice(0, 8)}...</td>
-                    <td title={p.request?.content.cid}>
-                      {p.request?.content.cid.slice(0, 12) || 'N/A'}...
-                    </td>
-                    <td>
-                      <span className={`mp-state-badge ${p.state}`}>{p.state}</span>
-                    </td>
-                    <td>{p.request?.ask.slots || '-'}</td>
-                    <td>{p.request?.ask.duration || '-'}</td>
+                {purchases.map((id) => (
+                  <tr key={id}>
+                    <td title={id}>{id.slice(0, 16)}...</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+              View full purchase details on the <a href="/deals" style={{ color: 'var(--color-link)' }}>Deals</a> page.
+            </p>
           </>
         )}
       </div>

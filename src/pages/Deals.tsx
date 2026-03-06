@@ -3,9 +3,32 @@ import { useMarketplace, type Purchase, type SalesSlot } from '../hooks/useMarke
 import '../styles/Marketplace.css';
 
 export default function Deals() {
-  const { slots, purchases, loading, error, refresh } = useMarketplace();
+  const { slots, purchases, getPurchase, loading, error, refresh } = useMarketplace();
   const [expandedPurchase, setExpandedPurchase] = useState<string | null>(null);
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null);
+  const [purchaseDetails, setPurchaseDetails] = useState<Record<string, Purchase>>({});
+  const [detailLoading, setDetailLoading] = useState<string | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  const handleExpandPurchase = async (id: string) => {
+    if (expandedPurchase === id) {
+      setExpandedPurchase(null);
+      return;
+    }
+    setExpandedPurchase(id);
+    if (!purchaseDetails[id]) {
+      setDetailLoading(id);
+      setDetailError(null);
+      try {
+        const detail = await getPurchase(id);
+        setPurchaseDetails((prev) => ({ ...prev, [id]: detail }));
+      } catch (e) {
+        setDetailError(String(e));
+      } finally {
+        setDetailLoading(null);
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -35,39 +58,25 @@ export default function Deals() {
           <table className="mp-table">
             <thead>
               <tr>
-                <th>Request ID</th>
-                <th>CID</th>
-                <th>State</th>
-                <th>Duration</th>
-                <th>Slots</th>
-                <th>Price</th>
+                <th>Purchase ID</th>
               </tr>
             </thead>
             <tbody>
-              {purchases.map((p: Purchase) => (
+              {purchases.map((id: string) => (
                 <>
                   <tr
-                    key={p.requestId}
-                    onClick={() =>
-                      setExpandedPurchase(expandedPurchase === p.requestId ? null : p.requestId)
-                    }
+                    key={id}
+                    onClick={() => handleExpandPurchase(id)}
                     style={{ cursor: 'pointer' }}
                   >
-                    <td title={p.requestId}>{p.requestId.slice(0, 8)}...</td>
-                    <td title={p.request?.content.cid}>
-                      {p.request?.content.cid.slice(0, 12) || 'N/A'}...
-                    </td>
-                    <td>
-                      <span className={`mp-state-badge ${p.state}`}>{p.state}</span>
-                    </td>
-                    <td>{p.request?.ask.duration || '-'}</td>
-                    <td>{p.request?.ask.slots || '-'}</td>
-                    <td>{p.request?.ask.pricePerBytePerSecond || '-'}</td>
+                    <td title={id}>{id.slice(0, 16)}...</td>
                   </tr>
-                  {expandedPurchase === p.requestId && (
-                    <tr key={`${p.requestId}-detail`}>
-                      <td colSpan={6} style={{ background: 'var(--term-dark)', padding: '1rem' }}>
-                        <PurchaseDetail purchase={p} />
+                  {expandedPurchase === id && (
+                    <tr key={`${id}-detail`}>
+                      <td colSpan={1} style={{ background: 'var(--term-dark)', padding: '1rem' }}>
+                        {detailLoading === id && <div>Loading details...</div>}
+                        {detailError && expandedPurchase === id && <div className="mp-error">{detailError}</div>}
+                        {purchaseDetails[id] && <PurchaseDetail purchase={purchaseDetails[id]} />}
                       </td>
                     </tr>
                   )}

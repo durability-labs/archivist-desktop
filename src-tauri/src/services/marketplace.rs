@@ -45,17 +45,17 @@ impl MarketplaceService {
 
     // ── Client (purchasing) ─────────────────────────────────────────
 
-    /// Create a storage request for a CID
+    /// Create a storage request for a CID (returns request ID string)
     pub async fn create_storage_request(
         &self,
         cid: &str,
         params: StorageRequestParams,
-    ) -> Result<Purchase> {
+    ) -> Result<String> {
         self.api_client.create_storage_request(cid, &params).await
     }
 
-    /// List all purchases
-    pub async fn get_purchases(&self) -> Result<Vec<Purchase>> {
+    /// List all purchases (returns list of purchase ID strings)
+    pub async fn get_purchases(&self) -> Result<Vec<String>> {
         self.api_client.get_purchases().await
     }
 
