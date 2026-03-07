@@ -1,6 +1,6 @@
 [package]
 name = "archivist-desktop"
-version = "0.2.1"
+version = "0.2.2"
 description = "Archivist - Decentralized File Storage Desktop Client"
 authors = ["Durability Labs"]
 license = "MIT"
