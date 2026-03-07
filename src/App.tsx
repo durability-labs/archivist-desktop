@@ -16,15 +16,12 @@ import AddDevice from './pages/AddDevice';
 import MediaDownload from './pages/MediaDownload';
 import MediaPlayer from './pages/MediaPlayer';
 import WebArchive from './pages/WebArchive';
-import Chat from './pages/Chat';
 import Torrents from './pages/Torrents';
 import Marketplace from './pages/Marketplace';
 import Deals from './pages/Deals';
 import Wallet from './pages/Wallet';
-import { ChatProvider, useChatContext } from './contexts/ChatContext';
 import logoSvg from './assets/logo.svg';
 import './styles/App.css';
-import './styles/Chat.css';
 
 const REDIRECT_AFTER_ONBOARDING_KEY = 'archivist_redirect_to_dashboard';
 
@@ -48,8 +45,6 @@ function OnboardingRedirect() {
 }
 
 function AppInner() {
-  const { totalUnread } = useChatContext();
-
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <OnboardingRedirect />
@@ -60,42 +55,20 @@ function AppInner() {
             <span className="logo-text">Archivist</span>
           </div>
           <nav className="nav">
-            {/* Primary navigation */}
             <NavLink to="/" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Dashboard
             </NavLink>
-            <NavLink to="/sync" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Backups
-            </NavLink>
+
+            {/* Archivist P2P Network */}
+            <div className="nav-section-label">Archivist P2P Network</div>
             <NavLink to="/files" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Restore
-            </NavLink>
-            <NavLink to="/media" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Media Download
-            </NavLink>
-            <NavLink to="/web-archive" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Web Archive
-            </NavLink>
-            <NavLink to="/torrents" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Torrents
-            </NavLink>
-            <NavLink to="/chat" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Chat
-              {totalUnread > 0 && <span className="nav-chat-badge">{totalUnread}</span>}
-            </NavLink>
-            {/* Devices section */}
-            <div className="nav-section-label">Devices</div>
-            <NavLink to="/devices" end className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              My Devices
-            </NavLink>
-            <NavLink to="/devices/add" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Add Device
+              Upload & Download
             </NavLink>
 
-            {/* Marketplace section */}
+            {/* Marketplace */}
             <div className="nav-section-label">Marketplace</div>
             <NavLink to="/marketplace" end className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Browse
+              Make a Deal
             </NavLink>
             <NavLink to="/marketplace/deals" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               My Deals
@@ -104,16 +77,37 @@ function AppInner() {
               Wallet
             </NavLink>
 
+            {/* Archiving Tools */}
+            <div className="nav-section-label">Archiving Tools</div>
+            <NavLink to="/media" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Media Downloader
+            </NavLink>
+            <NavLink to="/web-archive" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Website Scraper
+            </NavLink>
+            <NavLink to="/torrents" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Torrents
+            </NavLink>
+
             {/* Advanced section - collapsible */}
             <NavAccordion title="Advanced" storageKey="nav-advanced-open" defaultOpen={false}>
+              <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                Settings
+              </NavLink>
               <NavLink to="/logs" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
                 Logs
+              </NavLink>
+              <NavLink to="/sync" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                Folder Upload
               </NavLink>
               <NavLink to="/backup-server" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
                 Backup Server
               </NavLink>
-              <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                Settings
+              <NavLink to="/devices" end className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                My Devices
+              </NavLink>
+              <NavLink to="/devices/add" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                Add Device
               </NavLink>
             </NavAccordion>
           </nav>
@@ -133,8 +127,6 @@ function AppInner() {
             <Route path="/media/player/:taskId" element={<MediaPlayer />} />
             <Route path="/web-archive" element={<WebArchive />} />
             <Route path="/torrents" element={<Torrents />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/chat/:conversationId" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />
 
             {/* Marketplace routes */}
@@ -182,11 +174,7 @@ function App() {
     );
   }
 
-  return (
-    <ChatProvider>
-      <AppInner />
-    </ChatProvider>
-  );
+  return <AppInner />;
 }
 
 export default App;

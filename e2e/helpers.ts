@@ -382,6 +382,15 @@ export const SEL = {
 
   // Wallet (extra selectors)
   walletCopyBtn: '.wallet-copy-btn',
+
+  // Dashboard - IRC panel
+  ircPanel: '.dashboard-irc-panel',
+  ircPanelHeader: '.irc-panel-header',
+  ircChannelName: '.irc-panel-header h3',
+  ircNetworkLabel: '.irc-network-label',
+  ircIframe: '.irc-iframe',
+  dashboardLayout: '.dashboard-layout',
+  dashboardMain: '.dashboard-main',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -393,17 +402,25 @@ export const SEL = {
  * (e.g. marketplace pages behind feature flags).
  */
 const DIRECT_NAV_ROUTES: Record<string, string> = {
-  'Browse': '/marketplace',
+  'Dashboard': '/',
+  'Make a Deal': '/marketplace',
   'My Deals': '/marketplace/deals',
   'Wallet': '/wallet',
   'Torrents': '/torrents',
+  // Legacy labels (fallback for old tests not yet updated)
+  'Browse': '/marketplace',
+  'Restore': '/files',
+  'Backups': '/sync',
+  'Media Download': '/media',
+  'Web Archive': '/web-archive',
+  'Chat': '/chat',
   'Streaming TV': '/streaming',
 };
 
 /** Click a sidebar nav link by visible text, falling back to direct URL navigation. */
 export async function navigateTo(page: Page, label: string): Promise<void> {
   // Expand the Advanced accordion if targeting Logs / Settings / Backup Server
-  const advancedTargets = ['Logs', 'Backup Server', 'Settings'];
+  const advancedTargets = ['Logs', 'Backup Server', 'Settings', 'My Devices', 'Add Device', 'Folder Upload'];
   if (advancedTargets.includes(label)) {
     const accordion = page.locator('.sidebar .nav-accordion-header:has-text("Advanced")');
     const targetLink = page.locator(`.sidebar .nav-link:has-text("${label}")`);
@@ -428,5 +445,28 @@ export async function navigateTo(page: Page, label: string): Promise<void> {
   }
 
   await page.waitForLoadState('domcontentloaded');
+}
+
+/**
+ * Ensure the app is past onboarding (skip onboarding if it's showing).
+ * Sets the localStorage key and reloads the page to land on the main app shell.
+ */
+export async function ensurePastOnboarding(page: Page): Promise<void> {
+  const hasSidebar = await page.locator('.sidebar').isVisible({ timeout: 2_000 }).catch(() => false);
+  if (hasSidebar) return; // Already past onboarding
+
+  // Set onboarding as complete via localStorage and navigate to root
+  await page.evaluate(() => {
+    localStorage.setItem('archivist_onboarding_complete', 'true');
+    localStorage.removeItem('archivist_onboarding_step');
+  });
+
+  // Navigate to root (more reliable than reload, especially if current page is broken)
+  const currentUrl = new URL(page.url());
+  await page.goto(`${currentUrl.origin}/`);
+  await page.waitForLoadState('domcontentloaded');
+
+  // Wait for sidebar to appear
+  await page.locator('.sidebar').waitFor({ state: 'visible', timeout: 10_000 });
 }
 
