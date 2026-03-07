@@ -77,6 +77,8 @@ pub struct NodeConfig {
     pub max_restart_attempts: u32,
     pub health_check_interval_secs: u64,
     pub log_level: String, // Log level: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL
+    /// Optional external IP. When set, uses --nat=extip:<ip> instead of --nat=upnp.
+    pub announce_ip: Option<String>,
     // Marketplace fields (set at runtime, not serialized to frontend)
     #[serde(skip)]
     pub eth_private_key: Option<String>,
@@ -105,6 +107,7 @@ impl Default for NodeConfig {
             max_restart_attempts: 3,
             health_check_interval_secs: 30,
             log_level: "DEBUG".to_string(), // Good balance for debugging
+            announce_ip: None,
             eth_private_key: None,
             marketplace_address: None,
             eth_provider_url: None,
@@ -126,6 +129,7 @@ impl NodeConfig {
             max_restart_attempts: 3,
             health_check_interval_secs: 30,
             log_level: settings.log_level.clone(),
+            announce_ip: settings.announce_ip.clone(),
             eth_private_key: None,
             marketplace_address: None,
             eth_provider_url: None,
@@ -251,7 +255,10 @@ impl NodeService {
             format!("--disc-port={}", self.config.discovery_port),
             format!("--listen-addrs={}", listen_addr),
             format!("--storage-quota={}", self.config.max_storage_bytes),
-            "--nat=upnp".to_string(),
+            match &self.config.announce_ip {
+                Some(ip) => format!("--nat=extip:{}", ip),
+                None => "--nat=upnp".to_string(),
+            },
         ];
 
         // Append marketplace flags when a private key is available
@@ -305,7 +312,7 @@ impl NodeService {
                 }
             }
 
-            args.push("persistence".to_string());
+            args.push("--persistence".to_string());
             args.push(format!("--eth-private-key={}", key_path.to_string_lossy()));
             if let Some(ref addr) = self.config.marketplace_address {
                 args.push(format!("--marketplace-address={}", addr));
@@ -901,29 +908,34 @@ impl NodeService {
                 }
 
                 // Fetch public IP (cache for 5 minutes to avoid rate limiting)
-                let should_fetch_ip = match self.public_ip_cache_time {
-                    Some(time) => time.elapsed() > Duration::from_secs(300),
-                    None => true,
-                };
-
-                if should_fetch_ip {
-                    if let Ok(ip_response) = client
-                        .get("https://api.ipify.org")
-                        .timeout(Duration::from_secs(5))
-                        .send()
-                        .await
-                    {
-                        if let Ok(ip) = ip_response.text().await {
-                            let ip = ip.trim().to_string();
-                            log::debug!("Fetched public IP: {}", ip);
-                            self.public_ip_cache = Some(ip.clone());
-                            self.public_ip_cache_time = Some(Instant::now());
-                            self.status.public_ip = Some(ip);
-                        }
-                    }
+                // When announce_ip is configured, use it directly instead of calling ipify
+                if let Some(ref ip) = self.config.announce_ip {
+                    self.status.public_ip = Some(ip.clone());
                 } else {
-                    // Use cached public IP
-                    self.status.public_ip = self.public_ip_cache.clone();
+                    let should_fetch_ip = match self.public_ip_cache_time {
+                        Some(time) => time.elapsed() > Duration::from_secs(300),
+                        None => true,
+                    };
+
+                    if should_fetch_ip {
+                        if let Ok(ip_response) = client
+                            .get("https://api.ipify.org")
+                            .timeout(Duration::from_secs(5))
+                            .send()
+                            .await
+                        {
+                            if let Ok(ip) = ip_response.text().await {
+                                let ip = ip.trim().to_string();
+                                log::debug!("Fetched public IP: {}", ip);
+                                self.public_ip_cache = Some(ip.clone());
+                                self.public_ip_cache_time = Some(Instant::now());
+                                self.status.public_ip = Some(ip);
+                            }
+                        }
+                    } else {
+                        // Use cached public IP
+                        self.status.public_ip = self.public_ip_cache.clone();
+                    }
                 }
 
                 Ok(true)

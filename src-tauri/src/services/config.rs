@@ -177,6 +177,9 @@ pub struct NodeSettings {
     pub max_storage_gb: u32,
     pub auto_start: bool,
     pub log_level: String, // Log level: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL
+    /// Optional external IP address. When set, the node uses --nat=extip:<ip> instead of --nat=upnp.
+    #[serde(default)]
+    pub announce_ip: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -493,6 +496,7 @@ impl Default for AppConfig {
                 max_storage_gb: 10,
                 auto_start: true,
                 log_level: "DEBUG".to_string(), // Good balance of verbosity for debugging
+                announce_ip: None,
             },
             sync: SyncSettings {
                 auto_sync: true,

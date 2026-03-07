@@ -11,6 +11,7 @@ interface NodeSettings {
   max_storage_gb: number;
   auto_start: boolean;
   log_level: string;      // TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL
+  announce_ip: string | null;
 }
 
 interface SyncSettings {
@@ -98,6 +99,7 @@ const defaultConfig: AppConfig = {
     max_storage_gb: 10,
     auto_start: true,
     log_level: 'DEBUG',
+    announce_ip: null,
   },
   sync: {
     auto_sync: true,
@@ -488,6 +490,21 @@ function Settings() {
             <option value="FATAL">FATAL - Critical errors only</option>
           </select>
           <span className="hint">Verbosity of node logs. Restart node to apply changes.</span>
+        </div>
+        <div className="setting-item">
+          <label>External IP (optional)</label>
+          <input
+            type="text"
+            value={config.node.announce_ip ?? ''}
+            onChange={(e) =>
+              setConfig((prev) => ({
+                ...prev,
+                node: { ...prev.node, announce_ip: e.target.value || null },
+              }))
+            }
+            placeholder="e.g. 203.0.113.1"
+          />
+          <span className="hint">Your public IP. Set this if UPnP fails — bypasses UPnP and announces the correct address to peers. Requires node restart.</span>
         </div>
         <div className="setting-item">
           <label>
@@ -1392,9 +1409,9 @@ function Settings() {
       <div className="settings-section">
         <h3>Credits to Our Supporters</h3>
         <p className="hint" style={{ lineHeight: '1.8' }}>
-          <a href="https://github.com/SavageYoda24" target="_blank" rel="noopener noreferrer" className="about-link">SavageYoda24</a>,{' '}
-          <a href="https://github.com/Zorlin" target="_blank" rel="noopener noreferrer" className="about-link">Wings</a>,{' '}
-          k123_tupolev, corpetty, mghawzi, arnaud8803, giuliano.mega, cskiraly, rahullenkala, ayoonchain_, vrycmfy, cpstl, 0xguylouis, ashiskumarnaik, magnusss5276, qnou, alexanderm3666, warfront1, emdee4570, hackyguru, sohag.sarkar, vpavlin, ali_kaleab, cnanakos, .lanski, fergulati, crypto_marina, godlikexi, egonatura, auhau, robogod_42, nipsysdev AKA Xav, samuel.ing, 0xenosis, wfschrec, danisharora099, bkomuves, jonny.derp, a.im, marcin.czenko, izikdepth, .trevligt, motionfactory, and so many others...
+          <a href="https://github.com/Zorlin" target="_blank" rel="noopener noreferrer" className="about-link">papersand</a>,{' '}
+          <a href="https://github.com/SavageYoda24" target="_blank" rel="noopener noreferrer" className="about-link">savageyoda24</a>,{' '}
+          k123_tupolev, arnaud8803, vrycmyf, moudyellaz, 0xcryptonewbie, lorena96507, giuliano.mega, warfront1, cnanakos, thatben, Oxselo, emdee4570, diegomazro, pepedzekiphen, cskiraly, alisherrr, artsy_detective, johns9729, vpavlin, swahmedjavid, gilles356, netwave, putitarusa, mrorantox, ryangoree, 0xr1st4, deety_56657, hackyguru, morgan0x01, DZEKI, celestial_gul_85001, p1ge0nh8er, lajolly, Kali_Ali, marcin.czenko, corpetty, auhau, ashishkumarnaik, ladib777, wtsupmybro, egonatoura, killfacemd, pale_rider, oxchamel, .trevligt, bkomoves, robogod_42, 0xguylouis, ayoonchain_, iamAy0, sohag_sarkar, mghazwi, magnusss5276, danisharora099, neoanonymous, buray58, godlikexi, Everest, fergulati, rahullenkala, qnou, alexanderm3666, nipsysdev, shelb2830, Timothy, sdf37, alvatarmakes, iamtrev0r, samuel.ing, patrizzz, izikdepth, j_0986, awmacp, a.im, flexsurfer, Oxenosis, kali023236, toored38, MINT HERE, .lanski, 0x01, arseniy.eth, crypto_marina, volodymyr4303, johnny.ha, akhilmanga
         </p>
       </div>
     </div>
