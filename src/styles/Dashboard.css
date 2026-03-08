@@ -1,0 +1,13 @@
+.dashboard-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.dashboard-main {
+  min-width: 0;
+}
+
+.dashboard-main .page {
+  max-width: 1000px;
+}

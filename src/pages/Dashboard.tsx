@@ -262,17 +262,6 @@ function Dashboard() {
           )}
         </div>
       </div>
-      <div className="dashboard-irc-panel">
-        <div className="irc-panel-header">
-          <h3>#archivist</h3>
-          <span className="irc-network-label">Libera.Chat</span>
-        </div>
-        <iframe
-          src="https://web.libera.chat/#archivist"
-          className="irc-iframe"
-          title="IRC Chat"
-        />
-      </div>
     </div>
   );
 }
