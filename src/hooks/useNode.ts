@@ -40,8 +40,13 @@ const defaultStatus: NodeStatus = {
   addresses: [],
 };
 
+// Module-level cache to prevent status flicker on page navigation.
+// Without this, each useNode() mount starts with 'stopped' until the async
+// fetch completes, causing a brief offline flash even when the node is running.
+let cachedStatus: NodeStatus = defaultStatus;
+
 export function useNode() {
-  const [status, setStatus] = useState<NodeStatus>(defaultStatus);
+  const [status, setStatus] = useState<NodeStatus>(cachedStatus);
   const [config, setConfig] = useState<NodeConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +54,7 @@ export function useNode() {
   const refreshStatus = useCallback(async () => {
     try {
       const result = await invoke<NodeStatus>('get_node_status');
+      cachedStatus = result;
       setStatus(result);
       setError(null);
     } catch (e) {
@@ -70,6 +76,7 @@ export function useNode() {
       setLoading(true);
       setError(null);
       const result = await invoke<NodeStatus>('start_node');
+      cachedStatus = result;
       setStatus(result);
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
@@ -85,6 +92,7 @@ export function useNode() {
       setLoading(true);
       setError(null);
       const result = await invoke<NodeStatus>('stop_node');
+      cachedStatus = result;
       setStatus(result);
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
@@ -100,6 +108,7 @@ export function useNode() {
       setLoading(true);
       setError(null);
       const result = await invoke<NodeStatus>('restart_node');
+      cachedStatus = result;
       setStatus(result);
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
