@@ -15,15 +15,31 @@ A cross-platform desktop application for decentralized file storage, built with 
 
 ## Features
 
-- **Guided Onboarding**: First-run wizard to get your first backup in under 30 seconds
-- **File Management**: Upload, download, and manage files on the decentralized network
-- **Folder Sync**: Watch folders and automatically sync changes to the network
-- **Backup Server**: Automatic continuous backup to designated peers
-- **Peer Network**: Connect with peers, share SPR records, and monitor network stats
-- **Node Logs**: Built-in real-time log viewer with auto-refresh and auto-scroll
-- **System Tray**: Runs in the background with quick access from the system tray
-- **Auto-Update**: Automatic updates from GitHub releases
-- **Sound Notifications**: Audio feedback for node startup, peer connections, and downloads
+### Core
+- **Guided Onboarding** — first-run wizard to get your first backup in under 30 seconds
+- **File Management** — upload, download, and manage files; paste a CID to auto-trigger download
+- **Folder Sync** — watch folders and automatically sync changes to the network
+- **Backup Server** — automatic continuous backup to designated peers
+- **Device Management** — My Devices overview and step-by-step Add Device wizard
+
+### Marketplace
+- **Storage Marketplace** — browse providers offering storage slots, request storage on the network
+- **My Deals** — view completed purchases and active provider slots
+- **Wallet** — Ethereum wallet with generate/import, balance tracking, and network switching
+
+### Archiving Tools
+- **Media Downloader** — download video and audio from 100+ sites via yt-dlp, quality selection, download queue
+- **Media Player** — built-in video player with playlist, accessible from completed downloads
+- **Torrents** — add magnet links and .torrent files, per-file selection, speed limits
+- **Web Archive** — crawl and archive websites to decentralized storage, browse archives in-app
+
+### System
+- **Peer Network** — connect with peers, share SPR records, and monitor network stats
+- **Node Logs** — built-in real-time log viewer with auto-refresh and auto-scroll
+- **System Tray** — runs in the background with quick access from the system tray
+- **Auto-Update** — automatic updates from GitHub releases
+- **Sound Notifications** — audio feedback for node startup, peer connections, and downloads
+- **Manual Announce IP** — override UPnP with a manual public IP for NAT traversal
 
 ## Tech Stack
 
@@ -47,12 +63,15 @@ A cross-platform desktop application for decentralized file storage, built with 
 │  │  (Webview)         │◄────►│   (Native Process)     │ │
 │  │                    │ IPC  │                        │ │
 │  │ • Dashboard        │      │ • Node Management      │ │
-│  │ • Backups          │      │ • File Operations      │ │
-│  │ • Restore          │      │ • Folder Watching      │ │
-│  │ • Devices          │      │ • Peer Management      │ │
-│  │ • Peers            │      │ • Backup Daemon        │ │
-│  │ • Logs             │      │ • Configuration        │ │
-│  │ • Settings         │      │ • HTTP Client          │ │
+│  │ • Upload/Download  │      │ • File Operations      │ │
+│  │ • Marketplace      │      │ • Folder Watching      │ │
+│  │ • Wallet/Deals     │      │ • Peer Management      │ │
+│  │ • Media Download   │      │ • Backup Daemon        │ │
+│  │ • Media Player     │      │ • Media Download       │ │
+│  │ • Web Archive      │      │ • Torrent Engine       │ │
+│  │ • Torrents         │      │ • Web Archiver         │ │
+│  │ • Devices          │      │ • Wallet & Marketplace │ │
+│  │ • Settings/Logs    │      │ • Configuration        │ │
 │  └────────────────────┘      └───────────┬────────────┘ │
 │                                          │              │
 └──────────────────────────────────────────┼──────────────┘
@@ -81,13 +100,17 @@ A cross-platform desktop application for decentralized file storage, built with 
 
 ### How It Works
 
-1. **User Interface**: React frontend provides the UI (Dashboard, Backups, Restore, Devices, Peers, Logs, Settings)
+1. **User Interface**: React frontend provides the UI (Dashboard, Upload/Download, Marketplace, Wallet/Deals, Media Download, Media Player, Web Archive, Torrents, Devices, Settings/Logs)
 2. **Tauri Backend**: Rust backend handles:
    - Starting/stopping the archivist-node sidecar process
    - Managing file system operations (uploads, downloads, folder watching)
    - Proxying requests to the node's REST API
    - Persisting application configuration
    - Running the backup daemon for continuous sync
+   - Media downloads and streaming via yt-dlp/ffmpeg
+   - Torrent management (magnet links, .torrent files)
+   - Web archiving and archive viewing
+   - Wallet and marketplace interactions
 3. **Archivist Node**: Standalone sidecar process that:
    - Exposes REST API on localhost:8080
    - Manages content-addressed storage (CIDs)
@@ -173,15 +196,24 @@ bash scripts/download-sidecar.sh x86_64-pc-windows-msvc
 archivist-desktop/
 ├── src/                          # React frontend
 │   ├── components/               # Reusable UI components
+│   │   ├── ErrorState.tsx       # Error display component
+│   │   ├── IntroModal.tsx       # Intro modal overlay
 │   │   ├── NavAccordion.tsx     # Collapsible navigation sections
-│   │   └── NextSteps.tsx        # Post-onboarding guidance
+│   │   ├── NextSteps.tsx        # Post-onboarding guidance
+│   │   └── SafetyNumber.tsx     # Safety number verification
 │   ├── hooks/                    # Custom React hooks
 │   │   ├── useNode.ts           # Node lifecycle (start/stop/status)
 │   │   ├── useSync.ts           # Folder watching + sync queue
 │   │   ├── usePeers.ts          # Peer connections
 │   │   ├── useOnboarding.ts     # First-run onboarding state
 │   │   ├── useSoundNotifications.ts  # Audio feedback
-│   │   └── useFeatures.ts       # Feature flag detection
+│   │   ├── useFeatures.ts       # Feature flag detection
+│   │   ├── useMediaDownload.ts  # yt-dlp download queue + progress
+│   │   ├── useMediaStreaming.ts # Media streaming server control
+│   │   ├── useTorrent.ts        # Torrent state management
+│   │   ├── useWebArchive.ts     # Web archive crawl + viewer
+│   │   ├── useWallet.ts         # Ethereum wallet operations
+│   │   └── useMarketplace.ts    # Storage marketplace state
 │   ├── pages/                    # Route components
 │   │   ├── Dashboard.tsx        # Main status overview
 │   │   ├── Onboarding.tsx       # First-run wizard
@@ -191,10 +223,20 @@ archivist-desktop/
 │   │   ├── AddDevice.tsx        # Device pairing wizard
 │   │   ├── Peers.tsx            # P2P network view
 │   │   ├── BackupServer.tsx     # Backup daemon dashboard
+│   │   ├── MediaDownload.tsx    # yt-dlp media download UI
+│   │   ├── MediaPlayer.tsx      # Built-in video player with playlist
+│   │   ├── Torrents.tsx         # Torrent management UI
+│   │   ├── WebArchive.tsx       # Website archiver and viewer
+│   │   ├── Marketplace.tsx      # Storage marketplace browser
+│   │   ├── Deals.tsx            # Purchases and provider slots
+│   │   ├── Wallet.tsx           # Ethereum wallet UI
 │   │   ├── Logs.tsx             # Node logs viewer
 │   │   └── Settings.tsx         # App configuration
 │   ├── lib/                      # Utilities and types
 │   │   ├── cidValidation.ts     # CID format validation
+│   │   ├── archiveTypes.ts      # Web archive type definitions
+│   │   ├── contracts.ts         # Marketplace contract ABIs
+│   │   ├── sanitizeFilename.ts  # Filename sanitization
 │   │   └── tauri.ts             # Tauri invoke helpers
 │   ├── styles/                   # CSS files (terminal aesthetic)
 │   ├── App.tsx                   # Router + layout
@@ -212,13 +254,27 @@ archivist-desktop/
 │   │   │   ├── files.rs         # upload/download/list/delete
 │   │   │   ├── sync.rs          # watch folders, sync queue, manifests
 │   │   │   ├── peers.rs         # connect/disconnect/list
-│   │   │   └── system.rs        # config, platform info
+│   │   │   ├── system.rs        # config, platform info
+│   │   │   ├── media.rs         # yt-dlp download commands
+│   │   │   ├── streaming.rs     # media streaming server
+│   │   │   ├── archive.rs       # web archive commands
+│   │   │   ├── torrent.rs       # torrent management
+│   │   │   ├── marketplace.rs   # marketplace commands
+│   │   │   └── wallet.rs        # wallet commands
 │   │   └── services/            # Business logic
 │   │       ├── node.rs          # Sidecar process management
 │   │       ├── sync.rs          # File watching (notify crate)
 │   │       ├── config.rs        # Settings persistence
 │   │       ├── backup_daemon.rs # Backup daemon (polls source peers)
-│   │       └── manifest_server.rs # HTTP manifest discovery server
+│   │       ├── manifest_server.rs # HTTP manifest discovery server
+│   │       ├── binary_manager.rs  # yt-dlp/ffmpeg binary management
+│   │       ├── media_download.rs  # Media download queue + progress
+│   │       ├── media_streaming.rs # HTTP media streaming server
+│   │       ├── web_archive.rs     # Website crawler and archiver
+│   │       ├── archive_viewer.rs  # Archive content viewer
+│   │       ├── torrent.rs         # Torrent engine
+│   │       ├── marketplace.rs     # Storage marketplace logic
+│   │       └── wallet.rs          # Ethereum wallet management
 │   ├── resources/               # Bundled assets (video files)
 │   ├── sidecars/                # archivist-node binaries (gitignored)
 │   ├── Cargo.toml               # Rust dependencies
@@ -580,6 +636,12 @@ Use the built-in Logs page for real-time viewing with auto-refresh.
 - **GitHub Repository**: https://github.com/durability-labs/archivist-desktop
 - **Sidecar Repository**: https://github.com/durability-labs/archivist-node
 - **Developer Documentation**: See [CLAUDE.md](CLAUDE.md) for comprehensive technical docs
+
+## Credits
+
+Special thanks to our supporters:
+
+[papersand](https://github.com/Zorlin), [savageyoda24](https://github.com/SavageYoda24), k123_tupolev, arnaud8803, vrycmyf, moudyellaz, 0xcryptonewbie, lorena96507, giuliano.mega, warfront1, cnanakos, thatben, Oxselo, emdee4570, diegomazro, pepedzekiphen, cskiraly, alisherrr, artsy_detective, johns9729, vpavlin, swahmedjavid, gilles356, netwave, putitarusa, mrorantox, ryangoree, 0xr1st4, deety_56657, hackyguru, morgan0x01, DZEKI, celestial_gul_85001, p1ge0nh8er, lajolly, Kali_Ali, marcin.czenko, corpetty, auhau, ashishkumarnaik, ladib777, wtsupmybro, egonatoura, killfacemd, pale_rider, oxchamel, .trevligt, bkomoves, robogod_42, 0xguylouis, ayoonchain_, iamAy0, sohag_sarkar, mghazwi, magnusss5276, danisharora099, neoanonymous, buray58, godlikexi, Everest, fergulati, rahullenkala, qnou, alexanderm3666, nipsysdev, shelb2830, Timothy, sdf37, alvatarmakes, iamtrev0r, samuel.ing, patrizzz, izikdepth, j_0986, awmacp, a.im, flexsurfer, Oxenosis, kali023236, toored38, .lanski, 0x01, arseniy.eth, crypto_marina, volodymyr4303, johnny.ha, akhilmanga
 
 ## License
 
