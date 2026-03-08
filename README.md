@@ -13,6 +13,31 @@ A cross-platform desktop application for decentralized file storage, built with 
 >
 > By using this software, you acknowledge and accept these risks.
 
+## Screenshots
+
+<p align="center">
+  <img src="screenshots/01-dashboard-basic.png" alt="Dashboard" width="800">
+</p>
+
+<table>
+  <tr>
+    <td align="center"><img src="screenshots/19-onboarding-welcome.png" alt="Welcome" width="260"><br><b>Onboarding</b></td>
+    <td align="center"><img src="screenshots/06-wallet.png" alt="Wallet" width="260"><br><b>Wallet</b></td>
+    <td align="center"><img src="screenshots/12-folder-upload.png" alt="Folder Sync" width="260"><br><b>Folder Sync</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/04-marketplace.png" alt="Marketplace" width="260"><br><b>Marketplace</b></td>
+    <td align="center"><img src="screenshots/10-settings.png" alt="Settings" width="260"><br><b>Settings</b></td>
+    <td align="center"><img src="screenshots/09-torrents.png" alt="Torrents" width="260"><br><b>Torrents</b></td>
+  </tr>
+</table>
+
+<details>
+<summary>View all screenshots</summary>
+<br>
+See the <a href="screenshots/">screenshots/</a> directory for 22 screenshots covering every page of the app.
+</details>
+
 ## Features
 
 ### Core
