@@ -90,12 +90,12 @@ describe('App', () => {
 
   it('has primary navigation links', () => {
     render(<App />);
-    // Check primary navigation links (renamed in UI/UX overhaul)
+    // Check primary navigation links (restructured nav)
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Backups' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Restore' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'My Devices' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Add Device' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Upload & Download' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Folder Upload' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Media Downloader' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Make a Deal' })).toBeInTheDocument();
   });
 
   it('renders Dashboard by default', () => {
