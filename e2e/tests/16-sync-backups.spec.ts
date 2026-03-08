@@ -14,7 +14,7 @@ test.describe('Sync & Backups page @smoke', () => {
   test('should navigate to Backups page and show header', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Backups');
+      await navigateTo(page, 'Folder Upload');
       await page.waitForTimeout(500);
 
       const header = page.locator('.page-header h2').first();
@@ -30,7 +30,7 @@ test.describe('Sync & Backups page @smoke', () => {
   test('should display sync status card with idle or syncing indicator', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Backups');
+      await navigateTo(page, 'Folder Upload');
       await page.waitForTimeout(500);
 
       const statusCard = page.locator(SEL.syncStatusCard);
@@ -51,7 +51,7 @@ test.describe('Sync & Backups page @smoke', () => {
   test('should show watched folders with folder details', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Backups');
+      await navigateTo(page, 'Folder Upload');
       await page.waitForTimeout(500);
 
       const foldersSection = page.locator(SEL.watchedFolders);
@@ -82,7 +82,7 @@ test.describe('Sync & Backups page @smoke', () => {
   test('should toggle folder enabled/disabled via toggle switch', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Backups');
+      await navigateTo(page, 'Folder Upload');
       await page.waitForTimeout(500);
 
       const folderItems = page.locator('.folder-item');
@@ -128,7 +128,7 @@ test.describe('Sync & Backups page @smoke', () => {
   test('should trigger manual sync and show syncing state', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Backups');
+      await navigateTo(page, 'Folder Upload');
       await page.waitForTimeout(500);
 
       const syncNowBtn = page.locator('button:has-text("Sync Now")');
@@ -168,7 +168,7 @@ test.describe('Sync & Backups page @smoke', () => {
   test('should show queue size indicator when syncing', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Backups');
+      await navigateTo(page, 'Folder Upload');
       await page.waitForTimeout(500);
 
       const queueSize = page.locator('.queue-size');
@@ -190,7 +190,7 @@ test.describe('Sync & Backups page @smoke', () => {
   test('should show Backup Now button for folders with manifest CID', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Backups');
+      await navigateTo(page, 'Folder Upload');
       await page.waitForTimeout(500);
 
       const folderItems = page.locator('.folder-item');

@@ -10,7 +10,9 @@ import {
  * Phase 5 — Chat page E2E tests (Playwright via CDP)
  */
 
-test.describe('Chat page', () => {
+// Chat page and route were removed from the app nav in the nav restructure.
+// All tests are skipped. The Chat route no longer exists in App.tsx.
+test.describe.skip('Chat page (REMOVED)', () => {
   test.beforeAll(async () => {
     await waitForPort(9222, 15_000);
   });

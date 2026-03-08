@@ -28,7 +28,7 @@ test.describe('Full integration flow', () => {
       expect(testCid).toBeTruthy();
 
       // Step 2: Navigate to Restore (Files) page and verify CID in list
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
       await page.waitForTimeout(1_000);
 
       // Click refresh if available
@@ -80,7 +80,7 @@ test.describe('Full integration flow', () => {
       // Upload a test file
       testCid = await apiUploadFile('cid-paste-test', 'paste-test.txt');
 
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
       await page.waitForTimeout(500);
 
       const cidInput = page.locator(SEL.cidInput);
@@ -130,15 +130,14 @@ test.describe('Full integration flow', () => {
     try {
       const pages = [
         'Dashboard',
-        'Backups',
-        'Restore',
-        'Media Download',
-        'Web Archive',
+        'Folder Upload',
+        'Upload & Download',
+        'Media Downloader',
+        'Website Scraper',
         'Torrents',
-        'Chat',
         'My Devices',
         'Add Device',
-        'Browse',
+        'Make a Deal',
         'My Deals',
         'Wallet',
       ];

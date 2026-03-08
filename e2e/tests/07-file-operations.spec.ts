@@ -58,7 +58,7 @@ test.describe('File Operations', () => {
     const { browser, page } = await connectToApp();
 
     try {
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
 
       // Refresh the file list
       await page.locator('button:has-text("Refresh")').click();
@@ -87,7 +87,7 @@ test.describe('File Operations', () => {
     const { browser, page } = await connectToApp();
 
     try {
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
 
       // Refresh to see the file
       await page.locator('button:has-text("Refresh")').click();
@@ -141,7 +141,7 @@ test.describe('File Operations', () => {
     const { browser, page } = await connectToApp();
 
     try {
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
 
       // Refresh to see the files
       await page.locator('button:has-text("Refresh")').click();
@@ -217,7 +217,7 @@ test.describe('File Operations', () => {
       await sleep(3000);
 
       // Navigate to Restore to verify files are gone
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
       await page.locator('button:has-text("Refresh")').click();
       await sleep(2000);
 
@@ -232,7 +232,7 @@ test.describe('File Operations', () => {
     const { browser, page } = await connectToApp();
 
     try {
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
 
       // Verify the upload button is visible
       await expect(page.locator(SEL.uploadBtn)).toBeVisible();
@@ -249,7 +249,7 @@ test.describe('File Operations', () => {
     const { browser, page } = await connectToApp();
 
     try {
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
 
       // Refresh to get current state
       await page.locator('button:has-text("Refresh")').click();

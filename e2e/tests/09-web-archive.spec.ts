@@ -15,7 +15,7 @@ test.describe('Web Archive page', () => {
   test('should display Web Archive page', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Web Archive');
+      await navigateTo(page, 'Website Scraper');
       await page.waitForTimeout(500);
 
       const header = page.locator(SEL.webArchiveHeader);
@@ -34,7 +34,7 @@ test.describe('Web Archive page', () => {
   test('should have Archive button disabled when URL is empty', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Web Archive');
+      await navigateTo(page, 'Website Scraper');
       await page.waitForTimeout(500);
 
       const archiveBtn = page.locator(SEL.archiveBtn);
@@ -47,7 +47,7 @@ test.describe('Web Archive page', () => {
   test('should show empty state when no archives exist', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Web Archive');
+      await navigateTo(page, 'Website Scraper');
       await page.waitForTimeout(500);
 
       // Should show either empty state or existing archives
@@ -69,7 +69,7 @@ test.describe('Web Archive page', () => {
   test('should show crawl settings when toggled', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Web Archive');
+      await navigateTo(page, 'Website Scraper');
       await page.waitForTimeout(500);
 
       // Click settings toggle
@@ -93,7 +93,7 @@ test.describe('Web Archive page', () => {
   test('should queue an archive of ethresear.ch', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Web Archive');
+      await navigateTo(page, 'Website Scraper');
       await page.waitForTimeout(500);
 
       // Open settings to set max depth and pages for faster CI runs
@@ -144,7 +144,7 @@ test.describe('Web Archive page', () => {
     const { browser, page } = await connectToApp();
     test.setTimeout(180_000); // 3 minutes for crawling + upload
     try {
-      await navigateTo(page, 'Web Archive');
+      await navigateTo(page, 'Website Scraper');
       await page.waitForTimeout(1000);
 
       // Wait for a task to reach completed state (up to 120s)
@@ -165,7 +165,7 @@ test.describe('Web Archive page', () => {
   test('should show archived site in history', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Web Archive');
+      await navigateTo(page, 'Website Scraper');
       await page.waitForTimeout(1000);
 
       // Verify the archived sites section shows an entry
@@ -185,7 +185,7 @@ test.describe('Web Archive page', () => {
     const { browser, page } = await connectToApp();
     test.setTimeout(60_000);
     try {
-      await navigateTo(page, 'Web Archive');
+      await navigateTo(page, 'Website Scraper');
       await page.waitForTimeout(1000);
 
       // Click Browse on the first archived item or completed task
@@ -210,7 +210,7 @@ test.describe('Web Archive page', () => {
   test('should have working close button on viewer', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Web Archive');
+      await navigateTo(page, 'Website Scraper');
       await page.waitForTimeout(1000);
 
       // Check if viewer is currently open

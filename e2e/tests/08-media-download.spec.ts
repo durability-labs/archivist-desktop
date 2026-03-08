@@ -18,7 +18,7 @@ test.describe('Media Download page @smoke', () => {
   test('should display Media Download page with header', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Media Download');
+      await navigateTo(page, 'Media Downloader');
       await page.waitForTimeout(500);
 
       const header = page.locator(SEL.mediaDownloadHeader);
@@ -31,7 +31,7 @@ test.describe('Media Download page @smoke', () => {
   test('should display URL input and Fetch button', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Media Download');
+      await navigateTo(page, 'Media Downloader');
       await page.waitForTimeout(500);
 
       const urlInput = page.locator(SEL.urlInput);
@@ -47,7 +47,7 @@ test.describe('Media Download page @smoke', () => {
   test('should show setup banner or binary version info', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Media Download');
+      await navigateTo(page, 'Media Downloader');
       await page.waitForTimeout(1000);
 
       // Either the setup banner (yt-dlp not installed) or version info should be visible
@@ -63,7 +63,7 @@ test.describe('Media Download page @smoke', () => {
   test('should show empty download queue', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Media Download');
+      await navigateTo(page, 'Media Downloader');
       await page.waitForTimeout(500);
 
       const downloadQueue = page.locator(SEL.downloadQueue);
@@ -84,7 +84,7 @@ test.describe('Media Download page @smoke', () => {
   test('should have Fetch Info button disabled when URL is empty', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Media Download');
+      await navigateTo(page, 'Media Downloader');
       await page.waitForTimeout(500);
 
       const fetchBtn = page.locator(SEL.fetchBtn);
@@ -97,7 +97,7 @@ test.describe('Media Download page @smoke', () => {
   test('should enable Fetch button when URL is entered', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Media Download');
+      await navigateTo(page, 'Media Downloader');
       await page.waitForTimeout(500);
 
       const urlInput = page.locator(SEL.urlInput);
@@ -117,7 +117,7 @@ test.describe('Media Download page @smoke', () => {
   test('should not show metadata preview without fetching', async () => {
     const { browser, page } = await connectToApp();
     try {
-      await navigateTo(page, 'Media Download');
+      await navigateTo(page, 'Media Downloader');
       await page.waitForTimeout(500);
 
       // Metadata preview should not be visible by default

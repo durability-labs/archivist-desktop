@@ -14,7 +14,7 @@ test.describe('Marketplace page @smoke', () => {
 
   /** Navigate to Browse and return true if marketplace page rendered. */
   async function gotoMarketplace(page: import('@playwright/test').Page): Promise<boolean> {
-    await navigateTo(page, 'Browse');
+    await navigateTo(page, 'Make a Deal');
     await page.waitForTimeout(1_000);
     return await page.locator(SEL.marketplacePage).isVisible({ timeout: 5_000 }).catch(() => false);
   }

@@ -36,7 +36,7 @@ test.describe('Files page', () => {
     const { browser, page } = await connectToApp();
 
     try {
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
 
       await expect(page.locator(SEL.filesHeader)).toHaveText('Files');
       await expect(page.locator(SEL.filesTable)).toBeVisible();
@@ -55,7 +55,7 @@ test.describe('Files page', () => {
     const { browser, page } = await connectToApp();
 
     try {
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
 
       // Click Refresh to reload the file list, then wait for async update
       await page.locator('button:has-text("Refresh")').click();
@@ -77,7 +77,7 @@ test.describe('Files page', () => {
     const { browser, page } = await connectToApp();
 
     try {
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
 
       const cidInput = page.locator(SEL.cidInput);
       await expect(cidInput).toBeVisible();
@@ -98,7 +98,7 @@ test.describe('Files page', () => {
     const { browser, page } = await connectToApp();
 
     try {
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
 
       const cidInput = page.locator(SEL.cidInput);
       await cidInput.fill('not-a-valid-cid');
@@ -121,7 +121,7 @@ test.describe('Files page', () => {
     const { browser, page } = await connectToApp();
 
     try {
-      await navigateTo(page, 'Restore');
+      await navigateTo(page, 'Upload & Download');
 
       // Count files before delete
       await page.locator('button:has-text("Refresh")').click();
