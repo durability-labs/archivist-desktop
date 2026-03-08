@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useNode, NodeState, NodeStatus } from '../hooks/useNode';
 import { useSync, SyncState } from '../hooks/useSync';
 import { usePeers } from '../hooks/usePeers';
 import { invoke } from '@tauri-apps/api/core';
-import QRCode from 'qrcode';
-import NextSteps from '../components/NextSteps';
+import '../styles/Dashboard.css';
 
 interface DiagnosticInfo {
   apiReachable: boolean;
@@ -33,13 +32,13 @@ interface BasicViewProps {
   formatUptime: (seconds: number) => string;
   formatBytes: (bytes: number) => string;
   syncState: SyncState;
-  copied: string | null;
-  copyToClipboard: (text: string, label: string) => Promise<void>;
-  getShareableAddress: (addresses: string[], publicIp?: string) => string | null;
   connectedPeerCount: number;
 }
 
 interface AdvancedViewProps extends BasicViewProps {
+  copied: string | null;
+  copyToClipboard: (text: string, label: string) => Promise<void>;
+  getShareableAddress: (addresses: string[], publicIp?: string) => string | null;
   showDiagnostics: boolean;
   setShowDiagnostics: (show: boolean) => void;
   diagnostics: DiagnosticInfo | null;
@@ -182,86 +181,98 @@ function Dashboard() {
   }, [showDiagnostics, isRunning]);
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <h2>Dashboard</h2>
-        <div className="view-mode-toggle">
-          <button
-            className={viewMode === 'basic' ? 'active' : 'secondary'}
-            onClick={() => setViewMode('basic')}
-          >
-            Basic
-          </button>
-          <button
-            className={viewMode === 'advanced' ? 'active' : 'secondary'}
-            onClick={() => setViewMode('advanced')}
-          >
-            Advanced
-          </button>
-        </div>
-      </div>
-
-      {status.state === 'error' && status.lastError && (
-        <div className="error-banner-enhanced">
-          <div className="error-banner-content">
-            <span className="error-banner-icon">!</span>
-            <div>
-              <strong>Node cannot start</strong>
-              <p style={{ margin: '4px 0 0', opacity: 0.85 }}>{status.lastError}</p>
+    <div className="dashboard-layout">
+      <div className="dashboard-main">
+        <div className="page">
+          <div className="page-header">
+            <h2>Dashboard</h2>
+            <div className="view-mode-toggle">
+              <button
+                className={viewMode === 'basic' ? 'active' : 'secondary'}
+                onClick={() => setViewMode('basic')}
+              >
+                Basic
+              </button>
+              <button
+                className={viewMode === 'advanced' ? 'active' : 'secondary'}
+                onClick={() => setViewMode('advanced')}
+              >
+                Advanced
+              </button>
             </div>
           </div>
-          <a href="/settings" className="btn-error-banner">Change Port</a>
-        </div>
-      )}
 
-      {viewMode === 'basic' ? (
-        <BasicView
-          status={status}
-          loading={loading}
-          isRunning={isRunning}
-          isStopped={isStopped}
-          isError={isError}
-          isTransitioning={isTransitioning}
-          handleStart={handleStart}
-          handleStop={handleStop}
-          handleRestart={handleRestart}
-          getStateLabel={getStateLabel}
-          getStateClass={getStateClass}
-          formatUptime={formatUptime}
-          formatBytes={formatBytes}
-          syncState={syncState}
-          copied={copied}
-          copyToClipboard={copyToClipboard}
-          getShareableAddress={getShareableAddress}
-          connectedPeerCount={connectedPeerCount}
+          {status.state === 'error' && status.lastError && (
+            <div className="error-banner-enhanced">
+              <div className="error-banner-content">
+                <span className="error-banner-icon">!</span>
+                <div>
+                  <strong>Node cannot start</strong>
+                  <p style={{ margin: '4px 0 0', opacity: 0.85 }}>{status.lastError}</p>
+                </div>
+              </div>
+              <a href="/settings" className="btn-error-banner">Change Port</a>
+            </div>
+          )}
+
+          {viewMode === 'basic' ? (
+            <BasicView
+              status={status}
+              loading={loading}
+              isRunning={isRunning}
+              isStopped={isStopped}
+              isError={isError}
+              isTransitioning={isTransitioning}
+              handleStart={handleStart}
+              handleStop={handleStop}
+              handleRestart={handleRestart}
+              getStateLabel={getStateLabel}
+              getStateClass={getStateClass}
+              formatUptime={formatUptime}
+              formatBytes={formatBytes}
+              syncState={syncState}
+              connectedPeerCount={connectedPeerCount}
+            />
+          ) : (
+            <AdvancedView
+              status={status}
+              loading={loading}
+              isRunning={isRunning}
+              isStopped={isStopped}
+              isError={isError}
+              isTransitioning={isTransitioning}
+              handleStart={handleStart}
+              handleStop={handleStop}
+              handleRestart={handleRestart}
+              getStateLabel={getStateLabel}
+              getStateClass={getStateClass}
+              formatUptime={formatUptime}
+              formatBytes={formatBytes}
+              syncState={syncState}
+              copied={copied}
+              copyToClipboard={copyToClipboard}
+              getShareableAddress={getShareableAddress}
+              connectedPeerCount={connectedPeerCount}
+              showDiagnostics={showDiagnostics}
+              setShowDiagnostics={setShowDiagnostics}
+              diagnostics={diagnostics}
+              runningDiagnostics={runningDiagnostics}
+              runDiagnostics={runDiagnostics}
+            />
+          )}
+        </div>
+      </div>
+      <div className="dashboard-irc-panel">
+        <div className="irc-panel-header">
+          <h3>#archivist</h3>
+          <span className="irc-network-label">Libera.Chat</span>
+        </div>
+        <iframe
+          src="https://web.libera.chat/#archivist"
+          className="irc-iframe"
+          title="IRC Chat"
         />
-      ) : (
-        <AdvancedView
-          status={status}
-          loading={loading}
-          isRunning={isRunning}
-          isStopped={isStopped}
-          isError={isError}
-          isTransitioning={isTransitioning}
-          handleStart={handleStart}
-          handleStop={handleStop}
-          handleRestart={handleRestart}
-          getStateLabel={getStateLabel}
-          getStateClass={getStateClass}
-          formatUptime={formatUptime}
-          formatBytes={formatBytes}
-          syncState={syncState}
-          copied={copied}
-          copyToClipboard={copyToClipboard}
-          getShareableAddress={getShareableAddress}
-          connectedPeerCount={connectedPeerCount}
-          showDiagnostics={showDiagnostics}
-          setShowDiagnostics={setShowDiagnostics}
-          diagnostics={diagnostics}
-          runningDiagnostics={runningDiagnostics}
-          runDiagnostics={runDiagnostics}
-        />
-      )}
+      </div>
     </div>
   );
 }
@@ -292,37 +303,9 @@ function getLastBackupTime(syncState: SyncState): string | null {
   return times[0] || null;
 }
 
-// Helper to determine if an address is public (not LAN/localhost)
-function isPublicAddress(address: string): boolean {
-  return !address.includes('/ip4/192.168.') &&
-    !address.includes('/ip4/10.') &&
-    !/\/ip4\/172\.(1[6-9]|2[0-9]|3[0-1])\./.test(address) &&
-    !address.includes('/ip4/127.');
-}
-
 // Basic View - Simple, focused on essential controls
-function BasicView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, copied, copyToClipboard, getShareableAddress, connectedPeerCount }: BasicViewProps) {
-  const hasBackupFolders = syncState.folders.length > 0;
-  const hasConnectedPeers = connectedPeerCount > 0;
+function BasicView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, connectedPeerCount }: BasicViewProps) {
   const lastBackupTime = getLastBackupTime(syncState);
-  const [showQr, setShowQr] = useState(false);
-  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
-
-  const shareableAddr = getShareableAddress(status.addresses, status.publicIp);
-  const fullMultiaddr = shareableAddr && status.peerId ? `${shareableAddr}/p2p/${status.peerId}` : null;
-  const isPublic = shareableAddr ? isPublicAddress(shareableAddr) : false;
-
-  useEffect(() => {
-    if (showQr && qrCanvasRef.current && fullMultiaddr) {
-      QRCode.toCanvas(qrCanvasRef.current, fullMultiaddr, {
-        width: 200,
-        margin: 2,
-        color: { dark: '#00ff41', light: '#010302' },
-      });
-    }
-  }, [showQr, fullMultiaddr]);
-
-  const toggleQr = useCallback(() => setShowQr(prev => !prev), []);
 
   return (
     <div className="basic-view">
@@ -384,54 +367,6 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
           </div>
         </Link>
       </div>
-
-      {/* Connection Info (when running) */}
-      {isRunning && status.peerId && status.addresses.length > 0 && (
-        <div className="connection-card">
-          <div className="connection-card-header">
-            <h3>Share Your Connection</h3>
-            <span className={`network-badge ${isPublic ? 'public' : 'lan'}`}>
-              {isPublic ? 'PUBLIC' : 'LAN'}
-            </span>
-          </div>
-          <p className="connection-hint">Copy this address to share with other nodes</p>
-          {fullMultiaddr && (
-            <>
-              <div className="connection-field">
-                <code className="connection-addr">
-                  {fullMultiaddr}
-                </code>
-                <button
-                  className="btn-copy"
-                  onClick={() => copyToClipboard(fullMultiaddr, 'multiaddr')}
-                >
-                  {copied === 'multiaddr' ? '✓ Copied' : 'Copy'}
-                </button>
-                <button
-                  className="btn-copy qr-toggle-btn"
-                  onClick={toggleQr}
-                >
-                  {showQr ? 'Hide QR' : 'QR'}
-                </button>
-              </div>
-              {showQr && (
-                <div className="qr-container">
-                  <canvas ref={qrCanvasRef} />
-                  <p className="qr-label">Scan to connect</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Next Steps Panel (for post-onboarding guidance) */}
-      {isRunning && (
-        <NextSteps
-          hasBackupFolders={hasBackupFolders}
-          hasConnectedPeers={hasConnectedPeers}
-        />
-      )}
 
       {/* Recent Activity (when available) */}
       {syncState.recentUploads.length > 0 && (

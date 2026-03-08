@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useSync } from '../hooks/useSync';
+import { useNode } from '../hooks/useNode';
+import { usePeers } from '../hooks/usePeers';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
+import QRCode from 'qrcode';
+import NextSteps from '../components/NextSteps';
 
 interface AppConfig {
   sync: {
@@ -22,8 +27,72 @@ function Sync() {
     refreshStatus,
   } = useSync();
 
+  const { status, isRunning } = useNode();
+  const { peerList } = usePeers();
+
+  const connectedPeerCount = peerList.peers.filter(p => p.connected).length;
+  const hasBackupFolders = syncState.folders.length > 0;
+  const hasConnectedPeers = connectedPeerCount > 0;
+
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  const isPublicAddress = (address: string): boolean => {
+    return !address.includes('/ip4/192.168.') &&
+      !address.includes('/ip4/10.') &&
+      !/\/ip4\/172\.(1[6-9]|2[0-9]|3[0-1])\./.test(address) &&
+      !address.includes('/ip4/127.');
+  };
+
+  const getShareableAddress = (addresses: string[], publicIp?: string): string | null => {
+    if (addresses.length === 0) return null;
+    if (publicIp) {
+      const addrWithPort = addresses.find(addr => addr.includes('/tcp/'));
+      if (addrWithPort) {
+        const portMatch = addrWithPort.match(/\/tcp\/(\d+)/);
+        if (portMatch) {
+          return `/ip4/${publicIp}/tcp/${portMatch[1]}`;
+        }
+      }
+    }
+    const lanAddress = addresses.find(addr =>
+      addr.includes('/ip4/192.168.') ||
+      addr.includes('/ip4/10.') ||
+      /\/ip4\/172\.(1[6-9]|2[0-9]|3[0-1])\./.test(addr)
+    );
+    if (lanAddress) return lanAddress;
+    const nonLocalhost = addresses.find(addr => !addr.includes('/ip4/127.'));
+    return nonLocalhost || addresses[0];
+  };
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(label);
+      setTimeout(() => setCopied(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const shareableAddr = getShareableAddress(status.addresses, status.publicIp);
+  const fullMultiaddr = shareableAddr && status.peerId ? `${shareableAddr}/p2p/${status.peerId}` : null;
+  const isPublic = shareableAddr ? isPublicAddress(shareableAddr) : false;
+
+  const toggleQr = useCallback(() => setShowQr(prev => !prev), []);
+
+  useEffect(() => {
+    if (showQr && qrCanvasRef.current && fullMultiaddr) {
+      QRCode.toCanvas(qrCanvasRef.current, fullMultiaddr, {
+        width: 200,
+        margin: 2,
+        color: { dark: '#00ff41', light: '#010302' },
+      });
+    }
+  }, [showQr, fullMultiaddr]);
 
   // Load config to check if backup is enabled
   useEffect(() => {
@@ -142,6 +211,54 @@ function Sync() {
         </div>
       </div>
 
+      {/* Share Your Connection */}
+      {isRunning && status.peerId && status.addresses.length > 0 && (
+        <div className="connection-card">
+          <div className="connection-card-header">
+            <h3>Share Your Connection</h3>
+            <span className={`network-badge ${isPublic ? 'public' : 'lan'}`}>
+              {isPublic ? 'PUBLIC' : 'LAN'}
+            </span>
+          </div>
+          <p className="connection-hint">Copy this address to share with other nodes</p>
+          {fullMultiaddr && (
+            <>
+              <div className="connection-field">
+                <code className="connection-addr">
+                  {fullMultiaddr}
+                </code>
+                <button
+                  className="btn-copy"
+                  onClick={() => copyToClipboard(fullMultiaddr, 'multiaddr')}
+                >
+                  {copied === 'multiaddr' ? '✓ Copied' : 'Copy'}
+                </button>
+                <button
+                  className="btn-copy qr-toggle-btn"
+                  onClick={toggleQr}
+                >
+                  {showQr ? 'Hide QR' : 'QR'}
+                </button>
+              </div>
+              {showQr && (
+                <div className="qr-container">
+                  <canvas ref={qrCanvasRef} />
+                  <p className="qr-label">Scan to connect</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Next Steps */}
+      {isRunning && (
+        <NextSteps
+          hasBackupFolders={hasBackupFolders}
+          hasConnectedPeers={hasConnectedPeers}
+        />
+      )}
+
       {syncState.recentUploads.length > 0 && (
         <div className="recent-uploads">
           <h3>Recent Uploads</h3>
@@ -222,15 +339,29 @@ function Sync() {
 
       <div className="sync-info">
         <h3>How Backups Work</h3>
+        <p className="sync-info-intro">Step-by-step guide to back up files between two computers:</p>
         <ol>
-          <li>Add folders you want to back up</li>
-          <li>Files are automatically uploaded to your local node when created or modified</li>
-          <li>After enough changes, a manifest is generated listing all your files</li>
-          <li>Your backup server polls for new manifests and downloads the files</li>
+          <li>
+            <strong>Start both machines</strong> &mdash; Launch Archivist on both Machine A (source) and Machine B (backup). Wait for each node to start and show &quot;Running&quot; status.
+          </li>
+          <li>
+            <strong>Connect the two machines</strong> &mdash; On Machine A, copy the multiaddr from &quot;Share Your Connection&quot; above. On Machine B, go to <Link to="/devices/add">Devices &rarr; Add Device</Link> and paste the multiaddr. Both machines should show 1 Connected Peer on their Dashboard.
+          </li>
+          <li>
+            <strong>Enable Manifest Server on Machine A</strong> (the source) &mdash; Go to Settings &rarr; Manifest Server &rarr; Enable. Add Machine B&apos;s IP address to the Allowed IPs list. This lets Machine B discover which files Machine A has.
+          </li>
+          <li>
+            <strong>Enable Backup Server on Machine B</strong> (the receiver) &mdash; Go to Settings &rarr; Backup Server &rarr; Enable. Under &quot;Source Peers&quot;, add Machine A using its multiaddr or host/port. Machine B will now automatically poll Machine A for new files.
+          </li>
+          <li>
+            <strong>Add a folder on Machine A</strong> &mdash; Click &quot;Add Watch Folder&quot; above and select a folder. Files will be uploaded to Machine A&apos;s local node. After enough changes, a manifest is generated.
+          </li>
+          <li>
+            <strong>Machine B downloads the files</strong> &mdash; Machine B&apos;s backup daemon detects the new manifest. Files are automatically downloaded from Machine A via P2P. Check progress on Machine B at the <Link to="/backup-server">Backup Server</Link> page.
+          </li>
         </ol>
         <p className="hint">
           Hidden files (starting with .) and temporary files (.tmp, ~) are automatically ignored.
-          Configure your backup server in Settings → Backup Server.
         </p>
       </div>
     </div>
