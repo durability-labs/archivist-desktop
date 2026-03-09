@@ -226,6 +226,15 @@ impl NodeService {
             return Err(ArchivistError::NodeStartFailed(msg));
         }
 
+        // Check for required shared libraries on Linux
+        #[cfg(target_os = "linux")]
+        if let Some(msg) = Self::check_shared_libraries() {
+            log::error!("{}", msg);
+            self.status.state = NodeState::Error;
+            self.status.last_error = Some(msg.clone());
+            return Err(ArchivistError::NodeStartFailed(msg));
+        }
+
         // Ensure data directory exists
         let data_dir = std::path::Path::new(&self.config.data_dir);
         if !data_dir.exists() {
@@ -626,6 +635,39 @@ impl NodeService {
                 }
             }
         }
+    }
+
+    /// Check that required shared libraries are available on the system (Linux only).
+    /// Returns Some(message) with install instructions if any are missing, None if all OK.
+    #[cfg(target_os = "linux")]
+    fn check_shared_libraries() -> Option<String> {
+        use std::process::Command;
+
+        let output = match Command::new("ldconfig").arg("-p").output() {
+            Ok(o) => o,
+            Err(_) => return None, // ldconfig not available, skip check gracefully
+        };
+
+        let output_str = String::from_utf8_lossy(&output.stdout);
+
+        let required = [
+            ("libstdc++.so.6", "libstdc++6"),
+            ("libgomp.so.1", "libgomp1"),
+        ];
+        let missing: Vec<&str> = required
+            .iter()
+            .filter(|(lib, _)| !output_str.contains(lib))
+            .map(|(_, pkg)| *pkg)
+            .collect();
+
+        if missing.is_empty() {
+            return None;
+        }
+
+        Some(format!(
+            "Missing required shared libraries. Install them with:\n  sudo apt install {}",
+            missing.join(" ")
+        ))
     }
 
     /// Check if any process is listening on a port, returns user-friendly process info if so (Unix only)

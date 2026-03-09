@@ -21,6 +21,16 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Work around WebKitGTK GBM/EGL initialization failures on non-Ubuntu distros
+    // (Arch, NixOS, CachyOS, etc.) where Mesa/driver versions may not match the
+    // build environment. See: https://github.com/tauri-apps/tauri/issues/8254
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+    }
+
     // Create shared app state
     let app_state = AppState::new();
     let node_service = app_state.node.clone();
