@@ -73,10 +73,11 @@ sha3 = "0.10"
 # Chat / crypto
 async-trait = "0.1"
 vodozemac = "0.7"
-rustls = "0.23"
+rustls = { version = "0.23", features = ["ring"] }
 rustls-pemfile = "2"
 rcgen = "0.13"
 tokio-rustls = "0.26"
+webpki-roots = "0.26"
 zeroize = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 aes-gcm = "0.10"

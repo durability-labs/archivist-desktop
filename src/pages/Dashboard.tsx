@@ -4,6 +4,7 @@ import { useNode, NodeState, NodeStatus } from '../hooks/useNode';
 import { useSync, SyncState } from '../hooks/useSync';
 import { usePeers } from '../hooks/usePeers';
 import { invoke } from '@tauri-apps/api/core';
+import IrcChat from '../components/IrcChat';
 import '../styles/Dashboard.css';
 
 interface DiagnosticInfo {
@@ -373,17 +374,7 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
       )}
 
       {/* IRC Chat */}
-      <div className="dashboard-irc-panel">
-        <div className="irc-panel-header">
-          <h3>#archivist</h3>
-          <span className="irc-network-label">Libera.Chat</span>
-        </div>
-        <iframe
-          src="https://web.libera.chat/#archivist"
-          className="irc-iframe"
-          title="IRC Chat"
-        />
-      </div>
+      <IrcChat />
     </div>
   );
 }

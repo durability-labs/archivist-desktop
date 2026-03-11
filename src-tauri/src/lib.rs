@@ -50,10 +50,11 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
-                .level_for("librqbit", log::LevelFilter::Warn)
-                .level_for("librqbit_dht", log::LevelFilter::Warn)
-                .level_for("librqbit_tracker_comms", log::LevelFilter::Warn)
+                .level_for("librqbit", log::LevelFilter::Off)
+                .level_for("librqbit_dht", log::LevelFilter::Off)
+                .level_for("librqbit_tracker_comms", log::LevelFilter::Off)
                 .level_for("tracing::span", log::LevelFilter::Off)
+                .max_file_size(5_000_000)
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
@@ -202,6 +203,13 @@ pub fn run() {
             commands::get_torrent_details,
             commands::set_torrent_speed_limits,
             commands::set_torrent_seeding_rules,
+            // IRC commands
+            commands::irc_connect,
+            commands::irc_disconnect,
+            commands::irc_send_message,
+            commands::irc_get_status,
+            commands::irc_get_history,
+            commands::irc_get_users,
             // System commands
             commands::get_config,
             commands::save_config,
@@ -472,6 +480,14 @@ pub fn run() {
             });
             log::info!("Torrent stats emitter started");
 
+            // Auto-start IRC connection (Dashboard shows IRC panel by default)
+            let irc_for_startup = app.state::<AppState>().irc.clone();
+            let irc_app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                services::irc::IrcService::connect_if_idle(irc_for_startup, irc_app_handle).await;
+            });
+            log::info!("IRC service auto-start initiated");
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -494,7 +510,13 @@ pub fn run() {
             let state = app_handle.state::<AppState>();
             let node = state.node.clone();
             let torrent = state.torrent.clone();
+            let irc = state.irc.clone();
             tauri::async_runtime::block_on(async {
+                // Disconnect IRC
+                let mut irc = irc.write().await;
+                irc.disconnect();
+                drop(irc);
+
                 // Shutdown torrent session
                 let mut torrent = torrent.write().await;
                 if let Err(e) = torrent.shutdown().await {

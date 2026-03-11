@@ -266,81 +266,51 @@ test.describe('Navigation structure', () => {
   });
 });
 
-test.describe('Dashboard IRC panel', () => {
+test.describe('Dashboard IRC chat', () => {
   test.beforeAll(async () => {
     await waitForPort(9222, 15_000);
   });
 
-  // NOTE: IRC panel has CSS `@media (max-width: 1200px) { display: none; }`
-  // In narrow windows, the panel exists in the DOM but is hidden.
-  // Tests check DOM presence and attributes rather than visibility.
-
-  test('should have IRC panel element in Dashboard DOM', async () => {
+  test('should have IRC chat component in Dashboard DOM', async () => {
     const { browser, page } = await connectToApp();
     try {
       await ensurePastOnboarding(page);
       await navigateTo(page, 'Dashboard');
       await page.waitForTimeout(500);
 
-      // Element exists in DOM (may be hidden if window < 1200px)
-      const ircPanel = page.locator(SEL.ircPanel);
-      await expect(ircPanel).toHaveCount(1);
+      await expect(page.locator(SEL.ircChat)).toHaveCount(1);
     } finally {
       await browser.close();
     }
   });
 
-  test('should display channel name and network label', async () => {
+  test('should display channel name in IRC header', async () => {
     const { browser, page } = await connectToApp();
     try {
       await ensurePastOnboarding(page);
       await navigateTo(page, 'Dashboard');
       await page.waitForTimeout(500);
 
-      // toHaveText works on hidden elements — checks textContent
-      await expect(page.locator(SEL.ircChannelName)).toHaveText('#archivist');
-      await expect(page.locator(SEL.ircNetworkLabel)).toHaveText('Libera.Chat');
+      await expect(page.locator(SEL.ircChannel)).toHaveText('#archivist');
     } finally {
       await browser.close();
     }
   });
 
-  test('should have Kiwi IRC iframe with correct src', async () => {
+  test('should have Dashboard layout with main and IRC chat elements', async () => {
     const { browser, page } = await connectToApp();
     try {
       await ensurePastOnboarding(page);
       await navigateTo(page, 'Dashboard');
       await page.waitForTimeout(500);
 
-      const iframe = page.locator(SEL.ircIframe);
-      await expect(iframe).toHaveCount(1);
-
-      const src = await iframe.getAttribute('src');
-      expect(src).toContain('kiwiirc.com');
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should have Dashboard layout with main and IRC panel elements', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      await navigateTo(page, 'Dashboard');
-      await page.waitForTimeout(500);
-
-      // Dashboard layout and main are always visible
       await expect(page.locator(SEL.dashboardLayout)).toHaveCount(1);
       await expect(page.locator(SEL.dashboardMain)).toBeVisible();
+      await expect(page.locator(SEL.ircChat)).toHaveCount(1);
 
-      // IRC panel in DOM (may be hidden by media query)
-      await expect(page.locator(SEL.ircPanel)).toHaveCount(1);
-
-      // Page header
       const header = page.locator('.page-header h2');
       await expect(header).toHaveText('Dashboard');
 
-      // View mode toggles
       await expect(page.locator(SEL.viewModeBasic)).toBeVisible();
       await expect(page.locator(SEL.viewModeAdvanced)).toBeVisible();
     } finally {
@@ -348,23 +318,22 @@ test.describe('Dashboard IRC panel', () => {
     }
   });
 
-  test('should keep IRC panel in DOM when switching view modes', async () => {
+  test('should keep IRC chat in DOM when switching view modes', async () => {
     const { browser, page } = await connectToApp();
     try {
       await ensurePastOnboarding(page);
       await navigateTo(page, 'Dashboard');
       await page.waitForTimeout(500);
 
-      // Switch to Advanced
+      // Switch to Advanced — IRC chat is only in BasicView
       await page.locator(SEL.viewModeAdvanced).click();
       await page.waitForTimeout(300);
-      await expect(page.locator(SEL.ircPanel)).toHaveCount(1);
       await expect(page.locator('.advanced-view')).toBeVisible();
 
       // Switch back to Basic
       await page.locator(SEL.viewModeBasic).click();
       await page.waitForTimeout(300);
-      await expect(page.locator(SEL.ircPanel)).toHaveCount(1);
+      await expect(page.locator(SEL.ircChat)).toHaveCount(1);
       await expect(page.locator('.basic-view')).toBeVisible();
     } finally {
       await browser.close();

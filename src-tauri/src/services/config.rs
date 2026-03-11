@@ -158,6 +158,10 @@ pub struct AppConfig {
     // Torrent settings (librqbit)
     #[serde(default)]
     pub torrent: TorrentSettings,
+
+    // IRC settings (native Libera.Chat client)
+    #[serde(default)]
+    pub irc: IrcSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -546,6 +550,7 @@ impl Default for AppConfig {
             blockchain: BlockchainSettings::default(),
             marketplace: MarketplaceSettings::default(),
             torrent: TorrentSettings::default(),
+            irc: IrcSettings::default(),
         }
     }
 }
@@ -624,6 +629,32 @@ impl ConfigService {
     pub fn reset_to_defaults(&mut self) -> Result<()> {
         self.config = AppConfig::default();
         self.save()
+    }
+}
+
+/// IRC settings for native Libera.Chat client
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IrcSettings {
+    pub enabled: bool,
+    pub auto_connect: bool,
+    pub server: String,
+    pub port: u16,
+    pub channel: String,
+    pub nick_prefix: String,
+    pub max_history: usize,
+}
+
+impl Default for IrcSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            auto_connect: false,
+            server: "irc.libera.chat".to_string(),
+            port: 6697,
+            channel: "#archivist".to_string(),
+            nick_prefix: "Arch".to_string(),
+            max_history: 500,
+        }
     }
 }
 

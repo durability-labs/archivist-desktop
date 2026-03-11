@@ -383,12 +383,10 @@ export const SEL = {
   // Wallet (extra selectors)
   walletCopyBtn: '.wallet-copy-btn',
 
-  // Dashboard - IRC panel
-  ircPanel: '.dashboard-irc-panel',
-  ircPanelHeader: '.irc-panel-header',
-  ircChannelName: '.irc-panel-header h3',
-  ircNetworkLabel: '.irc-network-label',
-  ircIframe: '.irc-iframe',
+  // Dashboard - IRC chat
+  ircChat: '.irc-chat',
+  ircChannel: '.irc-channel',
+  ircMessages: '.irc-messages',
   dashboardLayout: '.dashboard-layout',
   dashboardMain: '.dashboard-main',
 } as const;

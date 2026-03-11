@@ -3,6 +3,7 @@
 pub mod archive;
 pub mod chat;
 pub mod files;
+pub mod irc;
 pub mod media;
 pub mod node;
 pub mod peers;
@@ -15,6 +16,7 @@ pub mod torrent;
 pub use archive::*;
 pub use chat::*;
 pub use files::*;
+pub use irc::*;
 pub use media::*;
 pub use node::*;
 pub use peers::*;

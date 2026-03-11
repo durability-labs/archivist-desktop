@@ -74,6 +74,9 @@ pub enum ArchivistError {
 
     #[error("Torrent error: {0}")]
     TorrentError(String),
+
+    #[error("IRC error: {0}")]
+    IrcError(String),
 }
 
 // Make error serializable for Tauri commands

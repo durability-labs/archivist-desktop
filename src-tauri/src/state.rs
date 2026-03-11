@@ -8,9 +8,9 @@ use crate::services::node::NodeConfig;
 use crate::services::torrent::{SeedLimitAction, SeedingRules, TorrentConfig, TorrentService};
 use crate::services::{
     ArchiveViewerServer, BackupDaemon, BackupService, ChatServer, ChatService, ConfigService,
-    FileService, ManifestRegistry, ManifestServer, ManifestServerConfig, MarketplaceService,
-    MediaDownloadService, MediaStreamingConfig, MediaStreamingServer, NodeService, PeerService,
-    SyncService, WalletService, WebArchiveService,
+    FileService, IrcService, ManifestRegistry, ManifestServer, ManifestServerConfig,
+    MarketplaceService, MediaDownloadService, MediaStreamingConfig, MediaStreamingServer,
+    NodeService, PeerService, SyncService, WalletService, WebArchiveService,
 };
 
 /// Global application state managed by Tauri
@@ -33,6 +33,7 @@ pub struct AppState {
     pub marketplace: Arc<RwLock<MarketplaceService>>,
     pub wallet: Arc<RwLock<WalletService>>,
     pub torrent: Arc<RwLock<TorrentService>>,
+    pub irc: Arc<RwLock<IrcService>>,
 }
 
 impl AppState {
@@ -211,6 +212,9 @@ impl AppState {
         let torrent_service = TorrentService::new(torrent_config, torrent_seeding_rules);
         let torrent = Arc::new(RwLock::new(torrent_service));
 
+        let irc_service = IrcService::new(app_config.irc.clone());
+        let irc = Arc::new(RwLock::new(irc_service));
+
         Self {
             node: Arc::new(RwLock::new(NodeService::with_config(node_config))),
             files: Arc::new(RwLock::new(FileService::new())),
@@ -230,6 +234,7 @@ impl AppState {
             marketplace: Arc::new(RwLock::new(marketplace_service)),
             wallet: Arc::new(RwLock::new(wallet_service)),
             torrent,
+            irc,
         }
     }
 }
