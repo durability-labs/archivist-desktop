@@ -72,7 +72,7 @@ sha3 = "0.10"
 
 # Chat / crypto
 async-trait = "0.1"
-vodozemac = "0.7"
+vodozemac = "0.9"
 rustls = { version = "0.23", features = ["ring"] }
 rustls-pemfile = "2"
 rcgen = "0.13"
