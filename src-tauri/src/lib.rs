@@ -491,13 +491,21 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Handle window close to minimize to tray instead
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // Hide the window instead of closing
-                let _ = window.hide();
-                api.prevent_close();
-                log::info!("Window hidden to tray");
+                let app = window.app_handle();
+                let state = app.state::<AppState>();
+                let close_to_tray = tauri::async_runtime::block_on(async {
+                    let config = state.config.read().await;
+                    config.get().close_to_tray
+                });
+                if close_to_tray {
+                    let _ = window.hide();
+                    api.prevent_close();
+                    log::info!("Window hidden to tray");
+                } else {
+                    log::info!("Window closing (close_to_tray disabled)");
+                }
             }
         })
         .build(tauri::generate_context!())

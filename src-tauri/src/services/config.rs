@@ -115,6 +115,8 @@ pub struct AppConfig {
     pub language: String,
     pub start_minimized: bool,
     pub start_on_boot: bool,
+    #[serde(default = "default_true")]
+    pub close_to_tray: bool,
 
     // Node settings
     pub node: NodeSettings,
@@ -492,6 +494,7 @@ impl Default for AppConfig {
             language: "en".to_string(),
             start_minimized: false,
             start_on_boot: false,
+            close_to_tray: true,
             node: NodeSettings {
                 data_directory: data_dir,
                 api_port: 8080,       // Default archivist-node API port

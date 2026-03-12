@@ -78,6 +78,7 @@ interface AppConfig {
   language: string;
   start_minimized: boolean;
   start_on_boot: boolean;
+  close_to_tray: boolean;
   node: NodeSettings;
   sync: SyncSettings;
   notifications: NotificationSettings;
@@ -91,6 +92,7 @@ const defaultConfig: AppConfig = {
   language: 'en',
   start_minimized: false,
   start_on_boot: false,
+  close_to_tray: true,
   node: {
     data_directory: '',
     api_port: 8080,
@@ -162,6 +164,9 @@ function Settings() {
     enabled: true,
   });
   const [showAddSourcePeer, setShowAddSourcePeer] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'up-to-date' | 'downloading' | 'error'>('idle');
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const { marketplaceEnabled } = useFeatures();
 
   useEffect(() => {
@@ -195,6 +200,31 @@ function Settings() {
       setError(e instanceof Error ? e.message : 'Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const checkForUpdates = async () => {
+    setUpdateStatus('checking');
+    setUpdateError(null);
+    setUpdateVersion(null);
+    try {
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const update = await check();
+      if (update) {
+        setUpdateStatus('available');
+        setUpdateVersion(update.version);
+        if (confirm(`Version ${update.version} is available. Download and install now?`)) {
+          setUpdateStatus('downloading');
+          await update.downloadAndInstall();
+          const { relaunch } = await import('@tauri-apps/plugin-process');
+          await relaunch();
+        }
+      } else {
+        setUpdateStatus('up-to-date');
+      }
+    } catch (err) {
+      setUpdateStatus('error');
+      setUpdateError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -379,6 +409,17 @@ function Settings() {
             />
             Start automatically on system boot
           </label>
+        </div>
+        <div className="setting-item">
+          <label>
+            <input
+              type="checkbox"
+              checked={config.close_to_tray}
+              onChange={(e) => setConfig((prev) => ({ ...prev, close_to_tray: e.target.checked }))}
+            />
+            Minimize to system tray when closing window
+          </label>
+          <p className="hint">When disabled, closing the window will quit the app entirely.</p>
         </div>
       </div>
 
@@ -1386,6 +1427,24 @@ function Settings() {
           <div className="about-row">
             <span className="about-label">Version</span>
             <span className="about-value">{appVersion}</span>
+          </div>
+          <div className="about-row">
+            <span className="about-label">Updates</span>
+            <span className="about-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                className="secondary"
+                onClick={checkForUpdates}
+                disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+                style={{ padding: '4px 12px', fontSize: '0.85em' }}
+              >
+                {updateStatus === 'checking' ? 'Checking...' :
+                 updateStatus === 'downloading' ? 'Installing...' :
+                 'Check for Updates'}
+              </button>
+              {updateStatus === 'up-to-date' && <span style={{ color: 'var(--success-color, #4caf50)' }}>Up to date</span>}
+              {updateStatus === 'available' && <span style={{ color: 'var(--warning-color, #ff9800)' }}>v{updateVersion} available</span>}
+              {updateStatus === 'error' && <span style={{ color: 'var(--danger-color, #f44336)' }} title={updateError || undefined}>Update check failed</span>}
+            </span>
           </div>
           <div className="about-row">
             <span className="about-label">Platform</span>

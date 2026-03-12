@@ -4,6 +4,7 @@ import { useSync } from '../hooks/useSync';
 import { useOnboarding, OnboardingStep } from '../hooks/useOnboarding';
 import { open } from '@tauri-apps/plugin-dialog';
 import { resolveResource } from '@tauri-apps/api/path';
+import { readFile } from '@tauri-apps/plugin-fs';
 import '../styles/Onboarding.css';
 
 interface OnboardingProps {
@@ -268,9 +269,12 @@ interface SplashScreenProps {
 
 function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const blobUrlRef = useRef<string | null>(null);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [showPlayOverlay, setShowPlayOverlay] = useState(false);
+  const [playbackStarted, setPlaybackStarted] = useState(false);
   const lastProgressTime = useRef<number>(0);
   const stallCheckInterval = useRef<number | null>(null);
 
@@ -281,35 +285,38 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     const loadVideoResource = async () => {
       const isTauri = !!(window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
 
-      // Detect platform - Linux with WebKitGTK has unreliable video playback
-      const isLinux = navigator.userAgent.toLowerCase().includes('linux');
-
-      if (isTauri && isLinux) {
-        // On Linux, WebKitGTK video playback is unreliable even with GStreamer
-        // Use CSS fallback directly for a better, faster experience
-        setShowFallback(true);
-        return;
-      }
-
       if (!isTauri) {
         // Dev mode - use standard path
         setVideoUrl('/intro.mp4');
         return;
       }
 
-      // Windows/macOS - load video via blob URL (asset:// protocol doesn't work for video)
+      // Tauri - load video via blob URL (asset:// protocol doesn't work for video)
       try {
-        const mp4Path = await resolveResource('intro.mp4');
-        const { readFile } = await import('@tauri-apps/plugin-fs');
-        const fileData = await readFile(mp4Path);
-        const blob = new Blob([fileData], { type: 'video/mp4' });
+        // Try WebM first on Linux (WebKitGTK/GStreamer handles VP8/VP9 more reliably than H.264)
+        const isLinux = navigator.userAgent.toLowerCase().includes('linux');
+        const videoFile = isLinux ? 'intro.webm' : 'intro.mp4';
+        const mimeType = isLinux ? 'video/webm' : 'video/mp4';
+
+        console.log(`SplashScreen: Loading video resource: ${videoFile}`);
+        const videoPath = await resolveResource(videoFile);
+        console.log(`SplashScreen: Resolved path: ${videoPath}`);
+
+        const fileData = await readFile(videoPath);
+        console.log(`SplashScreen: Read ${fileData.byteLength} bytes`);
+
+        const blob = new Blob([fileData], { type: mimeType });
         const blobUrl = URL.createObjectURL(blob);
+        console.log(`SplashScreen: Created blob URL`);
 
         if (!cancelled) {
+          blobUrlRef.current = blobUrl;
           setVideoUrl(blobUrl);
+        } else {
+          URL.revokeObjectURL(blobUrl);
         }
       } catch (error) {
-        console.error('Failed to load intro video:', error);
+        console.error('SplashScreen: Failed to load intro video:', error);
         if (!cancelled) {
           // Fall back to CSS animation
           setShowFallback(true);
@@ -321,6 +328,10 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
 
     return () => {
       cancelled = true;
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
     };
   }, []);
 
@@ -331,6 +342,29 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
         clearInterval(stallCheckInterval.current);
       }
     };
+  }, []);
+
+  // Show play overlay when video data is ready
+  useEffect(() => {
+    if (videoLoaded && !showFallback) {
+      setShowPlayOverlay(true);
+    }
+  }, [videoLoaded, showFallback]);
+
+  // Handle play button click - start video with sound
+  const handlePlayClick = useCallback(() => {
+    setShowPlayOverlay(false);
+    if (videoRef.current) {
+      videoRef.current.play()
+        .then(() => {
+          setPlaybackStarted(true);
+          lastProgressTime.current = Date.now();
+        })
+        .catch((err) => {
+          console.error('Video play failed:', err);
+          setShowFallback(true);
+        });
+    }
   }, []);
 
   // Handle video data loaded (first frame available)
@@ -357,7 +391,7 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
 
   // Start stall detection when video is loaded
   useEffect(() => {
-    if (videoLoaded && !showFallback) {
+    if (videoLoaded && playbackStarted && !showFallback) {
       // Check every 2 seconds if video has progressed
       stallCheckInterval.current = window.setInterval(() => {
         const timeSinceProgress = Date.now() - lastProgressTime.current;
@@ -377,7 +411,7 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
         }
       };
     }
-  }, [videoLoaded, showFallback]);
+  }, [videoLoaded, playbackStarted, showFallback]);
 
   // Auto-advance after animation completes (for fallback)
   useEffect(() => {
@@ -475,8 +509,6 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
     <div className="splash-screen">
       <video
         ref={videoRef}
-        autoPlay
-        muted
         playsInline
         preload="auto"
         className="splash-video"
@@ -487,6 +519,16 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
         onError={handleVideoError}
         src={videoUrl}
       />
+      {showPlayOverlay && (
+        <div className="splash-play-overlay" onClick={handlePlayClick}>
+          <div className="splash-play-button">
+            <svg viewBox="0 0 24 24" width="64" height="64">
+              <polygon points="5,3 19,12 5,21" fill="currentColor" />
+            </svg>
+          </div>
+          <p className="splash-play-text">Click to play</p>
+        </div>
+      )}
       <button className="splash-skip" onClick={onSkip}>
         Skip
       </button>

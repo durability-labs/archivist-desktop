@@ -62,6 +62,47 @@
   box-shadow: 0 0 10px var(--phosphor-glow);
 }
 
+/* Play overlay - click to start video with sound */
+.splash-play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.8) 100%);
+  cursor: pointer;
+  z-index: 1;
+  animation: splashFadeIn 0.5s ease-out;
+}
+
+.splash-play-button {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(0, 255, 65, 0.15);
+  border: 2px solid var(--phosphor);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--phosphor);
+  filter: drop-shadow(0 0 20px var(--phosphor-glow));
+  transition: all 0.3s ease;
+}
+
+.splash-play-overlay:hover .splash-play-button {
+  background: rgba(0, 255, 65, 0.25);
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 30px var(--phosphor-glow));
+}
+
+.splash-play-text {
+  color: var(--term-text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  margin-top: 1rem;
+}
+
 /* Fallback animated splash (when video fails) - Terminal aesthetic */
 .splash-fallback {
   background: radial-gradient(ellipse at center, var(--term-dark) 0%, var(--term-black) 70%);
