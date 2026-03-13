@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useWebArchive } from '../hooks/useWebArchive';
 import type { ArchiveTask } from '../lib/archiveTypes';
 import '../styles/WebArchive.css';
@@ -11,6 +11,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+function formatSpeed(bytesPerSecond: number): string {
+  if (bytesPerSecond < 1) return '';
+  return `${formatBytes(bytesPerSecond)}/s`;
+}
+
+function formatEta(seconds: number | null): string {
+  if (seconds === null || seconds === undefined) return '';
+  if (seconds < 60) return `~${seconds}s remaining`;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `~${mins}m ${secs}s remaining`;
+}
+
 function stateLabel(state: string): string {
   switch (state) {
     case 'queued': return 'Queued';
@@ -21,6 +34,7 @@ function stateLabel(state: string): string {
     case 'completed': return 'Completed';
     case 'failed': return 'Failed';
     case 'cancelled': return 'Cancelled';
+    case 'paused': return 'Paused';
     default: return state;
   }
 }
@@ -30,6 +44,7 @@ function stateBadgeClass(state: string): string {
     case 'completed': return 'badge-success';
     case 'failed': return 'badge-error';
     case 'cancelled': return 'badge-warning';
+    case 'paused': return 'badge-paused';
     case 'crawling':
     case 'downloading':
     case 'packaging':
@@ -46,6 +61,8 @@ export default function WebArchive() {
     error,
     queueArchive,
     cancelArchive,
+    pauseArchive,
+    resumeArchive,
     removeTask,
     clearCompleted,
     viewerUrl,
@@ -59,9 +76,12 @@ export default function WebArchive() {
   const [maxDepth, setMaxDepth] = useState(3);
   const [maxPages, setMaxPages] = useState(100);
   const [includeAssets, setIncludeAssets] = useState(true);
+  const [singlePage, setSinglePage] = useState(false);
+  const [excludePatterns, setExcludePatterns] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleSubmit = useCallback(async () => {
     const trimmedUrl = url.trim();
@@ -78,12 +98,19 @@ export default function WebArchive() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const patterns = excludePatterns
+        .split('\n')
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
+
       await queueArchive({
         url: trimmedUrl,
-        maxDepth,
-        maxPages,
+        maxDepth: singlePage ? 0 : maxDepth,
+        maxPages: singlePage ? 1 : maxPages,
         includeAssets,
         requestDelayMs: 200,
+        singlePage,
+        excludePatterns: patterns.length > 0 ? patterns : undefined,
       });
       setUrl('');
     } catch (e) {
@@ -97,13 +124,24 @@ export default function WebArchive() {
     } finally {
       setSubmitting(false);
     }
-  }, [url, maxDepth, maxPages, includeAssets, queueArchive]);
+  }, [url, maxDepth, maxPages, includeAssets, singlePage, excludePatterns, queueArchive]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !submitting) {
       handleSubmit();
     }
   };
+
+  const filteredSites = useMemo(() => {
+    const sites = queueState?.archivedSites ?? [];
+    if (!searchQuery.trim()) return sites;
+    const q = searchQuery.toLowerCase();
+    return sites.filter(
+      s =>
+        (s.title && s.title.toLowerCase().includes(q)) ||
+        s.url.toLowerCase().includes(q)
+    );
+  }, [queueState?.archivedSites, searchQuery]);
 
   if (loading) {
     return (
@@ -176,6 +214,21 @@ export default function WebArchive() {
 
         {submitError && <div className="submit-error">{submitError}</div>}
 
+        {/* Single Page Toggle */}
+        <div className="single-page-toggle">
+          <label>
+            <input
+              type="checkbox"
+              checked={singlePage}
+              onChange={(e) => setSinglePage(e.target.checked)}
+            />
+            Single Page Snapshot
+          </label>
+          <span className="toggle-hint">
+            {singlePage ? 'Only archive this one URL' : 'Crawl linked pages'}
+          </span>
+        </div>
+
         {/* Settings toggle */}
         <button
           className="settings-toggle"
@@ -186,26 +239,30 @@ export default function WebArchive() {
 
         {showSettings && (
           <div className="crawl-settings">
-            <div className="setting-row">
-              <label>Max Depth</label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={maxDepth}
-                onChange={(e) => setMaxDepth(Number(e.target.value))}
-              />
-            </div>
-            <div className="setting-row">
-              <label>Max Pages</label>
-              <input
-                type="number"
-                min={1}
-                max={1000}
-                value={maxPages}
-                onChange={(e) => setMaxPages(Number(e.target.value))}
-              />
-            </div>
+            {!singlePage && (
+              <>
+                <div className="setting-row">
+                  <label>Max Depth</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={maxDepth}
+                    onChange={(e) => setMaxDepth(Number(e.target.value))}
+                  />
+                </div>
+                <div className="setting-row">
+                  <label>Max Pages</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={maxPages}
+                    onChange={(e) => setMaxPages(Number(e.target.value))}
+                  />
+                </div>
+              </>
+            )}
             <div className="setting-row">
               <label>
                 <input
@@ -216,6 +273,18 @@ export default function WebArchive() {
                 Include Assets (CSS, JS, images)
               </label>
             </div>
+            {!singlePage && (
+              <div className="setting-row exclude-patterns-row">
+                <label>Exclude URL Patterns</label>
+                <textarea
+                  className="exclude-patterns"
+                  placeholder={"One regex per line, e.g.:\n/api/\n\\.pdf$\n/login"}
+                  value={excludePatterns}
+                  onChange={(e) => setExcludePatterns(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -238,6 +307,8 @@ export default function WebArchive() {
                 key={task.id}
                 task={task}
                 onCancel={cancelArchive}
+                onPause={pauseArchive}
+                onResume={resumeArchive}
                 onRemove={removeTask}
                 onBrowse={task.cid ? () => openViewer(task.cid!, task.url) : undefined}
                 viewerLoading={viewerLoading}
@@ -250,9 +321,22 @@ export default function WebArchive() {
       {/* Archived Sites */}
       {archivedSites.length > 0 && (
         <div className="archived-section">
-          <h2>Archived Sites</h2>
+          <div className="section-header">
+            <h2>Archived Sites</h2>
+          </div>
+
+          {archivedSites.length > 3 && (
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search archived sites..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          )}
+
           <div className="archived-list">
-            {archivedSites.map((site) => (
+            {filteredSites.map((site) => (
               <div key={site.cid} className="archived-item">
                 <div className="archived-info">
                   <span className="archived-title">
@@ -278,6 +362,9 @@ export default function WebArchive() {
                 </div>
               </div>
             ))}
+            {filteredSites.length === 0 && searchQuery && (
+              <div className="no-results">No sites match "{searchQuery}"</div>
+            )}
           </div>
         </div>
       )}
@@ -298,12 +385,16 @@ export default function WebArchive() {
 function TaskCard({
   task,
   onCancel,
+  onPause,
+  onResume,
   onRemove,
   onBrowse,
   viewerLoading,
 }: {
   task: ArchiveTask;
   onCancel: (id: string) => void;
+  onPause: (id: string) => void;
+  onResume: (id: string) => void;
   onRemove: (id: string) => void;
   onBrowse?: () => void;
   viewerLoading: boolean;
@@ -313,10 +404,12 @@ function TaskCard({
     task.state === 'downloading' ||
     task.state === 'packaging' ||
     task.state === 'uploading';
+  const isPaused = task.state === 'paused';
   const isFinished =
     task.state === 'completed' ||
     task.state === 'failed' ||
     task.state === 'cancelled';
+  const isPausable = task.state === 'crawling' || task.state === 'downloading';
 
   return (
     <div className={`task-card ${task.state}`}>
@@ -328,7 +421,25 @@ function TaskCard({
           </span>
         </div>
         <div className="task-actions">
-          {(isActive || task.state === 'queued') && (
+          {isPausable && (
+            <button
+              className="pause-btn"
+              onClick={() => onPause(task.id)}
+              title="Pause"
+            >
+              Pause
+            </button>
+          )}
+          {isPaused && (
+            <button
+              className="resume-btn"
+              onClick={() => onResume(task.id)}
+              title="Resume"
+            >
+              Resume
+            </button>
+          )}
+          {(isActive || task.state === 'queued' || isPaused) && (
             <button
               className="cancel-btn"
               onClick={() => onCancel(task.id)}
@@ -350,7 +461,7 @@ function TaskCard({
       </div>
 
       {/* Progress info */}
-      {(isActive || task.state === 'queued') && (
+      {(isActive || task.state === 'queued' || isPaused) && (
         <div className="task-progress">
           <div className="progress-stats">
             <span>Pages: {task.pagesDownloaded}/{task.pagesFound || '?'}</span>
@@ -361,6 +472,17 @@ function TaskCard({
               <span>Size: {formatBytes(task.totalBytes)}</span>
             )}
           </div>
+          {/* Speed and ETA */}
+          {(isActive || isPaused) && (task.bytesPerSecond > 0 || task.etaSeconds !== null) && (
+            <div className="speed-eta">
+              {task.bytesPerSecond > 0 && (
+                <span className="speed">{formatSpeed(task.bytesPerSecond)}</span>
+              )}
+              {task.etaSeconds !== null && (
+                <span className="eta">{formatEta(task.etaSeconds)}</span>
+              )}
+            </div>
+          )}
           {isActive && (
             <div className="progress-bar">
               <div

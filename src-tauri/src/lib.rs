@@ -146,6 +146,8 @@ pub fn run() {
             commands::queue_web_archive,
             commands::get_archive_queue,
             commands::cancel_web_archive,
+            commands::pause_web_archive,
+            commands::resume_web_archive,
             commands::remove_archive_task,
             commands::clear_completed_archives,
             commands::get_archived_sites,

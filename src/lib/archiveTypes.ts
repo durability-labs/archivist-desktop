@@ -6,7 +6,8 @@ export type ArchiveState =
   | 'uploading'
   | 'completed'
   | 'failed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'paused';
 
 export interface ArchiveOptions {
   url: string;
@@ -14,6 +15,10 @@ export interface ArchiveOptions {
   maxPages: number;
   includeAssets: boolean;
   requestDelayMs: number;
+  singlePage?: boolean;
+  userAgent?: string;
+  customHeaders?: Record<string, string>;
+  excludePatterns?: string[];
 }
 
 export interface ArchiveTask {
@@ -25,6 +30,8 @@ export interface ArchiveTask {
   pagesDownloaded: number;
   assetsDownloaded: number;
   totalBytes: number;
+  bytesPerSecond: number;
+  etaSeconds: number | null;
   cid: string | null;
   error: string | null;
   createdAt: string;
@@ -47,6 +54,7 @@ export interface ArchiveQueueState {
   activeCount: number;
   queuedCount: number;
   completedCount: number;
+  pausedCount: number;
   maxConcurrent: number;
   archivedSites: ArchivedSite[];
 }

@@ -327,6 +327,10 @@ pub struct WebArchiveSettings {
     pub request_delay_ms: u64,
     #[serde(default = "default_viewer_port")]
     pub viewer_port: u16,
+    #[serde(default)]
+    pub default_user_agent: Option<String>,
+    #[serde(default)]
+    pub default_exclude_patterns: Vec<String>,
 }
 
 fn default_viewer_port() -> u16 {
@@ -342,6 +346,8 @@ impl Default for WebArchiveSettings {
             include_assets: true,
             request_delay_ms: 200,
             viewer_port: 8088,
+            default_user_agent: None,
+            default_exclude_patterns: Vec::new(),
         }
     }
 }

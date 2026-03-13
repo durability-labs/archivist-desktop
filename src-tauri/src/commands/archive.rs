@@ -28,6 +28,20 @@ pub async fn cancel_web_archive(state: State<'_, AppState>, task_id: String) -> 
     archive.cancel_archive(&task_id)
 }
 
+/// Pause an active archive task
+#[tauri::command]
+pub async fn pause_web_archive(state: State<'_, AppState>, task_id: String) -> Result<()> {
+    let mut archive = state.web_archive.write().await;
+    archive.pause_archive(&task_id)
+}
+
+/// Resume a paused archive task
+#[tauri::command]
+pub async fn resume_web_archive(state: State<'_, AppState>, task_id: String) -> Result<()> {
+    let mut archive = state.web_archive.write().await;
+    archive.resume_archive(&task_id)
+}
+
 /// Remove a completed/failed/cancelled task from the queue
 #[tauri::command]
 pub async fn remove_archive_task(state: State<'_, AppState>, task_id: String) -> Result<()> {

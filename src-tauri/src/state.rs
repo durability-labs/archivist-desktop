@@ -146,10 +146,14 @@ impl AppState {
             media.clone(),
         )));
 
-        // Create web archive service
-        let web_archive = Arc::new(RwLock::new(WebArchiveService::new(
+        // Create web archive service with history persistence
+        let web_archive_data_dir = dirs::data_dir()
+            .map(|p| p.join("archivist"))
+            .unwrap_or_else(|| std::path::PathBuf::from(".archivist"));
+        let web_archive = Arc::new(RwLock::new(WebArchiveService::with_history(
             app_config.web_archive.max_concurrent_archives,
             app_config.node.api_port,
+            web_archive_data_dir,
         )));
 
         // Create archive viewer server

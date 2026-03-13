@@ -49,6 +49,22 @@ export function useWebArchive() {
     [refreshQueue]
   );
 
+  const pauseArchive = useCallback(
+    async (taskId: string) => {
+      await invoke('pause_web_archive', { taskId });
+      await refreshQueue();
+    },
+    [refreshQueue]
+  );
+
+  const resumeArchive = useCallback(
+    async (taskId: string) => {
+      await invoke('resume_web_archive', { taskId });
+      await refreshQueue();
+    },
+    [refreshQueue]
+  );
+
   const removeTask = useCallback(
     async (taskId: string) => {
       await invoke('remove_archive_task', { taskId });
@@ -119,6 +135,8 @@ export function useWebArchive() {
       pagesDownloaded: number;
       assetsDownloaded: number;
       totalBytes: number;
+      bytesPerSecond: number;
+      etaSeconds: number | null;
     }>('web-archive-progress', (event) => {
       setQueueState((prev) => {
         if (!prev) return prev;
@@ -132,6 +150,8 @@ export function useWebArchive() {
                   pagesDownloaded: event.payload.pagesDownloaded,
                   assetsDownloaded: event.payload.assetsDownloaded,
                   totalBytes: event.payload.totalBytes,
+                  bytesPerSecond: event.payload.bytesPerSecond,
+                  etaSeconds: event.payload.etaSeconds,
                 }
               : t
           ),
@@ -175,6 +195,8 @@ export function useWebArchive() {
     error,
     queueArchive,
     cancelArchive,
+    pauseArchive,
+    resumeArchive,
     removeTask,
     clearCompleted,
     getArchivedSites,
