@@ -226,7 +226,11 @@ impl MediaDownloadService {
         let pids: Vec<(String, u32)> = self.active_pids.drain().collect();
         for (task_id, pid) in pids {
             kill_process(pid);
-            log::info!("Killed yt-dlp process {} for task {} (exit cleanup)", pid, task_id);
+            log::info!(
+                "Killed yt-dlp process {} for task {} (exit cleanup)",
+                pid,
+                task_id
+            );
             if let Some(task) = self.tasks.get_mut(&task_id) {
                 task.state = DownloadState::Cancelled;
             }

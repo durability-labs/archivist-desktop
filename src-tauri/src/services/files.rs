@@ -233,7 +233,8 @@ impl FileService {
         let file_size = metadata.len();
         match self.api_client.get_space().await {
             Ok(space) => {
-                let available = space.quota_max_bytes
+                let available = space
+                    .quota_max_bytes
                     .saturating_sub(space.quota_used_bytes)
                     .saturating_sub(space.quota_reserved_bytes);
                 if file_size > available {
