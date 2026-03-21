@@ -42,7 +42,7 @@ async fn test_discourse_scrape_and_build() {
         .expect("Failed to scrape categories");
     println!("Categories: {}", scraper.categories.len());
     assert!(
-        scraper.categories.len() > 0,
+        !scraper.categories.is_empty(),
         "Should have at least one category"
     );
 
@@ -58,7 +58,7 @@ async fn test_discourse_scrape_and_build() {
         .await
         .expect("Failed to scrape topics");
     println!("Topics found: {}", scraper.topics.len());
-    assert!(scraper.topics.len() > 0, "Should have at least one topic");
+    assert!(!scraper.topics.is_empty(), "Should have at least one topic");
 
     // Scrape posts for all topics
     scraper
@@ -66,7 +66,7 @@ async fn test_discourse_scrape_and_build() {
         .await
         .expect("Failed to scrape topic posts");
     println!("Posts collected: {}", scraper.posts.len());
-    assert!(scraper.posts.len() > 0, "Should have at least one post");
+    assert!(!scraper.posts.is_empty(), "Should have at least one post");
 
     // Scrape users (limited set from posts)
     scraper
