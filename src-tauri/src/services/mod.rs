@@ -12,6 +12,8 @@ pub mod chat_tls;
 pub mod chat_tofu;
 pub mod chat_types;
 pub mod config;
+pub mod discourse_scraper;
+pub mod discourse_site_builder;
 pub mod files;
 pub mod irc;
 pub mod manifest_server;

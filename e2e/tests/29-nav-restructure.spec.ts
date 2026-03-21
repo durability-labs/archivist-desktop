@@ -1,11 +1,4 @@
-import { test, expect } from '@playwright/test';
-import {
-  connectToApp,
-  waitForPort,
-  navigateTo,
-  ensurePastOnboarding,
-  SEL,
-} from '../helpers';
+import { navigateTo, ensurePastOnboarding, hasText, SEL } from '../helpers';
 
 /**
  * Navigation restructure + IRC panel tests.
@@ -19,452 +12,369 @@ import {
  * and attributes rather than visibility for the IRC panel.
  */
 
-test.describe('Navigation structure', () => {
-  test.beforeAll(async () => {
-    await waitForPort(9222, 15_000);
+describe('Navigation structure', () => {
+  before(async () => {
+    await ensurePastOnboarding();
+  });
 
-    // Ensure onboarding is completed so the main app shell renders
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-    } finally {
-      await browser.close();
+  it('should show section labels in sidebar', async () => {
+    await ensurePastOnboarding();
+    const sidebar = await $(SEL.sidebar);
+    await expect(sidebar).toBeDisplayed();
+
+    const p2pLabel = await hasText('.sidebar .nav-section-label', 'Archivist P2P Network');
+    await expect(p2pLabel).toBeDisplayed();
+    const marketLabel = await hasText('.sidebar .nav-section-label', 'Marketplace');
+    await expect(marketLabel).toBeDisplayed();
+    const toolsLabel = await hasText('.sidebar .nav-section-label', 'Archiving Tools');
+    await expect(toolsLabel).toBeDisplayed();
+  });
+
+  it('should show primary nav links with new labels', async () => {
+    await ensurePastOnboarding();
+
+    const primaryLinks = [
+      'Dashboard',
+      'Upload & Download',
+      'Make a Deal',
+      'My Deals',
+      'Wallet',
+      'Media Downloader',
+      'Website Scraper',
+      'Torrents',
+    ];
+
+    for (const label of primaryLinks) {
+      const link = await hasText('.sidebar .nav-link', label);
+      await link.waitForDisplayed({ timeout: 3000 });
     }
   });
 
-  test('should show section labels in sidebar', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      const sidebar = page.locator(SEL.sidebar);
-      await expect(sidebar).toBeVisible();
+  it('should have Advanced accordion collapsed by default', async () => {
+    await ensurePastOnboarding();
 
-      await expect(sidebar.locator('.nav-section-label:has-text("Archivist P2P Network")')).toBeVisible();
-      await expect(sidebar.locator('.nav-section-label:has-text("Marketplace")')).toBeVisible();
-      await expect(sidebar.locator('.nav-section-label:has-text("Archiving Tools")')).toBeVisible();
-    } finally {
-      await browser.close();
+    // Reset accordion state to test default
+    await browser.execute(() => {
+      localStorage.removeItem('nav-advanced-open');
+    });
+    await browser.refresh();
+    const sidebar = await $(SEL.sidebar);
+    await sidebar.waitForDisplayed({ timeout: 10000 });
+
+    // Advanced header should be visible
+    const accordionHeader = await hasText('.sidebar .nav-accordion-header', 'Advanced');
+    await expect(accordionHeader).toBeDisplayed();
+
+    // Items inside Advanced should NOT be visible initially
+    const advancedLinks = ['Settings', 'Logs', 'Folder Upload', 'Backup Server', 'My Devices', 'Add Device'];
+    for (const label of advancedLinks) {
+      const link = await hasText('.sidebar .nav-link', label);
+      const visible = await link.isDisplayed().catch(() => false);
+      expect(visible).toBeFalsy();
     }
   });
 
-  test('should show primary nav links with new labels', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      const sidebar = page.locator(SEL.sidebar);
+  it('should expand Advanced accordion on click', async () => {
+    await ensurePastOnboarding();
 
-      const primaryLinks = [
-        'Dashboard',
-        'Upload & Download',
-        'Make a Deal',
-        'My Deals',
-        'Wallet',
-        'Media Downloader',
-        'Website Scraper',
-        'Torrents',
-      ];
+    // Reset accordion to collapsed
+    await browser.execute(() => {
+      localStorage.removeItem('nav-advanced-open');
+    });
+    await browser.refresh();
+    const sidebar = await $(SEL.sidebar);
+    await sidebar.waitForDisplayed({ timeout: 10000 });
 
-      for (const label of primaryLinks) {
-        await expect(
-          sidebar.locator(`.nav-link:has-text("${label}")`)
-        ).toBeVisible({ timeout: 3_000 });
-      }
-    } finally {
-      await browser.close();
+    const accordionHeader = await hasText('.sidebar .nav-accordion-header', 'Advanced');
+    await accordionHeader.click();
+    await browser.pause(500);
+
+    const advancedLinks = ['Settings', 'Logs', 'Folder Upload', 'Backup Server', 'My Devices', 'Add Device'];
+    for (const label of advancedLinks) {
+      const link = await hasText('.sidebar .nav-link', label);
+      await link.waitForDisplayed({ timeout: 3000 });
     }
   });
 
-  test('should have Advanced accordion collapsed by default', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
+  it('should collapse Advanced accordion on re-click', async () => {
+    await ensurePastOnboarding();
+    const settingsLink = await hasText('.sidebar .nav-link', 'Settings');
+    const accordionHeader = await hasText('.sidebar .nav-accordion-header', 'Advanced');
 
-      // Reset accordion state to test default
-      await page.evaluate(() => {
-        localStorage.removeItem('nav-advanced-open');
-      });
-      await page.reload();
-      await page.waitForLoadState('domcontentloaded');
-      await page.locator(SEL.sidebar).waitFor({ state: 'visible', timeout: 10_000 });
-
-      const sidebar = page.locator(SEL.sidebar);
-
-      // Advanced header should be visible
-      const accordionHeader = sidebar.locator('.nav-accordion-header:has-text("Advanced")');
-      await expect(accordionHeader).toBeVisible();
-
-      // Items inside Advanced should NOT be visible initially
-      const advancedLinks = ['Settings', 'Logs', 'Folder Upload', 'Backup Server', 'My Devices', 'Add Device'];
-      for (const label of advancedLinks) {
-        const link = sidebar.locator(`.nav-link:has-text("${label}")`);
-        const visible = await link.isVisible().catch(() => false);
-        expect(visible, `"${label}" should be hidden when accordion collapsed`).toBeFalsy();
-      }
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should expand Advanced accordion on click', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-
-      // Reset accordion to collapsed
-      await page.evaluate(() => {
-        localStorage.removeItem('nav-advanced-open');
-      });
-      await page.reload();
-      await page.waitForLoadState('domcontentloaded');
-      await page.locator(SEL.sidebar).waitFor({ state: 'visible', timeout: 10_000 });
-
-      const sidebar = page.locator(SEL.sidebar);
-      const accordionHeader = sidebar.locator('.nav-accordion-header:has-text("Advanced")');
+    // Ensure accordion is expanded first (state may persist via localStorage)
+    const alreadyExpanded = await settingsLink.isDisplayed().catch(() => false);
+    if (!alreadyExpanded) {
       await accordionHeader.click();
-      await page.waitForTimeout(500);
-
-      const advancedLinks = ['Settings', 'Logs', 'Folder Upload', 'Backup Server', 'My Devices', 'Add Device'];
-      for (const label of advancedLinks) {
-        await expect(
-          sidebar.locator(`.nav-link:has-text("${label}")`)
-        ).toBeVisible({ timeout: 3_000 });
-      }
-    } finally {
-      await browser.close();
+      await browser.pause(500);
     }
+    await expect(settingsLink).toBeDisplayed();
+
+    // Collapse
+    await accordionHeader.click();
+    await browser.pause(500);
+
+    const settingsVisible = await settingsLink.isDisplayed().catch(() => false);
+    expect(settingsVisible).toBeFalsy();
   });
 
-  test('should collapse Advanced accordion on re-click', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      const sidebar = page.locator(SEL.sidebar);
-      const accordionHeader = sidebar.locator('.nav-accordion-header:has-text("Advanced")');
-      const settingsLink = sidebar.locator('.nav-link:has-text("Settings")');
+  it('should NOT have Chat link in sidebar', async () => {
+    await ensurePastOnboarding();
 
-      // Ensure accordion is expanded first (state may persist via localStorage)
-      const alreadyExpanded = await settingsLink.isVisible({ timeout: 1_000 }).catch(() => false);
-      if (!alreadyExpanded) {
-        await accordionHeader.click();
-        await page.waitForTimeout(500);
-      }
-      await expect(settingsLink).toBeVisible();
-
-      // Collapse
+    // Expand Advanced to check everywhere
+    const accordionHeader = await hasText('.sidebar .nav-accordion-header', 'Advanced');
+    const settingsLink = await hasText('.sidebar .nav-link', 'Settings');
+    const expanded = await settingsLink.isDisplayed().catch(() => false);
+    if (!expanded) {
       await accordionHeader.click();
-      await page.waitForTimeout(500);
-
-      const settingsVisible = await settingsLink.isVisible().catch(() => false);
-      expect(settingsVisible).toBeFalsy();
-    } finally {
-      await browser.close();
+      await browser.pause(500);
     }
+
+    const chatLink = await hasText('.sidebar .nav-link', 'Chat');
+    const chatVisible = await chatLink.isDisplayed().catch(() => false);
+    expect(chatVisible).toBeFalsy();
   });
 
-  test('should NOT have Chat link in sidebar', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      const sidebar = page.locator(SEL.sidebar);
+  it('should NOT have old nav labels (Backups, Restore, Media Download, Web Archive, Browse)', async () => {
+    await ensurePastOnboarding();
 
-      // Expand Advanced to check everywhere
-      const accordionHeader = sidebar.locator('.nav-accordion-header:has-text("Advanced")');
-      const settingsLink = sidebar.locator('.nav-link:has-text("Settings")');
-      const expanded = await settingsLink.isVisible({ timeout: 1_000 }).catch(() => false);
-      if (!expanded) {
-        await accordionHeader.click();
-        await page.waitForTimeout(500);
-      }
-
-      const chatLink = sidebar.locator('.nav-link:has-text("Chat")');
-      const chatVisible = await chatLink.isVisible().catch(() => false);
-      expect(chatVisible).toBeFalsy();
-    } finally {
-      await browser.close();
+    // Expand Advanced accordion to check all links
+    const accordionHeader = await hasText('.sidebar .nav-accordion-header', 'Advanced');
+    const settingsLink = await hasText('.sidebar .nav-link', 'Settings');
+    const expanded = await settingsLink.isDisplayed().catch(() => false);
+    if (!expanded) {
+      await accordionHeader.click();
+      await browser.pause(500);
     }
-  });
 
-  test('should NOT have old nav labels (Backups, Restore, Media Download, Web Archive, Browse)', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      const sidebar = page.locator(SEL.sidebar);
-
-      // Expand Advanced accordion to check all links
-      const accordionHeader = sidebar.locator('.nav-accordion-header:has-text("Advanced")');
-      const settingsLink = sidebar.locator('.nav-link:has-text("Settings")');
-      const expanded = await settingsLink.isVisible({ timeout: 1_000 }).catch(() => false);
-      if (!expanded) {
-        await accordionHeader.click();
-        await page.waitForTimeout(500);
-      }
-
-      // These old labels should NOT appear as nav links
-      // Use exact text matching to avoid false positives (e.g. "Backup Server" contains "Backup")
-      const oldLabels = ['Backups', 'Restore', 'Media Download', 'Web Archive', 'Browse'];
-      for (const label of oldLabels) {
-        const links = sidebar.locator('.nav-link');
-        const count = await links.count();
-        let found = false;
-        for (let i = 0; i < count; i++) {
-          const text = (await links.nth(i).textContent())?.trim();
-          if (text === label) {
-            found = true;
-            break;
-          }
+    // These old labels should NOT appear as nav links
+    // Use exact text matching to avoid false positives
+    const oldLabels = ['Backups', 'Restore', 'Media Download', 'Web Archive', 'Browse'];
+    for (const label of oldLabels) {
+      const links = await $$('.sidebar .nav-link');
+      let found = false;
+      for (const link of links) {
+        const text = (await link.getText())?.trim();
+        if (text === label) {
+          found = true;
+          break;
         }
-        expect(found, `Old label "${label}" should not exist as a nav link`).toBeFalsy();
       }
-    } finally {
-      await browser.close();
+      expect(found).toBeFalsy();
     }
   });
 
-  test('should navigate each primary nav link to correct page', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
+  it('should navigate each primary nav link to correct page', async () => {
+    await ensurePastOnboarding();
 
-      // Primary links (visible without accordion)
-      const primaryNav: Array<{ label: string; pageCheck: string }> = [
-        { label: 'Dashboard', pageCheck: '.page-header h2' },
-        { label: 'Upload & Download', pageCheck: '.page-header h2' },
-        { label: 'Make a Deal', pageCheck: SEL.marketplacePage },
-        { label: 'My Deals', pageCheck: SEL.dealsPage },
-        { label: 'Wallet', pageCheck: SEL.walletPage },
-        { label: 'Media Downloader', pageCheck: SEL.mediaDownloadPage },
-        { label: 'Website Scraper', pageCheck: SEL.webArchivePage },
-        { label: 'Torrents', pageCheck: SEL.torrentsPage },
-      ];
+    // Primary links (visible without accordion)
+    const primaryNav: Array<{ label: string; pageCheck: string }> = [
+      { label: 'Dashboard', pageCheck: '.page-header h2' },
+      { label: 'Upload & Download', pageCheck: '.page-header h2' },
+      { label: 'Make a Deal', pageCheck: SEL.marketplacePage },
+      { label: 'My Deals', pageCheck: SEL.dealsPage },
+      { label: 'Wallet', pageCheck: SEL.walletPage },
+      { label: 'Media Downloader', pageCheck: SEL.mediaDownloadPage },
+      { label: 'Website Scraper', pageCheck: SEL.webArchivePage },
+      { label: 'Torrents', pageCheck: SEL.torrentsPage },
+    ];
 
-      for (const { label, pageCheck } of primaryNav) {
-        await navigateTo(page, label);
-        await page.waitForTimeout(300);
-        const visible = await page.locator(pageCheck).first().isVisible({ timeout: 5_000 }).catch(() => false);
-        expect(visible, `Page for "${label}" should render`).toBeTruthy();
-      }
+    for (const { label, pageCheck } of primaryNav) {
+      await navigateTo(label);
+      await browser.pause(300);
+      const el = await $(pageCheck);
+      const visible = await el.waitForDisplayed({ timeout: 5000 }).then(() => true).catch(() => false);
+      expect(visible).toBeTruthy();
+    }
 
-      // Advanced links (excluding My Devices / Add Device — Devices page crashes
-      // due to missing ChatContext provider, which breaks the React app and
-      // prevents subsequent tests from running)
-      const advancedNav: Array<{ label: string; pageCheck: string }> = [
-        { label: 'Settings', pageCheck: SEL.settingsHeader },
-        { label: 'Logs', pageCheck: SEL.logsContainer },
-        { label: 'Folder Upload', pageCheck: '.page-header h2' },
-        { label: 'Backup Server', pageCheck: SEL.backupServerPage },
-      ];
+    // Advanced links (excluding My Devices / Add Device — Devices page crashes
+    // due to missing ChatContext provider)
+    const advancedNav: Array<{ label: string; pageCheck: string }> = [
+      { label: 'Settings', pageCheck: SEL.settingsHeader },
+      { label: 'Logs', pageCheck: SEL.logsContainer },
+      { label: 'Folder Upload', pageCheck: '.page-header h2' },
+      { label: 'Backup Server', pageCheck: SEL.backupServerPage },
+    ];
 
-      for (const { label, pageCheck } of advancedNav) {
-        await navigateTo(page, label);
-        await page.waitForTimeout(300);
-        const visible = await page.locator(pageCheck).first().isVisible({ timeout: 5_000 }).catch(() => false);
-        expect(visible, `Page for "${label}" should render`).toBeTruthy();
-      }
-    } finally {
-      await browser.close();
+    for (const { label, pageCheck } of advancedNav) {
+      await navigateTo(label);
+      await browser.pause(300);
+      const el = await $(pageCheck);
+      const visible = await el.waitForDisplayed({ timeout: 5000 }).then(() => true).catch(() => false);
+      expect(visible).toBeTruthy();
     }
   });
 });
 
-test.describe('Dashboard IRC chat', () => {
-  test.beforeAll(async () => {
-    await waitForPort(9222, 15_000);
+describe('Dashboard IRC chat', () => {
+  it('should have IRC chat component in Dashboard DOM', async () => {
+    await ensurePastOnboarding();
+    await navigateTo('Dashboard');
+    await browser.pause(500);
+
+    const ircChats = await $$(SEL.ircChat);
+    expect(ircChats.length).toBe(1);
   });
 
-  test('should have IRC chat component in Dashboard DOM', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      await navigateTo(page, 'Dashboard');
-      await page.waitForTimeout(500);
+  it('should display channel name in IRC header', async () => {
+    await ensurePastOnboarding();
+    await navigateTo('Dashboard');
+    await browser.pause(500);
 
-      await expect(page.locator(SEL.ircChat)).toHaveCount(1);
-    } finally {
-      await browser.close();
-    }
+    const channel = await $(SEL.ircChannel);
+    await expect(channel).toHaveText('#archivist');
   });
 
-  test('should display channel name in IRC header', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      await navigateTo(page, 'Dashboard');
-      await page.waitForTimeout(500);
+  it('should have Dashboard layout with main and IRC chat elements', async () => {
+    await ensurePastOnboarding();
+    await navigateTo('Dashboard');
+    await browser.pause(500);
 
-      await expect(page.locator(SEL.ircChannel)).toHaveText('#archivist');
-    } finally {
-      await browser.close();
-    }
+    const layouts = await $$(SEL.dashboardLayout);
+    expect(layouts.length).toBe(1);
+    const main = await $(SEL.dashboardMain);
+    await expect(main).toBeDisplayed();
+    const ircChats = await $$(SEL.ircChat);
+    expect(ircChats.length).toBe(1);
+
+    const header = await $('.page-header h2');
+    await expect(header).toHaveText('Dashboard');
+
+    const basicBtn = await $(SEL.viewModeBasic);
+    await expect(basicBtn).toBeDisplayed();
+    const advancedBtn = await $(SEL.viewModeAdvanced);
+    await expect(advancedBtn).toBeDisplayed();
   });
 
-  test('should have Dashboard layout with main and IRC chat elements', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      await navigateTo(page, 'Dashboard');
-      await page.waitForTimeout(500);
+  it('should keep IRC chat in DOM when switching view modes', async () => {
+    await ensurePastOnboarding();
+    await navigateTo('Dashboard');
+    await browser.pause(500);
 
-      await expect(page.locator(SEL.dashboardLayout)).toHaveCount(1);
-      await expect(page.locator(SEL.dashboardMain)).toBeVisible();
-      await expect(page.locator(SEL.ircChat)).toHaveCount(1);
+    // Switch to Advanced — IRC chat is only in BasicView
+    const advancedBtn = await $(SEL.viewModeAdvanced);
+    await advancedBtn.click();
+    await browser.pause(300);
+    const advancedView = await $('.advanced-view');
+    await expect(advancedView).toBeDisplayed();
 
-      const header = page.locator('.page-header h2');
-      await expect(header).toHaveText('Dashboard');
-
-      await expect(page.locator(SEL.viewModeBasic)).toBeVisible();
-      await expect(page.locator(SEL.viewModeAdvanced)).toBeVisible();
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should keep IRC chat in DOM when switching view modes', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      await navigateTo(page, 'Dashboard');
-      await page.waitForTimeout(500);
-
-      // Switch to Advanced — IRC chat is only in BasicView
-      await page.locator(SEL.viewModeAdvanced).click();
-      await page.waitForTimeout(300);
-      await expect(page.locator('.advanced-view')).toBeVisible();
-
-      // Switch back to Basic
-      await page.locator(SEL.viewModeBasic).click();
-      await page.waitForTimeout(300);
-      await expect(page.locator(SEL.ircChat)).toHaveCount(1);
-      await expect(page.locator('.basic-view')).toBeVisible();
-    } finally {
-      await browser.close();
-    }
+    // Switch back to Basic
+    const basicBtn = await $(SEL.viewModeBasic);
+    await basicBtn.click();
+    await browser.pause(300);
+    const ircChats = await $$(SEL.ircChat);
+    expect(ircChats.length).toBe(1);
+    const basicView = await $('.basic-view');
+    await expect(basicView).toBeDisplayed();
   });
 });
 
-test.describe('Dashboard interactions', () => {
-  test.beforeAll(async () => {
-    await waitForPort(9222, 15_000);
+describe('Dashboard interactions', () => {
+  it('should show basic view elements', async () => {
+    await ensurePastOnboarding();
+    await navigateTo('Dashboard');
+    await browser.pause(500);
+
+    // Ensure basic view is active
+    const basicBtn = await $(SEL.viewModeBasic);
+    await basicBtn.click();
+    await browser.pause(300);
+
+    // Status hero
+    const hero = await $(SEL.statusHero);
+    await expect(hero).toBeDisplayed();
+
+    // Quick stats
+    const stats = await $(SEL.quickStats);
+    await expect(stats).toBeDisplayed();
   });
 
-  test('should show basic view elements', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      await navigateTo(page, 'Dashboard');
-      await page.waitForTimeout(500);
+  it('should show advanced view elements', async () => {
+    await ensurePastOnboarding();
+    await navigateTo('Dashboard');
+    await browser.pause(500);
 
-      // Ensure basic view is active
-      await page.locator(SEL.viewModeBasic).click();
-      await page.waitForTimeout(300);
+    // Switch to Advanced
+    const advancedBtn = await $(SEL.viewModeAdvanced);
+    await advancedBtn.click();
+    await browser.pause(300);
 
-      // Status hero
-      await expect(page.locator(SEL.statusHero)).toBeVisible();
+    // Stats grid with stat cards
+    const statsGrid = await $('.stats-grid');
+    await expect(statsGrid).toBeDisplayed();
 
-      // Quick stats
-      await expect(page.locator(SEL.quickStats)).toBeVisible();
-    } finally {
-      await browser.close();
+    const statCards = await $$('.stat-card');
+    expect(statCards.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('should toggle and run diagnostics in advanced view', async () => {
+    await ensurePastOnboarding();
+    await navigateTo('Dashboard');
+    await browser.pause(500);
+
+    // Switch to Advanced
+    const advancedBtn = await $(SEL.viewModeAdvanced);
+    await advancedBtn.click();
+    await browser.pause(300);
+
+    // Diagnostics panel may only be visible when node is running
+    const diagHeader = await $(SEL.diagnosticsToggle);
+    const hasDiag = await diagHeader.isDisplayed().catch(() => false);
+
+    if (hasDiag) {
+      // Show diagnostics
+      await diagHeader.click();
+      await browser.pause(500);
+
+      const diagContent = await $('.diagnostics-content');
+      await expect(diagContent).toBeDisplayed();
+
+      // Run diagnostics
+      const runBtn = await $('.diagnostics-content button.secondary');
+      if (await runBtn.isDisplayed().catch(() => false)) {
+        await runBtn.click();
+        // Wait for results
+        await browser.pause(3000);
+        const results = await $(SEL.diagnosticResults);
+        const hasResults = await results.isDisplayed().catch(() => false);
+        expect(hasResults).toBeTruthy();
+      }
     }
   });
 
-  test('should show advanced view elements', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      await navigateTo(page, 'Dashboard');
-      await page.waitForTimeout(500);
+  it('should navigate via quick stat card links', async () => {
+    await ensurePastOnboarding();
+    await navigateTo('Dashboard');
+    await browser.pause(500);
 
-      // Switch to Advanced
-      await page.locator(SEL.viewModeAdvanced).click();
-      await page.waitForTimeout(300);
+    // Ensure basic view
+    const basicBtn = await $(SEL.viewModeBasic);
+    await basicBtn.click();
+    await browser.pause(300);
 
-      // Stats grid with stat cards
-      const statsGrid = page.locator('.stats-grid');
-      await expect(statsGrid).toBeVisible();
+    // "Connected Peers" card links to /devices
+    const peersCard = await hasText('.quick-stat-card.clickable', 'Connected Peers');
+    const hasPeersCard = await peersCard.isDisplayed().catch(() => false);
 
-      const statCards = page.locator('.stat-card');
-      const count = await statCards.count();
-      expect(count).toBeGreaterThanOrEqual(3);
-    } finally {
-      await browser.close();
+    if (hasPeersCard) {
+      await peersCard.click();
+      await browser.pause(500);
+      const url = await browser.getUrl();
+      expect(url).toContain('/devices');
+
+      // Go back to Dashboard
+      await navigateTo('Dashboard');
+      await browser.pause(300);
     }
-  });
 
-  test('should toggle and run diagnostics in advanced view', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      await navigateTo(page, 'Dashboard');
-      await page.waitForTimeout(500);
+    // "Last Backup" card links to /sync
+    const backupCard = await hasText('.quick-stat-card.clickable', 'Last Backup');
+    const hasBackupCard = await backupCard.isDisplayed().catch(() => false);
 
-      // Switch to Advanced
-      await page.locator(SEL.viewModeAdvanced).click();
-      await page.waitForTimeout(300);
-
-      // Diagnostics panel may only be visible when node is running
-      const diagHeader = page.locator(SEL.diagnosticsToggle);
-      const hasDiag = await diagHeader.isVisible().catch(() => false);
-
-      if (hasDiag) {
-        // Show diagnostics
-        await diagHeader.click();
-        await page.waitForTimeout(500);
-
-        const diagContent = page.locator('.diagnostics-content');
-        await expect(diagContent).toBeVisible();
-
-        // Run diagnostics
-        const runBtn = page.locator('.diagnostics-content button.secondary');
-        if (await runBtn.isVisible().catch(() => false)) {
-          await runBtn.click();
-          // Wait for results
-          await page.waitForTimeout(3_000);
-          const results = page.locator(SEL.diagnosticResults);
-          const hasResults = await results.isVisible().catch(() => false);
-          expect(hasResults).toBeTruthy();
-        }
-      }
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should navigate via quick stat card links', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await ensurePastOnboarding(page);
-      await navigateTo(page, 'Dashboard');
-      await page.waitForTimeout(500);
-
-      // Ensure basic view
-      await page.locator(SEL.viewModeBasic).click();
-      await page.waitForTimeout(300);
-
-      // "Connected Peers" card links to /devices
-      const peersCard = page.locator('.quick-stat-card.clickable:has-text("Connected Peers")');
-      const hasPeersCard = await peersCard.isVisible().catch(() => false);
-
-      if (hasPeersCard) {
-        await peersCard.click();
-        await page.waitForTimeout(500);
-        expect(page.url()).toContain('/devices');
-
-        // Go back to Dashboard
-        await navigateTo(page, 'Dashboard');
-        await page.waitForTimeout(300);
-      }
-
-      // "Last Backup" card links to /sync
-      const backupCard = page.locator('.quick-stat-card.clickable:has-text("Last Backup")');
-      const hasBackupCard = await backupCard.isVisible().catch(() => false);
-
-      if (hasBackupCard) {
-        await backupCard.click();
-        await page.waitForTimeout(500);
-        expect(page.url()).toContain('/sync');
-      }
-    } finally {
-      await browser.close();
+    if (hasBackupCard) {
+      await backupCard.click();
+      await browser.pause(500);
+      const url = await browser.getUrl();
+      expect(url).toContain('/sync');
     }
   });
 });

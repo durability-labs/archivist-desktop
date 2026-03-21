@@ -29,8 +29,9 @@ function stateLabel(state: string): string {
     case 'queued': return 'Queued';
     case 'crawling': return 'Crawling...';
     case 'downloading': return 'Downloading Assets...';
+    case 'generating': return 'Generating Site...';
     case 'packaging': return 'Packaging ZIP...';
-    case 'uploading': return 'Uploading to Node...';
+    case 'saving': return 'Saving Archive...';
     case 'completed': return 'Completed';
     case 'failed': return 'Failed';
     case 'cancelled': return 'Cancelled';
@@ -47,8 +48,9 @@ function stateBadgeClass(state: string): string {
     case 'paused': return 'badge-paused';
     case 'crawling':
     case 'downloading':
+    case 'generating':
     case 'packaging':
-    case 'uploading':
+    case 'saving':
       return 'badge-active';
     default: return 'badge-default';
   }
@@ -65,6 +67,8 @@ export default function WebArchive() {
     resumeArchive,
     removeTask,
     clearCompleted,
+    detectDiscourse,
+    uploadToNode,
     viewerUrl,
     viewerLoading,
     viewerCid,
@@ -82,6 +86,14 @@ export default function WebArchive() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Discourse forum detection
+  const [isDiscourse, setIsDiscourse] = useState(false);
+  const [discourseDetecting, setDiscourseDetecting] = useState(false);
+  const [forumMode, setForumMode] = useState(false);
+  const [maxTopics, setMaxTopics] = useState(500);
+  const [fetchUserProfiles, setFetchUserProfiles] = useState(true);
+  const [forumRequestDelay, setForumRequestDelay] = useState(1500);
 
   const handleSubmit = useCallback(async () => {
     const trimmedUrl = url.trim();
@@ -108,9 +120,12 @@ export default function WebArchive() {
         maxDepth: singlePage ? 0 : maxDepth,
         maxPages: singlePage ? 1 : maxPages,
         includeAssets,
-        requestDelayMs: 200,
-        singlePage,
+        requestDelayMs: forumMode ? forumRequestDelay : 200,
+        singlePage: forumMode ? false : singlePage,
         excludePatterns: patterns.length > 0 ? patterns : undefined,
+        discourseMode: forumMode ? true : undefined,
+        maxTopics: forumMode ? maxTopics : undefined,
+        fetchUserProfiles: forumMode ? fetchUserProfiles : undefined,
       });
       setUrl('');
     } catch (e) {
@@ -124,7 +139,32 @@ export default function WebArchive() {
     } finally {
       setSubmitting(false);
     }
-  }, [url, maxDepth, maxPages, includeAssets, singlePage, excludePatterns, queueArchive]);
+  }, [url, maxDepth, maxPages, includeAssets, singlePage, excludePatterns, forumMode, maxTopics, fetchUserProfiles, forumRequestDelay, queueArchive]);
+
+  const handleUrlBlur = useCallback(async () => {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      setIsDiscourse(false);
+      return;
+    }
+    try {
+      new URL(trimmedUrl);
+    } catch {
+      return;
+    }
+    setDiscourseDetecting(true);
+    try {
+      const result = await detectDiscourse(trimmedUrl);
+      setIsDiscourse(result);
+      if (result) {
+        setForumMode(true);
+      }
+    } catch {
+      setIsDiscourse(false);
+    } finally {
+      setDiscourseDetecting(false);
+    }
+  }, [url, detectDiscourse]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !submitting) {
@@ -146,7 +186,7 @@ export default function WebArchive() {
   if (loading) {
     return (
       <div className="web-archive-page">
-        <h1>Web Archive</h1>
+        <h1>Website Scraper</h1>
         <div className="loading-text">Loading...</div>
       </div>
     );
@@ -160,7 +200,7 @@ export default function WebArchive() {
 
   return (
     <div className="web-archive-page">
-      <h1>Web Archive</h1>
+      <h1>Website Scraper</h1>
 
       {error && <div className="archive-error">{error}</div>}
 
@@ -196,11 +236,12 @@ export default function WebArchive() {
         <div className="url-input-row">
           <input
             type="text"
-            className="url-input"
+            className={`url-input${isDiscourse ? ' discourse-detected' : ''}`}
             placeholder="https://example.com"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={handleKeyDown}
+            onBlur={handleUrlBlur}
             disabled={submitting}
           />
           <button
@@ -214,19 +255,47 @@ export default function WebArchive() {
 
         {submitError && <div className="submit-error">{submitError}</div>}
 
-        {/* Single Page Toggle */}
-        <div className="single-page-toggle">
-          <label>
-            <input
-              type="checkbox"
-              checked={singlePage}
-              onChange={(e) => setSinglePage(e.target.checked)}
-            />
-            Single Page Snapshot
-          </label>
-          <span className="toggle-hint">
-            {singlePage ? 'Only archive this one URL' : 'Crawl linked pages'}
-          </span>
+        {/* Discourse detection badge */}
+        {discourseDetecting && (
+          <div className="discourse-badge detecting">Detecting forum type...</div>
+        )}
+        {isDiscourse && !discourseDetecting && (
+          <div className="discourse-badge detected">Discourse forum detected</div>
+        )}
+
+        {/* Mode toggles */}
+        <div className="mode-toggles">
+          {!forumMode && (
+            <div className="single-page-toggle">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={singlePage}
+                  onChange={(e) => setSinglePage(e.target.checked)}
+                />
+                Single Page Snapshot
+              </label>
+              <span className="toggle-hint">
+                {singlePage ? 'Only archive this one URL' : 'Crawl linked pages'}
+              </span>
+            </div>
+          )}
+          <div className="single-page-toggle">
+            <label>
+              <input
+                type="checkbox"
+                checked={forumMode}
+                onChange={(e) => {
+                  setForumMode(e.target.checked);
+                  if (e.target.checked) setSinglePage(false);
+                }}
+              />
+              Forum Archive Mode
+            </label>
+            <span className="toggle-hint">
+              {forumMode ? 'Archive Discourse forum with full site generation' : 'Enable for Discourse forums'}
+            </span>
+          </div>
         </div>
 
         {/* Settings toggle */}
@@ -234,10 +303,10 @@ export default function WebArchive() {
           className="settings-toggle"
           onClick={() => setShowSettings(!showSettings)}
         >
-          {showSettings ? 'Hide Settings' : 'Crawl Settings'}
+          {showSettings ? 'Hide Settings' : forumMode ? 'Forum Settings' : 'Crawl Settings'}
         </button>
 
-        {showSettings && (
+        {showSettings && !forumMode && (
           <div className="crawl-settings">
             {!singlePage && (
               <>
@@ -285,6 +354,42 @@ export default function WebArchive() {
                 />
               </div>
             )}
+          </div>
+        )}
+
+        {showSettings && forumMode && (
+          <div className="crawl-settings forum-settings">
+            <div className="setting-row">
+              <label>Max Topics</label>
+              <input
+                type="number"
+                min={1}
+                max={100000}
+                value={maxTopics}
+                onChange={(e) => setMaxTopics(Number(e.target.value))}
+              />
+            </div>
+            <div className="setting-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={fetchUserProfiles}
+                  onChange={(e) => setFetchUserProfiles(e.target.checked)}
+                />
+                Fetch User Profiles
+              </label>
+            </div>
+            <div className="setting-row">
+              <label>Request Delay (ms)</label>
+              <input
+                type="number"
+                min={500}
+                max={10000}
+                step={100}
+                value={forumRequestDelay}
+                onChange={(e) => setForumRequestDelay(Number(e.target.value))}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -336,8 +441,8 @@ export default function WebArchive() {
           )}
 
           <div className="archived-list">
-            {filteredSites.map((site) => (
-              <div key={site.cid} className="archived-item">
+            {filteredSites.map((site, idx) => (
+              <div key={site.cid || site.localPath || idx} className="archived-item">
                 <div className="archived-info">
                   <span className="archived-title">
                     {site.title || site.url}
@@ -347,18 +452,41 @@ export default function WebArchive() {
                     {site.pagesCount} pages, {site.assetsCount} assets,{' '}
                     {formatBytes(site.totalBytes)}
                   </span>
+                  {site.localPath && (
+                    <span className="archived-local-path" title={site.localPath}>
+                      Local: {site.localPath.split('/').pop() || site.localPath}
+                    </span>
+                  )}
                 </div>
                 <div className="archived-actions">
-                  <button
-                    className="browse-btn"
-                    onClick={() => openViewer(site.cid, site.url)}
-                    disabled={viewerLoading}
-                  >
-                    {viewerLoading ? 'Loading...' : 'Browse'}
-                  </button>
-                  <div className="archived-cid" title={site.cid}>
-                    CID: {site.cid.slice(0, 12)}...
-                  </div>
+                  {site.cid && (
+                    <button
+                      className="browse-btn"
+                      onClick={() => openViewer(site.cid!, site.url)}
+                      disabled={viewerLoading}
+                    >
+                      {viewerLoading ? 'Loading...' : 'Browse'}
+                    </button>
+                  )}
+                  {site.localPath && !site.cid && (
+                    <button
+                      className="upload-btn"
+                      onClick={async () => {
+                        try {
+                          await uploadToNode(site.localPath!);
+                        } catch (e) {
+                          console.error('Upload failed:', e);
+                        }
+                      }}
+                    >
+                      Upload to Node
+                    </button>
+                  )}
+                  {site.cid && (
+                    <div className="archived-cid" title={site.cid}>
+                      CID: {site.cid.slice(0, 12)}...
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -374,7 +502,7 @@ export default function WebArchive() {
           <p>Enter a URL above to archive a website to decentralized storage.</p>
           <p className="empty-detail">
             The crawler will download pages, assets, and package everything into
-            a ZIP file uploaded to your archivist node.
+            a ZIP file saved locally. You can optionally upload to your archivist node later.
           </p>
         </div>
       )}
@@ -402,14 +530,16 @@ function TaskCard({
   const isActive =
     task.state === 'crawling' ||
     task.state === 'downloading' ||
+    task.state === 'generating' ||
     task.state === 'packaging' ||
-    task.state === 'uploading';
+    task.state === 'saving';
   const isPaused = task.state === 'paused';
   const isFinished =
     task.state === 'completed' ||
     task.state === 'failed' ||
     task.state === 'cancelled';
   const isPausable = task.state === 'crawling' || task.state === 'downloading';
+  const isDiscourseTask = !!task.options.discourseMode;
 
   return (
     <div className={`task-card ${task.state}`}>
@@ -464,7 +594,7 @@ function TaskCard({
       {(isActive || task.state === 'queued' || isPaused) && (
         <div className="task-progress">
           <div className="progress-stats">
-            <span>Pages: {task.pagesDownloaded}/{task.pagesFound || '?'}</span>
+            <span>{isDiscourseTask ? 'Topics' : 'Pages'}: {task.pagesDownloaded}/{task.pagesFound || '?'}</span>
             {task.assetsDownloaded > 0 && (
               <span>Assets: {task.assetsDownloaded}</span>
             )}
@@ -499,12 +629,24 @@ function TaskCard({
       )}
 
       {/* Completed info */}
-      {task.state === 'completed' && task.cid && (
+      {task.state === 'completed' && (task.localPath || task.cid) && (
         <div className="task-result">
-          <span className="result-label">CID:</span>
-          <span className="result-cid" title={task.cid}>
-            {task.cid}
-          </span>
+          {task.localPath && (
+            <>
+              <span className="result-label">Saved:</span>
+              <span className="result-path" title={task.localPath}>
+                {task.localPath.split('/').pop() || task.localPath}
+              </span>
+            </>
+          )}
+          {task.cid && (
+            <>
+              <span className="result-label">CID:</span>
+              <span className="result-cid" title={task.cid}>
+                {task.cid}
+              </span>
+            </>
+          )}
           {onBrowse && (
             <button
               className="browse-btn"

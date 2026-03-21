@@ -138,6 +138,7 @@ function Files() {
       if (!selected) return;
 
       const paths = Array.isArray(selected) ? selected : [selected];
+      let uploadError: string | null = null;
       setError(null);
 
       for (const path of paths) {
@@ -149,13 +150,19 @@ function Files() {
           console.log('Upload successful:', result);
         } catch (e) {
           const msg = typeof e === 'string' ? e : (e instanceof Error ? e.message : 'Upload failed');
-          setError(`Failed to upload ${filename}: ${msg}`);
+          uploadError = `Failed to upload ${filename}: ${msg}`;
+          setError(uploadError);
         }
       }
 
       setUploadProgress(null);
       setUploadProgressData(null);
       await loadFiles();
+
+      // Restore upload error so user sees it (loadFiles clears errors)
+      if (uploadError) {
+        setError(uploadError);
+      }
     } catch (e) {
       const msg = typeof e === 'string' ? e : (e instanceof Error ? e.message : 'Failed to upload file');
       setError(msg);

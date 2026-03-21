@@ -101,7 +101,7 @@ impl Default for NodeConfig {
             api_port: 8080,       // Default archivist-node API port
             discovery_port: 8090, // Default UDP port for DHT/mDNS discovery
             listen_port: 8070,    // Default TCP port for P2P connections
-            max_storage_bytes: 10 * 1024 * 1024 * 1024, // 10 GB default
+            max_storage_bytes: 50 * 1024 * 1024 * 1024, // 50 GB default
             auto_start: false,
             auto_restart: true,
             max_restart_attempts: 3,
@@ -271,7 +271,6 @@ impl NodeService {
         ];
 
         // Append marketplace flags when a private key is available
-        // The sidecar CLI expects: archivist [top-level-flags] persistence [marketplace-flags]
         // --eth-private-key expects a file path, not the raw key contents
         if let Some(ref key) = self.config.eth_private_key {
             log::info!("Starting node with marketplace flags enabled");
@@ -321,7 +320,7 @@ impl NodeService {
                 }
             }
 
-            args.push("--persistence".to_string());
+            args.push("persistence".to_string());
             args.push(format!("--eth-private-key={}", key_path.to_string_lossy()));
             if let Some(ref addr) = self.config.marketplace_address {
                 args.push(format!("--marketplace-address={}", addr));

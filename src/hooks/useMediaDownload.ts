@@ -92,7 +92,6 @@ export interface InstallProgress {
 export function useMediaDownload() {
   const [queueState, setQueueState] = useState<DownloadQueueState | null>(null);
   const [binaryStatus, setBinaryStatus] = useState<BinaryStatus | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [installingBinary, setInstallingBinary] = useState<string | null>(null);
   const [installProgress, setInstallProgress] = useState<InstallProgress | null>(null);
@@ -195,12 +194,8 @@ export function useMediaDownload() {
 
   // Initialize
   useEffect(() => {
-    async function init() {
-      setLoading(true);
-      await Promise.all([refreshQueue(), checkBinaries()]);
-      setLoading(false);
-    }
-    init();
+    refreshQueue();
+    checkBinaries();
 
     // Poll queue every 2 seconds
     const interval = setInterval(refreshQueue, 2000);
@@ -282,7 +277,6 @@ export function useMediaDownload() {
   return {
     queueState,
     binaryStatus,
-    loading,
     error,
     installError,
     installingBinary,

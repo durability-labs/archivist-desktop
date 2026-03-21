@@ -2,13 +2,21 @@
   "name": "archivist-desktop-e2e",
   "version": "0.1.0",
   "private": true,
-  "description": "End-to-end tests for Archivist Desktop via CDP (WebView2)",
+  "description": "End-to-end tests for Archivist Desktop via WebdriverIO + tauri-driver",
   "scripts": {
-    "test": "npx playwright test",
-    "test:headed": "npx playwright test --headed",
-    "test:debug": "npx playwright test --debug"
+    "test": "npx wdio run wdio.conf.ts",
+    "test:smoke": "npx wdio run wdio.conf.ts --mochaOpts.grep @smoke",
+    "test:online": "npx wdio run wdio.conf.ts --mochaOpts.grep @online",
+    "test:dual": "npx wdio run wdio.conf.ts --mochaOpts.grep @dual"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0"
+    "@wdio/cli": "^9.0.0",
+    "@wdio/globals": "^9.0.0",
+    "@wdio/local-runner": "^9.0.0",
+    "@wdio/mocha-framework": "^9.0.0",
+    "@wdio/spec-reporter": "^9.0.0",
+    "expect-webdriverio": "^5.6.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
   }
 }

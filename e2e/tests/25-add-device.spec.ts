@@ -1,179 +1,146 @@
-import { test, expect } from '@playwright/test';
-import { connectToApp, waitForPort, navigateTo, SEL } from '../helpers';
+import { navigateTo, hasText, SEL } from '../helpers';
 
 /**
  * @smoke
  * Add Device page — full wizard state machine tests.
  */
-test.describe('Add Device page @smoke', () => {
-  test.beforeAll(async () => {
-    await waitForPort(9222, 15_000);
-  });
-
+describe('Add Device page @smoke', () => {
   /**
    * Navigate to Add Device with a fresh wizard state.
    * Since tests share app state, we navigate away first to reset the wizard.
    */
-  async function gotoFreshAddDevice(page: import('@playwright/test').Page): Promise<void> {
-    await navigateTo(page, 'Dashboard');
-    await page.waitForTimeout(300);
-    await navigateTo(page, 'Add Device');
-    await page.waitForTimeout(500);
+  async function gotoFreshAddDevice(): Promise<void> {
+    await navigateTo('Dashboard');
+    await browser.pause(300);
+    await navigateTo('Add Device');
+    await browser.pause(500);
   }
 
-  test('should navigate to Add Device page', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await gotoFreshAddDevice(page);
-      await expect(page.locator(SEL.addDevicePage)).toBeVisible();
-    } finally {
-      await browser.close();
-    }
+  it('should navigate to Add Device page', async () => {
+    await gotoFreshAddDevice();
+    const page = await $(SEL.addDevicePage);
+    await expect(page).toBeDisplayed();
   });
 
-  test('should show wizard initial state with input and disabled Connect', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await gotoFreshAddDevice(page);
+  it('should show wizard initial state with input and disabled Connect', async () => {
+    await gotoFreshAddDevice();
 
-      // Wizard step should be visible
-      const wizardStep = page.locator(SEL.wizardStep);
-      await expect(wizardStep).toBeVisible();
+    // Wizard step should be visible
+    const wizardStep = await $(SEL.wizardStep);
+    await expect(wizardStep).toBeDisplayed();
 
-      // Peer address textarea should be visible and empty
-      const input = page.locator(SEL.peerAddressInput);
-      await expect(input).toBeVisible();
-      const inputValue = await input.inputValue();
-      expect(inputValue).toBe('');
+    // Peer address textarea should be visible and empty
+    const input = await $(SEL.peerAddressInput);
+    await expect(input).toBeDisplayed();
+    const inputValue = await input.getValue();
+    expect(inputValue).toBe('');
 
-      // Connect button should be disabled when input is empty
-      const connectBtn = page.locator('.primary:has-text("Connect")');
-      const isDisabled = await connectBtn.isDisabled();
-      expect(isDisabled).toBeTruthy();
-    } finally {
-      await browser.close();
-    }
+    // Connect button should be disabled when input is empty
+    const connectBtn = await hasText('.primary', 'Connect');
+    const isDisabled = !(await connectBtn.isEnabled());
+    expect(isDisabled).toBeTruthy();
   });
 
-  test('should enable Connect button when text is entered', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await gotoFreshAddDevice(page);
+  it('should enable Connect button when text is entered', async () => {
+    await gotoFreshAddDevice();
 
-      const input = page.locator(SEL.peerAddressInput);
-      const connectBtn = page.locator('.primary:has-text("Connect")');
+    const input = await $(SEL.peerAddressInput);
+    const connectBtn = await hasText('.primary', 'Connect');
 
-      // Initially disabled
-      expect(await connectBtn.isDisabled()).toBeTruthy();
+    // Initially disabled
+    expect(await connectBtn.isEnabled()).toBeFalsy();
 
-      // Type something into the input
-      await input.fill('/ip4/192.168.1.100/tcp/8070/p2p/16Uiu2HAmTestPeerId');
-      await page.waitForTimeout(300);
+    // Type something into the input
+    await input.setValue('/ip4/192.168.1.100/tcp/8070/p2p/16Uiu2HAmTestPeerId');
+    await browser.pause(300);
 
-      // Connect button should now be enabled
-      expect(await connectBtn.isDisabled()).toBeFalsy();
-    } finally {
-      await browser.close();
-    }
+    // Connect button should now be enabled
+    expect(await connectBtn.isEnabled()).toBeTruthy();
   });
 
-  test('should show error step for invalid address', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await gotoFreshAddDevice(page);
+  it('should show error step for invalid address', async function () {
+    this.timeout(30000);
+    await gotoFreshAddDevice();
 
-      const input = page.locator(SEL.peerAddressInput);
-      await input.fill('not-a-valid-peer-address');
+    const input = await $(SEL.peerAddressInput);
+    await input.setValue('not-a-valid-peer-address');
 
-      const connectBtn = page.locator('.primary:has-text("Connect")');
-      await connectBtn.click();
+    const connectBtn = await hasText('.primary', 'Connect');
+    await connectBtn.click();
 
-      // Wait for the connection attempt to fail
-      const wizardError = page.locator(SEL.wizardError);
-      await expect(wizardError).toBeVisible({ timeout: 15_000 });
+    // Wait for the connection attempt to fail
+    const wizardError = await $(SEL.wizardError);
+    await wizardError.waitForDisplayed({ timeout: 15000 });
 
-      // Error icon should be visible
-      const errorIcon = page.locator(SEL.wizardIconError);
-      await expect(errorIcon).toBeVisible();
+    // Error icon should be visible
+    const errorIcon = await $(SEL.wizardIconError);
+    await expect(errorIcon).toBeDisplayed();
 
-      // Error message should have text
-      const errorText = await wizardError.textContent();
-      expect(errorText).toBeTruthy();
-      expect(errorText!.trim().length).toBeGreaterThan(0);
-    } finally {
-      await browser.close();
-    }
+    // Error message should have text
+    const errorText = await wizardError.getText();
+    expect(errorText).toBeTruthy();
+    expect(errorText!.trim().length).toBeGreaterThan(0);
   });
 
-  test('should return to input step via Try Again button', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await gotoFreshAddDevice(page);
+  it('should return to input step via Try Again button', async function () {
+    this.timeout(30000);
+    await gotoFreshAddDevice();
 
-      // Trigger error state first
-      const input = page.locator(SEL.peerAddressInput);
-      await input.fill('garbage-address');
-      await page.locator('.primary:has-text("Connect")').click();
+    // Trigger error state first
+    const input = await $(SEL.peerAddressInput);
+    await input.setValue('garbage-address');
+    const connectBtn = await hasText('.primary', 'Connect');
+    await connectBtn.click();
 
-      // Wait for error step
-      await expect(page.locator(SEL.wizardError)).toBeVisible({ timeout: 15_000 });
+    // Wait for error step
+    const wizardError = await $(SEL.wizardError);
+    await wizardError.waitForDisplayed({ timeout: 15000 });
 
-      // Click Try Again
-      const tryAgainBtn = page.locator('button:has-text("Try Again")');
-      await expect(tryAgainBtn).toBeVisible();
-      await tryAgainBtn.click();
-      await page.waitForTimeout(500);
+    // Click Try Again
+    const tryAgainBtn = await hasText('button', 'Try Again');
+    await expect(tryAgainBtn).toBeDisplayed();
+    await tryAgainBtn.click();
+    await browser.pause(500);
 
-      // Should be back to input step with textarea visible
-      await expect(page.locator(SEL.peerAddressInput)).toBeVisible();
+    // Should be back to input step with textarea visible
+    const peerInput = await $(SEL.peerAddressInput);
+    await expect(peerInput).toBeDisplayed();
 
-      // Connect button should be visible
-      const connectBtn = page.locator('.primary:has-text("Connect")');
-      await expect(connectBtn).toBeVisible();
-    } finally {
-      await browser.close();
-    }
+    // Connect button should be visible
+    const connectBtn2 = await hasText('.primary', 'Connect');
+    await expect(connectBtn2).toBeDisplayed();
   });
 
-  test('should navigate to devices page on Cancel', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await gotoFreshAddDevice(page);
+  it('should navigate to devices page on Cancel', async () => {
+    await gotoFreshAddDevice();
 
-      const cancelBtn = page.locator('button:has-text("Cancel")');
-      await expect(cancelBtn).toBeVisible();
-      await cancelBtn.click();
-      await page.waitForTimeout(1_000);
+    const cancelBtn = await hasText('button', 'Cancel');
+    await expect(cancelBtn).toBeDisplayed();
+    await cancelBtn.click();
+    await browser.pause(1000);
 
-      // Should navigate to devices page
-      await expect(page.locator(SEL.devicesPage)).toBeVisible({ timeout: 5_000 });
-    } finally {
-      await browser.close();
-    }
+    // Should navigate to devices page
+    const devicesPage = await $(SEL.devicesPage);
+    await devicesPage.waitForDisplayed({ timeout: 5000 });
   });
 
-  test('should show connecting state briefly when valid-looking address submitted', async () => {
-    test.setTimeout(45_000);
-    const { browser, page } = await connectToApp();
-    try {
-      await gotoFreshAddDevice(page);
+  it('should show connecting state briefly when valid-looking address submitted', async function () {
+    this.timeout(45000);
+    await gotoFreshAddDevice();
 
-      const input = page.locator(SEL.peerAddressInput);
-      // Use a valid multiaddr format that won't actually connect
-      await input.fill('/ip4/192.168.99.99/tcp/8070/p2p/16Uiu2HAmFakeTestPeerId');
+    const input = await $(SEL.peerAddressInput);
+    // Use a valid multiaddr format that won't actually connect
+    await input.setValue('/ip4/192.168.99.99/tcp/8070/p2p/16Uiu2HAmFakeTestPeerId');
 
-      const connectBtn = page.locator('.primary:has-text("Connect")');
-      await connectBtn.click();
+    const connectBtn = await hasText('.primary', 'Connect');
+    await connectBtn.click();
 
-      // Should briefly show connecting state (spinner icon)
-      const connectingIcon = page.locator(SEL.wizardIconConnecting);
-      const hasConnecting = await connectingIcon.isVisible({ timeout: 3_000 }).catch(() => false);
+    // Should briefly show connecting state (spinner icon)
+    const connectingIcon = await $(SEL.wizardIconConnecting);
+    await connectingIcon.isDisplayed().catch(() => false);
 
-      // Eventually should show error (unreachable peer)
-      const wizardError = page.locator(SEL.wizardError);
-      await expect(wizardError).toBeVisible({ timeout: 30_000 });
-    } finally {
-      await browser.close();
-    }
+    // Eventually should show error (unreachable peer)
+    const wizardError = await $(SEL.wizardError);
+    await wizardError.waitForDisplayed({ timeout: 30000 });
   });
 });

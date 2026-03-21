@@ -219,6 +219,8 @@ pub struct NotificationSettings {
     pub sound_on_download: bool,
     #[serde(default = "default_true")]
     pub sound_on_chat_message: bool,
+    #[serde(default = "default_true")]
+    pub background_music_enabled: bool,
     pub sound_volume: f32, // 0.0 to 1.0
     #[serde(default)]
     pub custom_startup_sound: Option<String>,
@@ -331,10 +333,20 @@ pub struct WebArchiveSettings {
     pub default_user_agent: Option<String>,
     #[serde(default)]
     pub default_exclude_patterns: Vec<String>,
+    /// Default delay between requests for Discourse forum scraping (ms)
+    #[serde(default = "default_discourse_delay")]
+    pub discourse_request_delay_ms: u64,
+    /// Whether to fetch user profiles when scraping Discourse forums
+    #[serde(default = "default_true")]
+    pub discourse_fetch_users: bool,
 }
 
 fn default_viewer_port() -> u16 {
     8088
+}
+
+fn default_discourse_delay() -> u64 {
+    1500
 }
 
 impl Default for WebArchiveSettings {
@@ -348,6 +360,8 @@ impl Default for WebArchiveSettings {
             viewer_port: 8088,
             default_user_agent: None,
             default_exclude_patterns: Vec::new(),
+            discourse_request_delay_ms: 1500,
+            discourse_fetch_users: true,
         }
     }
 }
@@ -506,7 +520,7 @@ impl Default for AppConfig {
                 api_port: 8080,       // Default archivist-node API port
                 discovery_port: 8090, // Default UDP port for DHT/mDNS discovery
                 listen_port: 8070,    // Default TCP port for P2P connections
-                max_storage_gb: 10,
+                max_storage_gb: 50,
                 auto_start: true,
                 log_level: "DEBUG".to_string(), // Good balance of verbosity for debugging
                 announce_ip: None,
@@ -537,6 +551,7 @@ impl Default for AppConfig {
                 sound_on_peer_connect: true,
                 sound_on_download: true,
                 sound_on_chat_message: true,
+                background_music_enabled: true,
                 sound_volume: 0.5,
                 custom_startup_sound: None,
                 custom_peer_connect_sound: None,
@@ -592,10 +607,23 @@ impl ConfigService {
                 .to_string();
         }
 
-        Self {
+        // Migration: increase default max_storage_gb from 10 to 50
+        if config.node.max_storage_gb == 10 {
+            log::info!("Config migration: increasing default max_storage_gb from 10 to 50");
+            config.node.max_storage_gb = 50;
+        }
+
+        let service = Self {
             config,
             config_path,
+        };
+
+        // Persist migrations to disk
+        if let Err(e) = service.save() {
+            log::warn!("Failed to save config after migration: {}", e);
         }
+
+        service
     }
 
     fn load_from_file(path: &std::path::Path) -> Result<AppConfig> {

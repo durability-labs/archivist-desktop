@@ -20,8 +20,9 @@ pub enum ArchiveState {
     Queued,
     Crawling,
     Downloading,
+    Generating,
     Packaging,
-    Uploading,
+    Saving,
     Completed,
     Failed,
     Cancelled,
@@ -45,6 +46,15 @@ pub struct ArchiveOptions {
     pub custom_headers: Option<HashMap<String, String>>,
     #[serde(default)]
     pub exclude_patterns: Option<Vec<String>>,
+    /// Discourse forum mode: None=auto-detect, Some(true)=force, Some(false)=disable
+    #[serde(default)]
+    pub discourse_mode: Option<bool>,
+    /// Max topics to scrape in discourse mode
+    #[serde(default)]
+    pub max_topics: Option<u32>,
+    /// Whether to fetch user profiles in discourse mode (default true)
+    #[serde(default)]
+    pub fetch_user_profiles: Option<bool>,
 }
 
 /// A tracked archive task in the queue
@@ -62,23 +72,27 @@ pub struct ArchiveTask {
     pub bytes_per_second: f64,
     pub eta_seconds: Option<u64>,
     pub cid: Option<String>,
+    pub local_path: Option<String>,
     pub error: Option<String>,
     pub created_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
     pub options: ArchiveOptions,
 }
 
-/// A completed archived site stored in node
+/// A completed archived site stored locally (and optionally uploaded to node)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchivedSite {
-    pub cid: String,
+    #[serde(default)]
+    pub cid: Option<String>,
     pub url: String,
     pub title: Option<String>,
     pub pages_count: u32,
     pub assets_count: u32,
     pub total_bytes: u64,
     pub archived_at: DateTime<Utc>,
+    #[serde(default)]
+    pub local_path: Option<String>,
 }
 
 /// Queue state returned to frontend
@@ -217,6 +231,7 @@ impl WebArchiveService {
             bytes_per_second: 0.0,
             eta_seconds: None,
             cid: None,
+            local_path: None,
             error: None,
             created_at: Utc::now(),
             completed_at: None,
@@ -242,8 +257,9 @@ impl WebArchiveService {
                     t.state,
                     ArchiveState::Crawling
                         | ArchiveState::Downloading
+                        | ArchiveState::Generating
                         | ArchiveState::Packaging
-                        | ArchiveState::Uploading
+                        | ArchiveState::Saving
                 )
             })
             .count() as u32;
@@ -285,8 +301,9 @@ impl WebArchiveService {
                 ArchiveState::Queued
                 | ArchiveState::Crawling
                 | ArchiveState::Downloading
+                | ArchiveState::Generating
                 | ArchiveState::Packaging
-                | ArchiveState::Uploading
+                | ArchiveState::Saving
                 | ArchiveState::Paused => {
                     task.state = ArchiveState::Cancelled;
                     task.completed_at = Some(Utc::now());
@@ -395,6 +412,39 @@ impl WebArchiveService {
     pub fn get_archived_sites(&self) -> Vec<ArchivedSite> {
         self.archived_sites.clone()
     }
+
+    /// Upload a locally saved archive to the archivist node and record the CID
+    pub async fn upload_archive_to_node(&mut self, local_path: &str) -> Result<String> {
+        let path = std::path::Path::new(local_path);
+        if !path.exists() {
+            return Err(ArchivistError::WebArchiveError(format!(
+                "Archive file not found: {}",
+                local_path
+            )));
+        }
+
+        let api_client = NodeApiClient::new(self.api_port);
+        let response = api_client
+            .upload_file(&PathBuf::from(local_path))
+            .await
+            .map_err(|e| ArchivistError::WebArchiveError(format!("Upload failed: {}", e)))?;
+
+        // Update the archived site record with the CID
+        for site in &mut self.archived_sites {
+            if site.local_path.as_deref() == Some(local_path) {
+                site.cid = Some(response.cid.clone());
+                break;
+            }
+        }
+        self.save_history();
+
+        log::info!(
+            "Archive uploaded to node: {} -> CID {}",
+            local_path,
+            response.cid
+        );
+        Ok(response.cid)
+    }
 }
 
 /// Load history from disk
@@ -424,8 +474,9 @@ pub async fn process_queue(
                 t.state,
                 ArchiveState::Crawling
                     | ArchiveState::Downloading
+                    | ArchiveState::Generating
                     | ArchiveState::Packaging
-                    | ArchiveState::Uploading
+                    | ArchiveState::Saving
                     | ArchiveState::Paused
             )
         })
@@ -477,22 +528,46 @@ pub async fn process_queue(
         );
 
         tokio::spawn(async move {
-            let result = run_archive_pipeline(
-                task.clone(),
-                cancel_rx,
-                pause_rx,
-                app_handle.clone(),
-                api_port,
-                &service_clone,
-            )
-            .await;
+            // Route to discourse pipeline if applicable
+            let is_discourse = match task.options.discourse_mode {
+                Some(true) => true,
+                Some(false) => false,
+                None => {
+                    crate::services::discourse_scraper::DiscourseScraper::detect_discourse(
+                        &task.url,
+                    )
+                    .await
+                }
+            };
+
+            let result = if is_discourse {
+                run_discourse_pipeline(
+                    task.clone(),
+                    cancel_rx,
+                    pause_rx,
+                    app_handle.clone(),
+                    api_port,
+                    &service_clone,
+                )
+                .await
+            } else {
+                run_archive_pipeline(
+                    task.clone(),
+                    cancel_rx,
+                    pause_rx,
+                    app_handle.clone(),
+                    api_port,
+                    &service_clone,
+                )
+                .await
+            };
 
             let mut svc = service_clone.write().await;
             match result {
-                Ok((cid, title, pages, assets, bytes)) => {
+                Ok((local_path, title, pages, assets, bytes)) => {
                     if let Some(t) = svc.tasks.get_mut(&task.id) {
                         t.state = ArchiveState::Completed;
-                        t.cid = Some(cid.clone());
+                        t.local_path = Some(local_path.clone());
                         t.title = title.clone();
                         t.pages_downloaded = pages;
                         t.assets_downloaded = assets;
@@ -507,13 +582,14 @@ pub async fn process_queue(
                         .unwrap_or_default();
 
                     svc.archived_sites.push(ArchivedSite {
-                        cid: cid.clone(),
+                        cid: None,
                         url,
                         title: title.clone(),
                         pages_count: pages,
                         assets_count: assets,
                         total_bytes: bytes,
                         archived_at: Utc::now(),
+                        local_path: Some(local_path.clone()),
                     });
 
                     svc.save_history();
@@ -523,7 +599,7 @@ pub async fn process_queue(
                         serde_json::json!({
                             "taskId": task.id,
                             "state": "completed",
-                            "cid": cid,
+                            "localPath": local_path,
                         }),
                     );
                 }
@@ -945,7 +1021,7 @@ async fn run_archive_pipeline(
     cancel_rx: watch::Receiver<bool>,
     pause_rx: watch::Receiver<bool>,
     app_handle: AppHandle,
-    api_port: u16,
+    _api_port: u16,
     service: &Arc<tokio::sync::RwLock<WebArchiveService>>,
 ) -> Result<(String, Option<String>, u32, u32, u64)> {
     let mut root_url = Url::parse(&task.url)
@@ -1318,45 +1394,414 @@ async fn run_archive_pipeline(
         return Err(ArchivistError::WebArchiveError("cancelled".to_string()));
     }
 
-    // Phase 4: Upload to archivist-node
+    // Phase 4: Save to local archives directory
     {
         let mut svc = service.write().await;
         if let Some(t) = svc.tasks.get_mut(&task.id) {
-            t.state = ArchiveState::Uploading;
+            t.state = ArchiveState::Saving;
         }
     }
     let _ = app_handle.emit(
         "web-archive-state-changed",
         serde_json::json!({
             "taskId": task.id,
-            "state": "uploading",
+            "state": "saving",
         }),
     );
 
-    // Get zip size before uploading (for total bytes calculation)
     let zip_size = std::fs::metadata(&zip_path).map(|m| m.len()).unwrap_or(0);
 
-    let api_client = NodeApiClient::new(api_port);
-    let upload_result = api_client.upload_file(&zip_path).await;
+    let archives_dir = dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("archivist")
+        .join("archives");
+    std::fs::create_dir_all(&archives_dir).map_err(|e| {
+        ArchivistError::WebArchiveError(format!("Failed to create archives directory: {}", e))
+    })?;
 
-    // Clean up temp file
-    let _ = std::fs::remove_file(&zip_path);
+    let dest_filename = format!("archive-{}.zip", task.id);
+    let dest_path = archives_dir.join(&dest_filename);
+    std::fs::rename(&zip_path, &dest_path).or_else(|_| {
+        // rename fails across filesystems; fall back to copy+delete
+        std::fs::copy(&zip_path, &dest_path)
+            .map(|_| ())
+            .map_err(|e| ArchivistError::WebArchiveError(format!("Failed to save archive: {}", e)))
+            .map(|()| {
+                let _ = std::fs::remove_file(&zip_path);
+            })
+    })?;
 
-    let upload_response = upload_result
-        .map_err(|e| ArchivistError::WebArchiveError(format!("Upload failed: {}", e)))?;
-
+    let local_path_str = dest_path.to_string_lossy().to_string();
     let final_bytes = total_bytes + zip_size;
-
     let pages_count = pages.len() as u32;
     let assets_count = downloaded_asset_urls.len() as u32;
 
     Ok((
-        upload_response.cid,
+        local_path_str,
         site_title,
         pages_count,
         assets_count,
         final_bytes,
     ))
+}
+
+/// The discourse forum archive pipeline — runs in a tokio task
+async fn run_discourse_pipeline(
+    task: ArchiveTask,
+    cancel_rx: watch::Receiver<bool>,
+    pause_rx: watch::Receiver<bool>,
+    app_handle: AppHandle,
+    _api_port: u16,
+    service: &Arc<tokio::sync::RwLock<WebArchiveService>>,
+) -> Result<(String, Option<String>, u32, u32, u64)> {
+    use crate::services::discourse_scraper::{DiscourseScraper, ScrapeProgress};
+    use crate::services::discourse_site_builder::{url_to_filename, SiteBuilder};
+
+    let request_delay = task.options.request_delay_ms.max(500); // min 500ms for forums
+    let max_topics = task.options.max_topics;
+    let fetch_users = task.options.fetch_user_profiles.unwrap_or(true);
+
+    let data_dir = dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("archivist");
+    let state_path = data_dir.join(format!("discourse-crawl-{}.json", task.id));
+
+    let mut scraper = DiscourseScraper::new(
+        &task.url,
+        cancel_rx.clone(),
+        pause_rx.clone(),
+        request_delay,
+        Some(state_path),
+    )?;
+
+    // ---- Phase 1: Scrape (state: Crawling) ----
+    log::info!("Discourse pipeline: scraping {}", task.url);
+
+    // Emit initial progress so UI shows activity during site info / categories fetch
+    let _ = app_handle.emit(
+        "web-archive-progress",
+        serde_json::json!({
+            "taskId": task.id,
+            "pagesFound": 0u32,
+            "pagesDownloaded": 0u32,
+            "assetsDownloaded": 0u32,
+            "totalBytes": 0u64,
+            "bytesPerSecond": 0.0f64,
+            "etaSeconds": serde_json::Value::Null,
+        }),
+    );
+
+    scraper.scrape_site_info().await?;
+    scraper.scrape_categories().await?;
+
+    let task_id = task.id.clone();
+    let app_handle_progress = app_handle.clone();
+
+    let progress_callback = |progress: &ScrapeProgress| {
+        let _ = app_handle_progress.emit(
+            "web-archive-progress",
+            serde_json::json!({
+                "taskId": task_id,
+                "pagesFound": progress.topics_found,
+                "pagesDownloaded": progress.topics_scraped,
+                "assetsDownloaded": progress.users_found,
+                "totalBytes": 0u64,
+                "bytesPerSecond": 0.0f64,
+                "etaSeconds": serde_json::Value::Null,
+            }),
+        );
+    };
+
+    scraper
+        .scrape_topics(max_topics, &progress_callback)
+        .await?;
+
+    if scraper.topics.is_empty() {
+        return Err(ArchivistError::WebArchiveError(
+            "No topics found — the forum may be empty, require authentication, or be inaccessible"
+                .to_string(),
+        ));
+    }
+
+    scraper.scrape_all_topic_posts(&progress_callback).await?;
+
+    if fetch_users {
+        scraper.scrape_users(&progress_callback).await?;
+    }
+
+    scraper.collect_image_urls();
+    scraper.save_state();
+
+    log::info!(
+        "Discourse scrape complete: {} categories, {} topics, {} posts, {} users, {} images, {} avatars",
+        scraper.categories.len(),
+        scraper.topics.len(),
+        scraper.posts.len(),
+        scraper.users.len(),
+        scraper.image_urls.len(),
+        scraper.avatar_urls.len()
+    );
+
+    // ---- Phase 2: Download images (state: Downloading) ----
+    {
+        let mut svc = service.write().await;
+        if let Some(t) = svc.tasks.get_mut(&task.id) {
+            t.state = ArchiveState::Downloading;
+            t.pages_found = scraper.topics.len() as u32;
+            t.pages_downloaded = scraper.topics.len() as u32;
+        }
+    }
+    let _ = app_handle.emit(
+        "web-archive-state-changed",
+        serde_json::json!({
+            "taskId": task.id,
+            "state": "downloading",
+        }),
+    );
+
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (compatible; ArchivistBot/1.0)")
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .unwrap_or_default();
+
+    let mut image_files: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut url_map: HashMap<String, String> = HashMap::new();
+    let mut failed_urls: HashSet<String> = HashSet::new();
+    let mut total_bytes: u64 = 0;
+
+    // Download avatars
+    for (username, avatar_url) in &scraper.avatar_urls {
+        if wait_while_paused(&cancel_rx, &pause_rx).await {
+            return Err(ArchivistError::WebArchiveError("cancelled".to_string()));
+        }
+        let fname = url_to_filename(avatar_url);
+        let rel_path = format!("assets/images/avatars/{}", fname);
+        match client.get(avatar_url).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(bytes) = resp.bytes().await {
+                    total_bytes += bytes.len() as u64;
+                    url_map.insert(avatar_url.clone(), rel_path.clone());
+                    image_files.push((rel_path, bytes.to_vec()));
+                    // Set avatar_local on the user
+                    for user in &mut scraper.users {
+                        if &user.username == username {
+                            user.avatar_local = Some(fname.clone());
+                        }
+                    }
+                }
+            }
+            _ => {
+                failed_urls.insert(avatar_url.clone());
+            }
+        }
+    }
+
+    // Download post images
+    let image_urls: Vec<String> = scraper.image_urls.iter().cloned().collect();
+    let total_images = image_urls.len();
+    for (i, img_url) in image_urls.iter().enumerate() {
+        if wait_while_paused(&cancel_rx, &pause_rx).await {
+            return Err(ArchivistError::WebArchiveError("cancelled".to_string()));
+        }
+        let full_url = scraper.resolve_url(img_url);
+        let fname = url_to_filename(&full_url);
+        let rel_path = format!("assets/images/{}", fname);
+        match client.get(&full_url).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(bytes) = resp.bytes().await {
+                    total_bytes += bytes.len() as u64;
+                    url_map.insert(img_url.clone(), rel_path.clone());
+                    if img_url != &full_url {
+                        url_map.insert(full_url.clone(), rel_path.clone());
+                    }
+                    image_files.push((rel_path, bytes.to_vec()));
+                }
+            }
+            _ => {
+                failed_urls.insert(img_url.clone());
+                if img_url != &full_url {
+                    failed_urls.insert(full_url);
+                }
+            }
+        }
+
+        if (i + 1) % 50 == 0 || i + 1 == total_images {
+            let mut svc = service.write().await;
+            if let Some(t) = svc.tasks.get_mut(&task.id) {
+                t.assets_downloaded = image_files.len() as u32;
+                t.total_bytes = total_bytes;
+            }
+            let _ = app_handle.emit(
+                "web-archive-progress",
+                serde_json::json!({
+                    "taskId": task.id,
+                    "pagesFound": scraper.topics.len(),
+                    "pagesDownloaded": scraper.topics.len(),
+                    "assetsDownloaded": image_files.len(),
+                    "totalBytes": total_bytes,
+                    "bytesPerSecond": 0.0f64,
+                    "etaSeconds": serde_json::Value::Null,
+                }),
+            );
+        }
+    }
+
+    // ---- Phase 3: Generate site (state: Generating) ----
+    {
+        let mut svc = service.write().await;
+        if let Some(t) = svc.tasks.get_mut(&task.id) {
+            t.state = ArchiveState::Generating;
+        }
+    }
+    let _ = app_handle.emit(
+        "web-archive-state-changed",
+        serde_json::json!({
+            "taskId": task.id,
+            "state": "generating",
+        }),
+    );
+
+    log::info!(
+        "Image download complete: {} downloaded, {} failed, {} bytes total",
+        image_files.len(),
+        failed_urls.len(),
+        total_bytes
+    );
+
+    let forum_title = scraper.forum_title.clone();
+    let categories = scraper.categories;
+    let topics = scraper.topics;
+    let posts = scraper.posts;
+    let users = scraper.users;
+
+    log::info!(
+        "Generating static site: {} categories, {} topics, {} posts, {} users",
+        categories.len(),
+        topics.len(),
+        posts.len(),
+        users.len()
+    );
+
+    let mut builder = SiteBuilder::new(categories, topics, posts, users, forum_title.clone());
+    builder.image_files = image_files;
+    builder.url_map = url_map;
+    builder.failed_urls = failed_urls;
+
+    let site_files = tokio::task::spawn_blocking(move || builder.build())
+        .await
+        .map_err(|e| ArchivistError::WebArchiveError(format!("Site generation failed: {}", e)))?;
+
+    log::info!("Site generation complete: {} files", site_files.len());
+
+    // ---- Phase 4: Package ZIP (state: Packaging) ----
+    {
+        let mut svc = service.write().await;
+        if let Some(t) = svc.tasks.get_mut(&task.id) {
+            t.state = ArchiveState::Packaging;
+        }
+    }
+    let _ = app_handle.emit(
+        "web-archive-state-changed",
+        serde_json::json!({
+            "taskId": task.id,
+            "state": "packaging",
+        }),
+    );
+
+    let zip_path = std::env::temp_dir().join(format!("archivist-discourse-{}.zip", task.id));
+    let zip_path_clone = zip_path.clone();
+
+    tokio::task::spawn_blocking(move || create_discourse_zip(&zip_path_clone, &site_files))
+        .await
+        .map_err(|e| ArchivistError::WebArchiveError(format!("ZIP creation failed: {}", e)))??;
+
+    // ---- Phase 5: Save to local archives directory ----
+    {
+        let mut svc = service.write().await;
+        if let Some(t) = svc.tasks.get_mut(&task.id) {
+            t.state = ArchiveState::Saving;
+        }
+    }
+    let _ = app_handle.emit(
+        "web-archive-state-changed",
+        serde_json::json!({
+            "taskId": task.id,
+            "state": "saving",
+        }),
+    );
+
+    let zip_size = std::fs::metadata(&zip_path).map(|m| m.len()).unwrap_or(0);
+    log::info!(
+        "ZIP created: {} bytes, saving to local archives...",
+        zip_size
+    );
+
+    let archives_dir = dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("archivist")
+        .join("archives");
+    std::fs::create_dir_all(&archives_dir).map_err(|e| {
+        ArchivistError::WebArchiveError(format!("Failed to create archives directory: {}", e))
+    })?;
+
+    let dest_filename = format!("discourse-{}.zip", task.id);
+    let dest_path = archives_dir.join(&dest_filename);
+    std::fs::rename(&zip_path, &dest_path).or_else(|_| {
+        std::fs::copy(&zip_path, &dest_path)
+            .map(|_| ())
+            .map_err(|e| ArchivistError::WebArchiveError(format!("Failed to save archive: {}", e)))
+            .map(|()| {
+                let _ = std::fs::remove_file(&zip_path);
+            })
+    })?;
+
+    let local_path_str = dest_path.to_string_lossy().to_string();
+    log::info!("Archive saved to: {}", local_path_str);
+
+    // Clean up crawl state on success
+    scraper_cleanup_state(&data_dir, &task.id);
+
+    let final_bytes = total_bytes + zip_size;
+    Ok((
+        local_path_str,
+        Some(forum_title),
+        0, // pages_count (topics shown in progress)
+        0, // assets_count (images shown in progress)
+        final_bytes,
+    ))
+}
+
+fn scraper_cleanup_state(data_dir: &std::path::Path, task_id: &str) {
+    let state_path = data_dir.join(format!("discourse-crawl-{}.json", task_id));
+    let _ = std::fs::remove_file(&state_path);
+}
+
+/// Create a ZIP archive from discourse site files
+fn create_discourse_zip(zip_path: &PathBuf, files: &[(String, Vec<u8>)]) -> Result<()> {
+    let file = std::fs::File::create(zip_path)
+        .map_err(|e| ArchivistError::WebArchiveError(format!("Failed to create ZIP: {}", e)))?;
+
+    let mut zip = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    let mut written_paths: HashSet<String> = HashSet::new();
+
+    for (rel_path, data) in files {
+        if !written_paths.insert(rel_path.clone()) {
+            continue;
+        }
+        zip.start_file(rel_path, options)
+            .map_err(|e| ArchivistError::WebArchiveError(format!("ZIP write error: {}", e)))?;
+        zip.write_all(data)
+            .map_err(|e| ArchivistError::WebArchiveError(format!("ZIP write error: {}", e)))?;
+    }
+
+    zip.finish()
+        .map_err(|e| ArchivistError::WebArchiveError(format!("ZIP finalize error: {}", e)))?;
+
+    Ok(())
 }
 
 /// Create a ZIP archive containing all crawled pages and assets
@@ -1424,6 +1869,9 @@ mod tests {
             user_agent: None,
             custom_headers: None,
             exclude_patterns: None,
+            discourse_mode: None,
+            max_topics: None,
+            fetch_user_profiles: None,
         }
     }
 

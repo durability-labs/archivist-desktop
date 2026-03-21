@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useSoundNotifications } from './hooks/useSoundNotifications';
+import { useBackgroundMusic } from './hooks/useBackgroundMusic';
 import { useOnboarding } from './hooks/useOnboarding';
 import NavAccordion from './components/NavAccordion';
 import Onboarding from './pages/Onboarding';
@@ -142,6 +143,7 @@ function AppInner() {
 
 function App() {
   useSoundNotifications(); // Enable sound notifications globally
+  const { startMusic } = useBackgroundMusic(); // Global background music
   const { showOnboarding, loading, completeOnboarding, skipOnboarding } = useOnboarding();
 
   // Wrapper for completeOnboarding that sets redirect flag
@@ -169,7 +171,7 @@ function App() {
   if (showOnboarding) {
     return (
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Onboarding onComplete={handleCompleteOnboarding} onSkip={handleSkipOnboarding} />
+        <Onboarding onComplete={handleCompleteOnboarding} onSkip={handleSkipOnboarding} startMusic={startMusic} />
       </Router>
     );
   }

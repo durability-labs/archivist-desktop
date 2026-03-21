@@ -20,6 +20,12 @@ pub struct BinaryManager {
     bin_dir: PathBuf,
 }
 
+impl Default for BinaryManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BinaryManager {
     pub fn new() -> Self {
         let bin_dir = dirs::data_dir()

@@ -82,6 +82,20 @@ export function useWebArchive() {
     return await invoke<ArchivedSite[]>('get_archived_sites');
   }, []);
 
+  const detectDiscourse = useCallback(async (url: string): Promise<boolean> => {
+    try {
+      return await invoke<boolean>('detect_discourse_forum', { url });
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const uploadToNode = useCallback(async (localPath: string): Promise<string> => {
+    const cid = await invoke<string>('upload_archive_to_node', { local_path: localPath });
+    await refreshQueue();
+    return cid;
+  }, [refreshQueue]);
+
   const openViewer = useCallback(async (cid: string, originalUrl?: string) => {
     setViewerLoading(true);
     try {
@@ -164,6 +178,7 @@ export function useWebArchive() {
       state: ArchiveState;
       error?: string;
       cid?: string;
+      localPath?: string;
     }>('web-archive-state-changed', (event) => {
       setQueueState((prev) => {
         if (!prev) return prev;
@@ -176,6 +191,7 @@ export function useWebArchive() {
                   state: event.payload.state,
                   error: event.payload.error ?? t.error,
                   cid: event.payload.cid ?? t.cid,
+                  localPath: event.payload.localPath ?? t.localPath,
                 }
               : t
           ),
@@ -201,6 +217,8 @@ export function useWebArchive() {
     clearCompleted,
     getArchivedSites,
     refreshQueue,
+    detectDiscourse,
+    uploadToNode,
     viewerUrl,
     viewerLoading,
     viewerCid,

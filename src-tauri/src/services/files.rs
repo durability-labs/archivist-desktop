@@ -134,12 +134,13 @@ impl FileService {
     pub async fn refresh_from_node(&mut self) -> Result<()> {
         match self.api_client.list_data().await {
             Ok(response) => {
-                // Update local cache with data from node
+                // Rebuild cache from node data, preserving local metadata for known files
+                let mut new_files = HashMap::new();
                 for item in response.content {
-                    if let std::collections::hash_map::Entry::Vacant(e) =
-                        self.files.entry(item.cid.clone())
-                    {
-                        let file_info = FileInfo {
+                    let file_info = if let Some(existing) = self.files.get(&item.cid) {
+                        existing.clone()
+                    } else {
+                        FileInfo {
                             cid: item.cid.clone(),
                             name: item
                                 .manifest
@@ -159,10 +160,11 @@ impl FileService {
                                 .and_then(|m| m.protected)
                                 .unwrap_or(false),
                             is_local: true,
-                        };
-                        e.insert(file_info);
-                    }
+                        }
+                    };
+                    new_files.insert(item.cid.clone(), file_info);
                 }
+                self.files = new_files;
                 Ok(())
             }
             Err(e) => {
@@ -226,6 +228,27 @@ impl FileService {
             .unwrap_or_else(|| "unknown".to_string());
 
         log::info!("Uploading file: {} ({} bytes)", filename, metadata.len());
+
+        // Pre-upload quota check
+        let file_size = metadata.len();
+        match self.api_client.get_space().await {
+            Ok(space) => {
+                let available = space.quota_max_bytes
+                    .saturating_sub(space.quota_used_bytes)
+                    .saturating_sub(space.quota_reserved_bytes);
+                if file_size > available {
+                    let available_mb = available / (1024 * 1024);
+                    let file_mb = file_size / (1024 * 1024);
+                    return Err(ArchivistError::FileOperationFailed(format!(
+                        "Not enough storage space: file is {}MB but only {}MB available. Increase 'Max Storage' in Settings or delete files to free space.",
+                        file_mb, available_mb
+                    )));
+                }
+            }
+            Err(e) => {
+                log::warn!("Could not check storage quota before upload: {}", e);
+            }
+        }
 
         // Upload to node with streaming
         let response = self

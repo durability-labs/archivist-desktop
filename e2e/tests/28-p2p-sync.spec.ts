@@ -1,59 +1,70 @@
-import { test, expect } from '@playwright/test';
 import {
-  connectToApp,
   waitForPort,
   sleep,
   apiUploadFile,
   apiListFiles,
   apiDeleteFile,
   apiDownloadFromNetwork,
+  SEL,
 } from '../helpers';
 import {
   connectToSecondApp,
+  closeSecondApp,
   waitForBothNodes,
   connectPeers,
   disconnectPeers,
   PRIMARY,
   SECONDARY,
 } from '../dual-instance';
+import type { Browser as RemoteBrowser } from 'webdriverio';
 
 /**
  * @dual
- * Dual-instance P2P file sync tests.
+ * Dual-instance P2P file sync tests (WebdriverIO + tauri-driver).
  *
  * Prerequisites:
- *   - Primary instance running (CDP 9222, API 8080)
- *   - Secondary instance running (CDP 9223, API 9080)
- *     Launch via: powershell -File e2e/launch-second-instance.ps1
+ *   - Primary instance running (API 8080)
+ *   - Secondary instance launched via connectToSecondApp() (API 9080)
  */
 
-test.describe('P2P Sync (dual instance) @dual', () => {
-  test.setTimeout(120_000);
+describe('P2P Sync (dual instance) @dual', function () {
+  this.timeout(120_000);
 
+  let secondBrowser: RemoteBrowser;
   let uploadedCid: string | null = null;
 
-  test.beforeAll(async () => {
-    // Wait for both instances to be ready
-    await waitForPort(PRIMARY.cdp, 15_000);
-    await waitForPort(SECONDARY.cdp, 15_000);
+  before(async () => {
+    await waitForPort(PRIMARY.api, 15_000);
     await waitForBothNodes();
   });
 
-  test('should connect both instances as peers', async () => {
-    const app1 = await connectToApp();
-    const app2 = await connectToSecondApp();
+  after(async () => {
+    // Clean up: delete the test file from both instances
+    if (uploadedCid) {
+      await apiDeleteFile(uploadedCid, PRIMARY.api).catch(() => {});
+      await apiDeleteFile(uploadedCid, SECONDARY.api).catch(() => {});
+    }
 
+    // Disconnect peers and close second instance
     try {
-      const peerId1 = await connectPeers(app1.page, app2.page);
-      expect(peerId1).toBeTruthy();
-      expect(peerId1.length).toBeGreaterThan(10);
-    } finally {
-      await app1.browser.close();
-      await app2.browser.close();
+      if (secondBrowser) {
+        await disconnectPeers(secondBrowser);
+        await closeSecondApp(secondBrowser);
+      }
+    } catch {
+      // Second instance may not be running
     }
   });
 
-  test('should upload a file on Instance 1', async () => {
+  it('should connect both instances as peers', async () => {
+    secondBrowser = await connectToSecondApp();
+
+    const peerId1 = await connectPeers(secondBrowser);
+    expect(peerId1).toBeTruthy();
+    expect(peerId1.length).toBeGreaterThan(10);
+  });
+
+  it('should upload a file on Instance 1', async () => {
     const testContent = `p2p-sync-test-${Date.now()}`;
     const cid = await apiUploadFile(testContent, 'p2p-test.txt', 'text/plain', PRIMARY.api);
 
@@ -68,8 +79,8 @@ test.describe('P2P Sync (dual instance) @dual', () => {
     expect(found).toBeTruthy();
   });
 
-  test('should download file from network on Instance 2', async () => {
-    test.setTimeout(60_000);
+  it('should download file from network on Instance 2', async function () {
+    this.timeout(60_000);
 
     expect(uploadedCid).toBeTruthy();
 
@@ -92,7 +103,7 @@ test.describe('P2P Sync (dual instance) @dual', () => {
     expect(found).toBeTruthy();
   });
 
-  test('should verify file content matches', async () => {
+  it('should verify file content matches', async () => {
     expect(uploadedCid).toBeTruthy();
 
     // Download the file from Instance 2 and verify content
@@ -103,22 +114,5 @@ test.describe('P2P Sync (dual instance) @dual', () => {
 
     const content = await res.text();
     expect(content).toContain('p2p-sync-test-');
-  });
-
-  test.afterAll(async () => {
-    // Clean up: delete the test file from both instances
-    if (uploadedCid) {
-      await apiDeleteFile(uploadedCid, PRIMARY.api).catch(() => {});
-      await apiDeleteFile(uploadedCid, SECONDARY.api).catch(() => {});
-    }
-
-    // Disconnect peers
-    try {
-      const app2 = await connectToSecondApp();
-      await disconnectPeers(app2.page);
-      await app2.browser.close();
-    } catch {
-      // Second instance may not be running
-    }
   });
 });

@@ -41,7 +41,6 @@ function mockHookReturn(overrides: Partial<ReturnType<typeof useMediaDownload>> 
   const defaults: ReturnType<typeof useMediaDownload> = {
     queueState: defaultQueue,
     binaryStatus: defaultBinary,
-    loading: false,
     error: null,
     installError: null,
     installingBinary: null,
@@ -72,10 +71,10 @@ describe('MediaDownload', () => {
   // Loading state
   // =========================================================================
 
-  it('renders loading state', () => {
-    mockHookReturn({ loading: true });
+  it('renders page immediately without loading gate', () => {
+    mockHookReturn({});
     render(<MemoryRouter><MediaDownload /></MemoryRouter>);
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(screen.getByText('Media Download')).toBeInTheDocument();
   });
 
   // =========================================================================

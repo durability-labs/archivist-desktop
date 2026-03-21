@@ -1,108 +1,70 @@
-import { test, expect, chromium, type Page } from '@playwright/test';
+import { ensurePastOnboarding } from '../helpers';
 
 /**
- * IRC Chat component UI smoke tests — Vite-only fallback.
+ * IRC Chat component UI smoke tests.
  *
- * These tests launch Chromium directly against the Vite dev server
- * (http://localhost:1420). Tauri IPC calls will fail, but we verify
+ * These tests run against the Tauri WebView. We verify
  * the IRC chat UI structure renders on the Dashboard.
  */
 
-const VITE_URL = 'http://localhost:1420';
-
-/** Navigate to a route with onboarding bypassed. */
-async function gotoWithBypass(page: Page, path: string): Promise<void> {
-  await page.goto(VITE_URL, { waitUntil: 'commit' });
-  await page.evaluate(() => {
-    localStorage.setItem('archivist_onboarding_complete', 'true');
-  });
-  await page.goto(`${VITE_URL}${path}`, { waitUntil: 'networkidle' });
-}
-
-test.describe('IRC Chat component UI', () => {
-  test('IRC chat component renders in Dashboard', async () => {
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
-    try {
-      await gotoWithBypass(page, '/');
-
-      const ircChat = page.locator('.irc-chat');
-      await expect(ircChat).toBeVisible({ timeout: 10_000 });
-    } finally {
-      await browser.close();
-    }
+describe('IRC Chat component UI', () => {
+  before(async () => {
+    await ensurePastOnboarding();
   });
 
-  test('IRC header shows channel name #archivist', async () => {
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
-    try {
-      await gotoWithBypass(page, '/');
+  it('IRC chat component renders in Dashboard', async () => {
+    await browser.url('/');
+    await browser.pause(1000);
 
-      const channel = page.locator('.irc-channel');
-      await expect(channel).toBeVisible({ timeout: 10_000 });
-      await expect(channel).toHaveText('#archivist');
-    } finally {
-      await browser.close();
-    }
+    const ircChat = await $('.irc-chat');
+    await ircChat.waitForDisplayed({ timeout: 10000 });
   });
 
-  test('IRC status dot is present', async () => {
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
-    try {
-      await gotoWithBypass(page, '/');
+  it('IRC header shows channel name #archivist', async () => {
+    await browser.url('/');
+    await browser.pause(1000);
 
-      const dot = page.locator('.irc-dot');
-      await expect(dot).toBeVisible({ timeout: 10_000 });
-    } finally {
-      await browser.close();
-    }
+    const channel = await $('.irc-channel');
+    await channel.waitForDisplayed({ timeout: 10000 });
+    await expect(channel).toHaveText('#archivist');
   });
 
-  test('IRC messages area is present', async () => {
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
-    try {
-      await gotoWithBypass(page, '/');
+  it('IRC status dot is present', async () => {
+    await browser.url('/');
+    await browser.pause(1000);
 
-      const messages = page.locator('.irc-messages');
-      await expect(messages).toBeVisible({ timeout: 10_000 });
-    } finally {
-      await browser.close();
-    }
+    const dot = await $('.irc-dot');
+    await dot.waitForDisplayed({ timeout: 10000 });
   });
 
-  test('IRC input is present and disabled when not connected', async () => {
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
-    try {
-      await gotoWithBypass(page, '/');
+  it('IRC messages area is present', async () => {
+    await browser.url('/');
+    await browser.pause(1000);
 
-      const input = page.locator('.irc-input');
-      await expect(input).toBeVisible({ timeout: 10_000 });
-      await expect(input).toBeDisabled();
-    } finally {
-      await browser.close();
-    }
+    const messages = await $('.irc-messages');
+    await messages.waitForDisplayed({ timeout: 10000 });
   });
 
-  test('IRC shows empty state text when not connected', async () => {
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
-    try {
-      await gotoWithBypass(page, '/');
+  it('IRC input is present and disabled when not connected', async () => {
+    await browser.url('/');
+    await browser.pause(1000);
 
-      const empty = page.locator('.irc-empty');
-      await expect(empty).toBeVisible({ timeout: 10_000 });
-      // Should show connecting or disconnected message
-      const text = await empty.textContent();
-      expect(
-        text?.includes('Connecting to Libera.Chat') ||
-        text?.includes('Click Connect')
-      ).toBeTruthy();
-    } finally {
-      await browser.close();
-    }
+    const input = await $('.irc-input');
+    await input.waitForDisplayed({ timeout: 10000 });
+    expect(await input.isEnabled()).toBe(false);
+  });
+
+  it('IRC shows empty state text when not connected', async () => {
+    await browser.url('/');
+    await browser.pause(1000);
+
+    const empty = await $('.irc-empty');
+    await empty.waitForDisplayed({ timeout: 10000 });
+    // Should show connecting or disconnected message
+    const text = await empty.getText();
+    expect(
+      text?.includes('Connecting to Libera.Chat') ||
+      text?.includes('Click Connect')
+    ).toBeTruthy();
   });
 });

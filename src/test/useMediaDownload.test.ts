@@ -108,11 +108,11 @@ describe('useMediaDownload', () => {
     });
   });
 
-  it('sets loading to false after initialization', async () => {
+  it('initializes with queueState populated', async () => {
     const { result } = renderHook(() => useMediaDownload());
 
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(result.current.queueState).not.toBeNull();
     });
   });
 
@@ -201,7 +201,7 @@ describe('useMediaDownload', () => {
   it('fetchMetadata invokes correct command', async () => {
     const { result } = renderHook(() => useMediaDownload());
 
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.queueState).not.toBeNull());
 
     await act(async () => {
       await result.current.fetchMetadata('https://example.com/video');
@@ -227,7 +227,7 @@ describe('useMediaDownload', () => {
     });
 
     const { result } = renderHook(() => useMediaDownload());
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.queueState).not.toBeNull());
 
     const options = {
       url: 'https://example.com',
@@ -273,7 +273,7 @@ describe('useMediaDownload', () => {
     });
 
     const { result } = renderHook(() => useMediaDownload());
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.queueState).not.toBeNull());
 
     // Start installation (don't await yet)
     let installPromise: Promise<void>;

@@ -435,6 +435,34 @@
   flex-shrink: 0;
 }
 
+.web-archive-page .archived-local-path {
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.7rem;
+}
+
+.web-archive-page .upload-btn {
+  background: rgba(0, 200, 83, 0.1);
+  border: 1px solid rgba(0, 200, 83, 0.3);
+  color: #00c853;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.web-archive-page .upload-btn:hover {
+  background: rgba(0, 200, 83, 0.2);
+}
+
+.web-archive-page .result-path {
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
 /* Empty State */
 .web-archive-page .empty-state {
   text-align: center;
@@ -693,4 +721,50 @@
   padding: 1.5rem;
   color: var(--text-dim);
   font-size: 0.85rem;
+}
+
+/* Discourse Detection */
+.web-archive-page .discourse-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+}
+
+.web-archive-page .discourse-badge.detecting {
+  color: var(--text-dim);
+  border: 1px solid var(--term-border);
+}
+
+.web-archive-page .discourse-badge.detected {
+  color: var(--phosphor);
+  border: 1px solid var(--phosphor);
+  background: rgba(57, 255, 20, 0.05);
+}
+
+.web-archive-page .url-input.discourse-detected {
+  border-color: var(--phosphor);
+}
+
+.web-archive-page .mode-toggles {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.web-archive-page .forum-settings {
+  border-color: var(--phosphor);
+}
+
+/* Generating state */
+.web-archive-page .task-card.generating {
+  border-left-color: var(--phosphor);
+}
+
+.web-archive-page .badge-generating {
+  background: rgba(57, 255, 20, 0.1);
+  color: var(--phosphor);
+  border: 1px solid var(--phosphor);
 }

@@ -1,189 +1,163 @@
-import { test, expect } from '@playwright/test';
-import { connectToApp, waitForPort, navigateTo, SEL } from '../helpers';
+import { navigateTo, ensurePastOnboarding, hasText, isDisplayed, getCount, sleep, SEL } from '../helpers';
 
 /**
  * @smoke
  * Backup Server page — daemon lifecycle tests with deep UI interaction.
  */
-test.describe('Backup Server page @smoke', () => {
-  test.beforeAll(async () => {
-    await waitForPort(9222, 15_000);
+describe('Backup Server page @smoke', () => {
+  before(async () => {
+    await ensurePastOnboarding();
   });
 
-  test('should navigate to Backup Server page', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Backup Server');
-      await page.waitForTimeout(1_000);
+  it('should navigate to Backup Server page', async () => {
+    await navigateTo('Backup Server');
+    await browser.pause(1_000);
 
-      await expect(page.locator(SEL.backupServerPage)).toBeVisible();
-    } finally {
-      await browser.close();
+    await expect($(SEL.backupServerPage)).toBeDisplayed();
+  });
+
+  it('should display page header', async () => {
+    await navigateTo('Backup Server');
+    await browser.pause(1_000);
+
+    const header = $(SEL.backupServerHeader);
+    await expect(header).toBeDisplayed();
+    const text = await header.getText();
+    expect(text.toLowerCase()).toContain('backup');
+  });
+
+  it('should show stats cards with values', async () => {
+    await navigateTo('Backup Server');
+    await browser.pause(1_000);
+
+    // Stats grid should always be visible
+    const statsGrid = $(SEL.backupStatsGrid);
+    await expect(statsGrid).toBeDisplayed();
+
+    // Should have 4 stat cards
+    const statCards = $$(SEL.backupStatsCard);
+    expect(await statCards.length).toBe(4);
+
+    const cardCount = await statCards.length;
+    // Each card should have a label and value
+    for (let i = 0; i < cardCount; i++) {
+      const card = statCards[i];
+      const label = card.$('.stat-label');
+      const value = card.$('.stat-value');
+      await expect(label).toBeDisplayed();
+      await expect(value).toBeDisplayed();
+
+      const valueText = await value.getText();
+      expect(valueText).toBeTruthy();
     }
   });
 
-  test('should display page header', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Backup Server');
-      await page.waitForTimeout(1_000);
+  it('should show configuration section', async () => {
+    await navigateTo('Backup Server');
+    await browser.pause(1_000);
 
-      const header = page.locator(SEL.backupServerHeader).first();
-      await expect(header).toBeVisible();
-      const text = await header.textContent();
-      expect(text?.toLowerCase()).toContain('backup');
-    } finally {
-      await browser.close();
+    const configGrid = $(SEL.backupConfigGrid);
+    const hasConfig = await configGrid.isDisplayed().catch(() => false);
+
+    if (hasConfig) {
+      const configItems = await $$('.config-item');
+      expect(configItems.length).toBeGreaterThanOrEqual(3);
+
+      const firstLabel = configItems[0].$('.config-label');
+      const firstValue = configItems[0].$('.config-value');
+      await expect(firstLabel).toBeDisplayed();
+      await expect(firstValue).toBeDisplayed();
     }
   });
 
-  test('should show stats cards with values', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Backup Server');
-      await page.waitForTimeout(1_000);
+  it('should enable daemon and verify UI updates', async () => {
+    await navigateTo('Backup Server');
+    await browser.pause(1_000);
 
-      // Stats grid should always be visible
-      const statsGrid = page.locator(SEL.backupStatsGrid);
-      await expect(statsGrid).toBeVisible();
+    const enableBtn = await hasText('button', 'Enable Daemon');
+    const hasEnable = await enableBtn.isDisplayed().catch(() => false);
 
-      // Should have 4 stat cards
-      const statCards = page.locator(SEL.backupStatsCard);
-      const cardCount = await statCards.count();
-      expect(cardCount).toBe(4);
+    if (hasEnable) {
+      await enableBtn.click();
+      await enableBtn.waitForDisplayed({ timeout: 10_000, reverse: true });
 
-      // Each card should have a label and value
-      for (let i = 0; i < cardCount; i++) {
-        const card = statCards.nth(i);
-        const label = card.locator('.stat-label');
-        const value = card.locator('.stat-value');
-        await expect(label).toBeVisible();
-        await expect(value).toBeVisible();
+      // After enabling: Pause, Resume, and Disable Daemon buttons should appear
+      const pauseBtn = await hasText('button', 'Pause');
+      await expect(pauseBtn).toBeDisplayed();
+      const disableBtn = await hasText('button', 'Disable Daemon');
+      await expect(disableBtn).toBeDisplayed();
 
-        const valueText = await value.textContent();
-        expect(valueText).toBeTruthy();
-      }
-    } finally {
-      await browser.close();
+      // Info banner should disappear
+      const infoBanner = $(SEL.backupInfoBanner);
+      await expect(infoBanner).not.toBeDisplayed();
+    } else {
+      // Daemon already enabled — check Pause or Resume is visible
+      const pauseVisible = await isDisplayed(SEL.torrentPauseBtn, 1000);
+      const pauseBtnText = await hasText('button', 'Pause');
+      const resumeBtnText = await hasText('button', 'Resume');
+      const hasPause = await pauseBtnText.isDisplayed().catch(() => false);
+      const hasResume = await resumeBtnText.isDisplayed().catch(() => false);
+      expect(hasPause || hasResume).toBe(true);
+
+      const disableBtn = await hasText('button', 'Disable Daemon');
+      await expect(disableBtn).toBeDisplayed();
     }
   });
 
-  test('should show configuration section', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Backup Server');
-      await page.waitForTimeout(1_000);
+  it('should pause and resume daemon', async () => {
+    await navigateTo('Backup Server');
+    await browser.pause(1_000);
 
-      const configGrid = page.locator(SEL.backupConfigGrid);
-      const hasConfig = await configGrid.isVisible().catch(() => false);
+    // Ensure daemon is enabled
+    const enableBtn = await hasText('button', 'Enable Daemon');
+    if (await enableBtn.isDisplayed().catch(() => false)) {
+      await enableBtn.click();
+      await enableBtn.waitForDisplayed({ timeout: 10_000, reverse: true });
+    }
 
-      if (hasConfig) {
-        const configItems = page.locator('.config-item');
-        const itemCount = await configItems.count();
-        expect(itemCount).toBeGreaterThanOrEqual(3);
+    // Click Pause
+    const pauseBtn = await hasText('button', 'Pause');
+    if (await pauseBtn.isDisplayed().catch(() => false)) {
+      await pauseBtn.click();
+      await browser.pause(2_000);
+      await expect($(SEL.backupServerPage)).toBeDisplayed();
 
-        const firstLabel = configItems.first().locator('.config-label');
-        const firstValue = configItems.first().locator('.config-value');
-        await expect(firstLabel).toBeVisible();
-        await expect(firstValue).toBeVisible();
+      // Click Resume
+      const resumeBtn = await hasText('button', 'Resume');
+      if (await resumeBtn.isDisplayed().catch(() => false)) {
+        await resumeBtn.click();
+        await browser.pause(2_000);
+        await expect($(SEL.backupServerPage)).toBeDisplayed();
       }
-    } finally {
-      await browser.close();
     }
   });
 
-  test('should enable daemon and verify UI updates', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Backup Server');
-      await page.waitForTimeout(1_000);
+  it('should disable daemon and verify info banner returns', async () => {
+    await navigateTo('Backup Server');
+    await browser.pause(1_000);
 
-      const enableBtn = page.locator('button:has-text("Enable Daemon")');
-      const hasEnable = await enableBtn.isVisible().catch(() => false);
+    const disableBtn = await hasText('button', 'Disable Daemon');
+    const hasDisable = await disableBtn.isDisplayed().catch(() => false);
 
-      if (hasEnable) {
-        await enableBtn.click();
-        await expect(enableBtn).not.toBeVisible({ timeout: 10_000 });
+    if (hasDisable) {
+      await disableBtn.click();
+      await disableBtn.waitForDisplayed({ timeout: 10_000, reverse: true });
 
-        // After enabling: Pause, Resume, and Disable Daemon buttons should appear
-        await expect(page.locator('button:has-text("Pause")')).toBeVisible({ timeout: 5_000 });
-        await expect(page.locator('button:has-text("Disable Daemon")')).toBeVisible();
+      // Enable Daemon button should reappear
+      const enableBtn = await hasText('button', 'Enable Daemon');
+      await enableBtn.waitForDisplayed({ timeout: 5_000 });
 
-        // Info banner should disappear
-        const infoBanner = page.locator(SEL.backupInfoBanner);
-        await expect(infoBanner).not.toBeVisible();
-      } else {
-        // Daemon already enabled
-        await expect(page.locator('button:has-text("Pause"), button:has-text("Resume")')).toBeVisible();
-        await expect(page.locator('button:has-text("Disable Daemon")')).toBeVisible();
-      }
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should pause and resume daemon', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Backup Server');
-      await page.waitForTimeout(1_000);
-
-      // Ensure daemon is enabled
-      const enableBtn = page.locator('button:has-text("Enable Daemon")');
-      if (await enableBtn.isVisible().catch(() => false)) {
-        await enableBtn.click();
-        await expect(enableBtn).not.toBeVisible({ timeout: 10_000 });
-      }
-
-      // Click Pause
-      const pauseBtn = page.locator('button:has-text("Pause")');
-      if (await pauseBtn.isVisible().catch(() => false)) {
-        await pauseBtn.click();
-        await page.waitForTimeout(2_000);
-        await expect(page.locator(SEL.backupServerPage)).toBeVisible();
-
-        // Click Resume
-        const resumeBtn = page.locator('button:has-text("Resume")');
-        if (await resumeBtn.isVisible().catch(() => false)) {
-          await resumeBtn.click();
-          await page.waitForTimeout(2_000);
-          await expect(page.locator(SEL.backupServerPage)).toBeVisible();
-        }
-      }
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should disable daemon and verify info banner returns', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Backup Server');
-      await page.waitForTimeout(1_000);
-
-      const disableBtn = page.locator('button:has-text("Disable Daemon")');
-      const hasDisable = await disableBtn.isVisible().catch(() => false);
-
-      if (hasDisable) {
-        await disableBtn.click();
-        await expect(disableBtn).not.toBeVisible({ timeout: 10_000 });
-
-        // Enable Daemon button should reappear
-        await expect(page.locator('button:has-text("Enable Daemon")')).toBeVisible({ timeout: 5_000 });
-
-        // Info banner should reappear
-        const infoBanner = page.locator(SEL.backupInfoBanner);
-        await expect(infoBanner).toBeVisible();
-        const bannerText = await infoBanner.textContent();
-        expect(bannerText?.toLowerCase()).toContain('disabled');
-      } else {
-        // Daemon already disabled
-        await expect(page.locator('button:has-text("Enable Daemon")')).toBeVisible();
-        const infoBanner = page.locator(SEL.backupInfoBanner);
-        await expect(infoBanner).toBeVisible();
-      }
-    } finally {
-      await browser.close();
+      // Info banner should reappear
+      const infoBanner = $(SEL.backupInfoBanner);
+      await expect(infoBanner).toBeDisplayed();
+      const bannerText = await infoBanner.getText();
+      expect(bannerText.toLowerCase()).toContain('disabled');
+    } else {
+      // Daemon already disabled
+      const enableBtn = await hasText('button', 'Enable Daemon');
+      await expect(enableBtn).toBeDisplayed();
+      const infoBanner = $(SEL.backupInfoBanner);
+      await expect(infoBanner).toBeDisplayed();
     }
   });
 });

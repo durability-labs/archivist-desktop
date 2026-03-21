@@ -93,7 +93,7 @@ export default function Torrents() {
         multiple: false,
       });
       if (!selected) return;
-      const filePath = typeof selected === 'string' ? selected : selected;
+      const filePath = selected;
       // Read the file and base64 encode it
       const { readFile } = await import('@tauri-apps/plugin-fs');
       const bytes = await readFile(filePath as string);
@@ -137,6 +137,7 @@ export default function Torrents() {
       await removeTorrent(id, deleteFiles);
     } catch (e) {
       console.error('Remove failed:', e);
+      alert(`Failed to remove torrent: ${e}`);
     }
   }, [removeTorrent]);
 

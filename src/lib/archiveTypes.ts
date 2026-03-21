@@ -2,8 +2,9 @@ export type ArchiveState =
   | 'queued'
   | 'crawling'
   | 'downloading'
+  | 'generating'
   | 'packaging'
-  | 'uploading'
+  | 'saving'
   | 'completed'
   | 'failed'
   | 'cancelled'
@@ -19,6 +20,9 @@ export interface ArchiveOptions {
   userAgent?: string;
   customHeaders?: Record<string, string>;
   excludePatterns?: string[];
+  discourseMode?: boolean;
+  maxTopics?: number;
+  fetchUserProfiles?: boolean;
 }
 
 export interface ArchiveTask {
@@ -33,6 +37,7 @@ export interface ArchiveTask {
   bytesPerSecond: number;
   etaSeconds: number | null;
   cid: string | null;
+  localPath: string | null;
   error: string | null;
   createdAt: string;
   completedAt: string | null;
@@ -40,13 +45,14 @@ export interface ArchiveTask {
 }
 
 export interface ArchivedSite {
-  cid: string;
+  cid: string | null;
   url: string;
   title: string | null;
   pagesCount: number;
   assetsCount: number;
   totalBytes: number;
   archivedAt: string;
+  localPath: string | null;
 }
 
 export interface ArchiveQueueState {

@@ -85,6 +85,22 @@ pub async fn close_archive_viewer(state: State<'_, AppState>) -> Result<()> {
     Ok(())
 }
 
+/// Upload a locally saved archive ZIP to the archivist node
+#[tauri::command]
+pub async fn upload_archive_to_node(
+    state: State<'_, AppState>,
+    local_path: String,
+) -> Result<String> {
+    let mut archive = state.web_archive.write().await;
+    archive.upload_archive_to_node(&local_path).await
+}
+
+/// Detect if a URL is a Discourse forum
+#[tauri::command]
+pub async fn detect_discourse_forum(url: String) -> Result<bool> {
+    Ok(crate::services::discourse_scraper::DiscourseScraper::detect_discourse(&url).await)
+}
+
 /// Get the current archive viewer status.
 #[tauri::command]
 pub async fn get_archive_viewer_status(state: State<'_, AppState>) -> Result<Option<ViewerStatus>> {

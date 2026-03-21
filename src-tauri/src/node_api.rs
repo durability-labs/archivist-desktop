@@ -507,6 +507,11 @@ impl NodeApiClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
+            if body.contains("Unable to store block") {
+                return Err(ArchivistError::ApiError(
+                    "Storage quota full. Increase 'Max Storage' in Settings or delete files, then restart the node.".to_string()
+                ));
+            }
             return Err(ArchivistError::ApiError(format!(
                 "Upload failed: HTTP {} - {}",
                 status, body

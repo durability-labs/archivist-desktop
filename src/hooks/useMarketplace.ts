@@ -79,7 +79,6 @@ export interface UseMarketplace {
   createStorageRequest: (params: CreateStorageRequestParams) => Promise<string>;
   getPurchase: (id: string) => Promise<Purchase>;
   // State
-  loading: boolean;
   error: string | null;
   refresh: () => void;
 }
@@ -88,7 +87,6 @@ export function useMarketplace(): UseMarketplace {
   const [slots, setSlots] = useState<SalesSlot[]>([]);
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [purchases, setPurchases] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -106,8 +104,6 @@ export function useMarketplace(): UseMarketplace {
       setError(null);
     } catch (e) {
       setError(String(e));
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -156,7 +152,6 @@ export function useMarketplace(): UseMarketplace {
     purchases,
     createStorageRequest: doCreateStorageRequest,
     getPurchase: doGetPurchase,
-    loading,
     error,
     refresh,
   };

@@ -344,18 +344,24 @@ impl TorrentService {
             ArchivistError::TorrentError("Torrent session not initialized".into())
         })?;
 
+        let id_or_hash = librqbit::api::TorrentIdOrHash::Id(id);
+
         if delete_files {
-            api.api_torrent_action_delete(librqbit::api::TorrentIdOrHash::Id(id))
+            api.api_torrent_action_delete(id_or_hash)
                 .await
                 .map_err(|e| {
                     ArchivistError::TorrentError(format!("Failed to delete torrent: {}", e))
                 })?;
         } else {
-            api.api_torrent_action_forget(librqbit::api::TorrentIdOrHash::Id(id))
-                .await
-                .map_err(|e| {
-                    ArchivistError::TorrentError(format!("Failed to forget torrent: {}", e))
-                })?;
+            // Try forget directly; if it fails (e.g. torrent is active), pause first then retry
+            if let Err(_first_err) = api.api_torrent_action_forget(id_or_hash).await {
+                let _ = api.api_torrent_action_pause(id_or_hash).await;
+                api.api_torrent_action_forget(id_or_hash)
+                    .await
+                    .map_err(|e| {
+                        ArchivistError::TorrentError(format!("Failed to forget torrent: {}", e))
+                    })?;
+            }
         }
 
         self.added_times.remove(&id);

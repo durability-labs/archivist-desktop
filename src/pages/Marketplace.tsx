@@ -21,7 +21,6 @@ export default function Marketplace() {
     purchases,
     setAvailability,
     createStorageRequest,
-    loading,
     error,
     refresh,
   } = useMarketplace();
@@ -40,17 +39,37 @@ export default function Marketplace() {
   // Client form state
   const [files, setFiles] = useState<FileItem[]>([]);
   const [selectedCid, setSelectedCid] = useState('');
-  const [reqDuration, setReqDuration] = useState('86400');
-  const [reqPrice, setReqPrice] = useState('1');
+  const [reqDuration, setReqDuration] = useState('2592000');
+  const [reqPrice, setReqPrice] = useState('2000');
   const [reqCollateral, setReqCollateral] = useState('1');
-  const [reqSlots, setReqSlots] = useState(3);
+  const [reqSlots, setReqSlots] = useState(4);
   const [reqSlotSize, setReqSlotSize] = useState(0);
-  const [reqMaxSlotLoss, setReqMaxSlotLoss] = useState(1);
-  const [reqProofProbability, setReqProofProbability] = useState('1');
+  const [reqMaxSlotLoss, setReqMaxSlotLoss] = useState(2);
+  const [reqProofProbability, setReqProofProbability] = useState('200');
   const [reqExpiry, setReqExpiry] = useState(3600);
   const [clientSubmitting, setClientSubmitting] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
   const [filesLoaded, setFilesLoaded] = useState(false);
+
+  // Auto-calculate slot size from CID's dataset size and number of slots
+  const computeSlotSize = (cid: string, slots: number, fileList: FileItem[]) => {
+    const file = fileList.find((f) => f.cid === cid);
+    if (file?.manifest?.datasetSize && slots > 0) {
+      setReqSlotSize(Math.ceil(file.manifest.datasetSize / slots));
+    } else {
+      setReqSlotSize(0);
+    }
+  };
+
+  const handleCidChange = (cid: string) => {
+    setSelectedCid(cid);
+    computeSlotSize(cid, reqSlots, files);
+  };
+
+  const handleSlotsChange = (slots: number) => {
+    setReqSlots(slots);
+    computeSlotSize(selectedCid, slots, files);
+  };
 
   // Load files for CID selector
   const loadFiles = async () => {
@@ -101,15 +120,6 @@ export default function Marketplace() {
       setClientSubmitting(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="marketplace-page">
-        <h1>Marketplace</h1>
-        <div className="mp-empty">Loading marketplace data...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="marketplace-page">
@@ -279,7 +289,7 @@ export default function Marketplace() {
               <input
                 type="text"
                 value={selectedCid}
-                onChange={(e) => setSelectedCid(e.target.value)}
+                onChange={(e) => handleCidChange(e.target.value)}
                 onFocus={loadFiles}
                 placeholder="Enter CID or select from stored files"
                 list="cid-list"
@@ -298,7 +308,7 @@ export default function Marketplace() {
                 type="text"
                 value={reqDuration}
                 onChange={(e) => setReqDuration(e.target.value)}
-                placeholder="86400"
+                placeholder="2592000"
               />
             </div>
             <div className="mp-field">
@@ -307,7 +317,7 @@ export default function Marketplace() {
                 type="text"
                 value={reqPrice}
                 onChange={(e) => setReqPrice(e.target.value)}
-                placeholder="1"
+                placeholder="2000"
               />
             </div>
             <div className="mp-field">
@@ -316,7 +326,7 @@ export default function Marketplace() {
                 type="text"
                 value={reqProofProbability}
                 onChange={(e) => setReqProofProbability(e.target.value)}
-                placeholder="1"
+                placeholder="200"
               />
             </div>
             <div className="mp-field">
@@ -333,7 +343,7 @@ export default function Marketplace() {
               <input
                 type="number"
                 value={reqSlots}
-                onChange={(e) => setReqSlots(Number(e.target.value))}
+                onChange={(e) => handleSlotsChange(Number(e.target.value))}
                 min={1}
               />
             </div>

@@ -3,7 +3,7 @@ import { useMarketplace, type Purchase, type SalesSlot } from '../hooks/useMarke
 import '../styles/Marketplace.css';
 
 export default function Deals() {
-  const { slots, purchases, getPurchase, loading, error, refresh } = useMarketplace();
+  const { slots, purchases, getPurchase, error, refresh } = useMarketplace();
   const [expandedPurchase, setExpandedPurchase] = useState<string | null>(null);
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null);
   const [purchaseDetails, setPurchaseDetails] = useState<Record<string, Purchase>>({});
@@ -29,15 +29,6 @@ export default function Deals() {
       }
     }
   };
-
-  if (loading) {
-    return (
-      <div className="deals-page">
-        <h1>My Deals</h1>
-        <div className="mp-empty">Loading deals...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="deals-page">

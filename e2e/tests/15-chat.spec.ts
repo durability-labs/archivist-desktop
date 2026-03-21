@@ -1,284 +1,245 @@
-import { test, expect } from '@playwright/test';
 import {
-  connectToApp,
-  waitForPort,
   navigateTo,
+  hasText,
+  isDisplayed,
+  getCount,
   SEL,
 } from '../helpers';
 
 /**
- * Phase 5 — Chat page E2E tests (Playwright via CDP)
+ * Phase 5 — Chat page E2E tests
  */
 
 // Chat page and route were removed from the app nav in the nav restructure.
 // All tests are skipped. The Chat route no longer exists in App.tsx.
-test.describe.skip('Chat page (REMOVED)', () => {
-  test.beforeAll(async () => {
-    await waitForPort(9222, 15_000);
-  });
+describe.skip('Chat page (REMOVED)', () => {
+  it('should load chat page with empty state', async () => {
+    await navigateTo('Chat');
 
-  test('should load chat page with empty state', async () => {
-    const { browser, page } = await connectToApp();
+    const chatHeading = await $(SEL.chatHeading);
+    await expect(chatHeading).toHaveText('Chat');
+    const chatPage = await $(SEL.chatPage);
+    await chatPage.waitForDisplayed({ timeout: 5_000 });
 
-    try {
-      await navigateTo(page, 'Chat');
-
-      await expect(page.locator(SEL.chatHeading)).toHaveText('Chat');
-      await expect(page.locator(SEL.chatPage)).toBeVisible({ timeout: 5_000 });
-
-      // Either empty conversation list or populated list should be present
-      const hasConversations = await page.locator(SEL.conversationList).isVisible().catch(() => false);
-      if (!hasConversations) {
-        await expect(page.locator(SEL.chatEmpty)).toBeVisible();
-      }
-
-      // Empty state in the main panel (no conversation selected)
-      await expect(page.locator(SEL.chatEmptyState)).toBeVisible();
-    } finally {
-      await browser.close();
+    // Either empty conversation list or populated list should be present
+    const hasConversations = await isDisplayed(SEL.conversationList, 2000);
+    if (!hasConversations) {
+      const chatEmpty = await $(SEL.chatEmpty);
+      await expect(chatEmpty).toBeDisplayed();
     }
+
+    // Empty state in the main panel (no conversation selected)
+    const chatEmptyState = await $(SEL.chatEmptyState);
+    await expect(chatEmptyState).toBeDisplayed();
   });
 
-  test('should not show chat input when no conversation is selected', async () => {
-    const { browser, page } = await connectToApp();
+  it('should not show chat input when no conversation is selected', async () => {
+    await navigateTo('Chat');
 
-    try {
-      await navigateTo(page, 'Chat');
+    // Empty state should be visible
+    const chatEmptyState = await $(SEL.chatEmptyState);
+    await chatEmptyState.waitForDisplayed({ timeout: 5_000 });
 
-      // Empty state should be visible
-      await expect(page.locator(SEL.chatEmptyState)).toBeVisible({ timeout: 5_000 });
-
-      // Chat input should NOT be visible (only shows in an active conversation)
-      await expect(page.locator('.chat-input-area')).not.toBeVisible();
-    } finally {
-      await browser.close();
-    }
+    // Chat input should NOT be visible (only shows in an active conversation)
+    const chatInputArea = await $('.chat-input-area');
+    await expect(chatInputArea).not.toBeDisplayed();
   });
 
-  test('should have Chat nav link in sidebar', async () => {
-    const { browser, page } = await connectToApp();
+  it('should have Chat nav link in sidebar', async () => {
+    // Check that the Chat link is visible in the sidebar
+    const chatNav = await hasText('.sidebar .nav-link', 'Chat');
+    await chatNav.waitForDisplayed({ timeout: 5_000 });
 
-    try {
-      // Check that the Chat link is visible in the sidebar
-      const chatNav = page.locator('.sidebar .nav-link:has-text("Chat")');
-      await expect(chatNav).toBeVisible({ timeout: 5_000 });
-
-      // Click it and verify we're on the chat page
-      await chatNav.click();
-      await page.waitForLoadState('networkidle');
-      await expect(page.locator(SEL.chatPage)).toBeVisible({ timeout: 5_000 });
-    } finally {
-      await browser.close();
-    }
+    // Click it and verify we're on the chat page
+    await chatNav.click();
+    await browser.pause(500);
+    const chatPage = await $(SEL.chatPage);
+    await chatPage.waitForDisplayed({ timeout: 5_000 });
   });
 
-  test('should show Chat button on connected peer cards in Devices', async () => {
-    const { browser, page } = await connectToApp();
+  it('should show Chat button on connected peer cards in Devices', async () => {
+    await navigateTo('My Devices');
 
-    try {
-      await navigateTo(page, 'My Devices');
+    // Check if there are connected peers
+    const connectedPeerCards = $$('.device-card.peer:not(.offline)');
+    const count = await connectedPeerCards.length;
 
-      // Check if there are connected peers
-      const connectedPeerCards = page.locator('.device-card.peer:not(.offline)');
-      const count = await connectedPeerCards.count();
-
-      if (count > 0) {
-        // Each connected peer card should have a Chat button
-        for (let i = 0; i < count; i++) {
-          const chatBtn = connectedPeerCards.nth(i).locator('.device-actions button:has-text("Chat")');
-          await expect(chatBtn).toBeVisible();
-        }
-      } else {
-        // No connected peers — verify the empty state message
-        await expect(page.locator('text=No devices connected yet')).toBeVisible({ timeout: 5_000 });
-      }
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should have New Group button in sidebar header', async () => {
-    const { browser, page } = await connectToApp();
-
-    try {
-      await navigateTo(page, 'Chat');
-
-      await expect(page.locator(SEL.newGroupBtn)).toBeVisible({ timeout: 5_000 });
-      await expect(page.locator(SEL.newGroupBtn)).toHaveText('New Group');
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should open and close New Group modal', async () => {
-    const { browser, page } = await connectToApp();
-
-    try {
-      await navigateTo(page, 'Chat');
-
-      // Click New Group button
-      await page.locator(SEL.newGroupBtn).click();
-
-      // Modal should appear with group name input
-      const modal = page.locator(SEL.safetyNumberModal);
-      await expect(modal).toBeVisible({ timeout: 3_000 });
-
-      // Should have group name input
-      await expect(modal.locator('input[placeholder="Group name..."]')).toBeVisible();
-
-      // Should have "Select members" text
-      await expect(modal.locator('text=Select members')).toBeVisible();
-
-      // Create Group button should be disabled when name is empty
-      const createBtn = modal.locator('button:has-text("Create Group")');
-      await expect(createBtn).toBeDisabled();
-
-      // Close modal by clicking Cancel
-      await modal.locator('button:has-text("Cancel")').click();
-      await expect(modal).not.toBeVisible({ timeout: 2_000 });
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should show chat input when conversation is selected', async () => {
-    const { browser, page } = await connectToApp();
-
-    try {
-      await navigateTo(page, 'Chat');
-
-      // Check if conversations exist
-      const convItems = page.locator(SEL.conversationItem);
-      const count = await convItems.count();
-
-      if (count > 0) {
-        // Click the first conversation
-        await convItems.first().click();
-        await page.waitForTimeout(500);
-
-        // Chat input should now be visible
-        await expect(page.locator(SEL.chatInput)).toBeVisible({ timeout: 3_000 });
-        await expect(page.locator(SEL.sendBtn)).toBeVisible();
-
-        // Verify placeholder text
-        await expect(page.locator(SEL.chatInput)).toHaveAttribute('placeholder', 'Type a message...');
-
-        // Type something and verify send button is enabled
-        await page.locator(SEL.chatInput).fill('test message');
-        await expect(page.locator(SEL.sendBtn)).not.toBeDisabled();
-
-        // Clear text and verify send button is disabled
-        await page.locator(SEL.chatInput).fill('');
-        await expect(page.locator(SEL.sendBtn)).toBeDisabled();
-      } else {
-        // Skip if no conversations exist — verify empty state
-        await expect(page.locator(SEL.chatEmptyState)).toBeVisible();
-      }
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should show reply UI when Reply button is clicked', async () => {
-    const { browser, page } = await connectToApp();
-
-    try {
-      await navigateTo(page, 'Chat');
-
-      const convItems = page.locator(SEL.conversationItem);
-      const count = await convItems.count();
-
-      if (count > 0) {
-        // Click the first conversation
-        await convItems.first().click();
-        await page.waitForTimeout(500);
-
-        // Check if there are messages
-        const messageElements = page.locator(SEL.message);
-        const msgCount = await messageElements.count();
-
-        if (msgCount > 0) {
-          // Hover over first message to reveal Reply button
-          await messageElements.first().hover();
-          await page.waitForTimeout(200);
-
-          const replyBtn = messageElements.first().locator('.btn-reply');
-          if (await replyBtn.isVisible().catch(() => false)) {
-            await replyBtn.click();
-
-            // Reply preview should appear
-            await expect(page.locator(SEL.replyPreview)).toBeVisible({ timeout: 2_000 });
-
-            // Cancel reply
-            await page.locator(SEL.replyCancelBtn).click();
-            await expect(page.locator(SEL.replyPreview)).not.toBeVisible({ timeout: 2_000 });
-          }
-        }
-      }
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should show safety number modal for DM conversations', async () => {
-    const { browser, page } = await connectToApp();
-
-    try {
-      await navigateTo(page, 'Chat');
-
-      // Find a DM conversation (id starts with "dm:")
-      const convItems = page.locator(SEL.conversationItem);
-      const count = await convItems.count();
-
-      let foundDm = false;
+    if (count > 0) {
+      // Each connected peer card should have a Chat button
       for (let i = 0; i < count; i++) {
-        await convItems.nth(i).click();
-        await page.waitForTimeout(300);
-
-        // Check if Verify button appears (only for DM conversations)
-        const verifyBtn = page.locator('.chat-header-actions button:has-text("Verify")');
-        if (await verifyBtn.isVisible().catch(() => false)) {
-          foundDm = true;
-
-          // Click Verify
-          await verifyBtn.click();
-
-          // Safety number modal should appear
-          await expect(page.locator(SEL.safetyNumberModal)).toBeVisible({ timeout: 3_000 });
-
-          // Should have safety number grid
-          await expect(page.locator(SEL.safetyNumberGrid)).toBeVisible();
-
-          // Close by clicking Close button
-          await page.locator('.safety-number-content button:has-text("Close")').click();
-          await expect(page.locator(SEL.safetyNumberModal)).not.toBeVisible({ timeout: 2_000 });
-          break;
-        }
+        const chatBtn = await connectedPeerCards[i].$('*=Chat');
+        await expect(chatBtn).toBeDisplayed();
       }
-
-      // If no DM conversations, test passes — just verify page loaded
-      if (!foundDm) {
-        await expect(page.locator(SEL.chatPage)).toBeVisible();
-      }
-    } finally {
-      await browser.close();
+    } else {
+      // No connected peers — verify the empty state message
+      const emptyMsg = await $('*=No devices connected yet');
+      await emptyMsg.waitForDisplayed({ timeout: 5_000 });
     }
   });
 
-  test('should not show error banner (chat server running)', async () => {
-    const { browser, page } = await connectToApp();
+  it('should have New Group button in sidebar header', async () => {
+    await navigateTo('Chat');
 
-    try {
-      await navigateTo(page, 'Chat');
+    const newGroupBtn = await $(SEL.newGroupBtn);
+    await newGroupBtn.waitForDisplayed({ timeout: 5_000 });
+    await expect(newGroupBtn).toHaveText('New Group');
+  });
 
-      await expect(page.locator(SEL.chatPage)).toBeVisible({ timeout: 5_000 });
+  it('should open and close New Group modal', async () => {
+    await navigateTo('Chat');
 
-      // Should not have an error banner
-      const errorBanner = page.locator('.error-banner');
-      const hasError = await errorBanner.isVisible().catch(() => false);
-      expect(hasError).toBeFalsy();
-    } finally {
-      await browser.close();
+    // Click New Group button
+    const newGroupBtn = await $(SEL.newGroupBtn);
+    await newGroupBtn.click();
+
+    // Modal should appear with group name input
+    const modal = await $(SEL.safetyNumberModal);
+    await modal.waitForDisplayed({ timeout: 3_000 });
+
+    // Should have group name input
+    const groupNameInput = await modal.$('input[placeholder="Group name..."]');
+    await expect(groupNameInput).toBeDisplayed();
+
+    // Should have "Select members" text
+    const selectMembers = await modal.$('*=Select members');
+    await expect(selectMembers).toBeDisplayed();
+
+    // Create Group button should be disabled when name is empty
+    const createBtn = await hasText('button', 'Create Group');
+    await expect(createBtn).toBeDisabled();
+
+    // Close modal by clicking Cancel
+    const cancelBtn = await hasText('button', 'Cancel');
+    await cancelBtn.click();
+    const modalAfter = await $(SEL.safetyNumberModal);
+    await modalAfter.waitForDisplayed({ timeout: 2_000, reverse: true });
+  });
+
+  it('should show chat input when conversation is selected', async () => {
+    await navigateTo('Chat');
+
+    // Check if conversations exist
+    const convItems = $$(SEL.conversationItem);
+    const count = await convItems.length;
+
+    if (count > 0) {
+      // Click the first conversation
+      await convItems[0].click();
+      await browser.pause(500);
+
+      // Chat input should now be visible
+      const chatInput = await $(SEL.chatInput);
+      await chatInput.waitForDisplayed({ timeout: 3_000 });
+      const sendBtn = await $(SEL.sendBtn);
+      await expect(sendBtn).toBeDisplayed();
+
+      // Verify placeholder text
+      await expect(chatInput).toHaveAttr('placeholder', 'Type a message...');
+
+      // Type something and verify send button is enabled
+      await chatInput.setValue('test message');
+      await expect(sendBtn).not.toBeDisabled();
+
+      // Clear text and verify send button is disabled
+      await chatInput.setValue('');
+      await expect(sendBtn).toBeDisabled();
+    } else {
+      // Skip if no conversations exist — verify empty state
+      const chatEmptyState = await $(SEL.chatEmptyState);
+      await expect(chatEmptyState).toBeDisplayed();
     }
+  });
+
+  it('should show reply UI when Reply button is clicked', async () => {
+    await navigateTo('Chat');
+
+    const convItems = $$(SEL.conversationItem);
+    const count = await convItems.length;
+
+    if (count > 0) {
+      // Click the first conversation
+      await convItems[0].click();
+      await browser.pause(500);
+
+      // Check if there are messages
+      const messageElements = $$(SEL.message);
+      const msgCount = await messageElements.length;
+
+      if (msgCount > 0) {
+        // Hover over first message to reveal Reply button
+        await messageElements[0].moveTo();
+        await browser.pause(200);
+
+        const replyBtn = await messageElements[0].$('.btn-reply');
+        const replyVisible = await replyBtn.isDisplayed().catch(() => false);
+        if (replyVisible) {
+          await replyBtn.click();
+
+          // Reply preview should appear
+          const replyPreview = await $(SEL.replyPreview);
+          await replyPreview.waitForDisplayed({ timeout: 2_000 });
+
+          // Cancel reply
+          const replyCancelBtn = await $(SEL.replyCancelBtn);
+          await replyCancelBtn.click();
+          await replyPreview.waitForDisplayed({ timeout: 2_000, reverse: true });
+        }
+      }
+    }
+  });
+
+  it('should show safety number modal for DM conversations', async () => {
+    await navigateTo('Chat');
+
+    // Find a DM conversation (id starts with "dm:")
+    const convItems = $$(SEL.conversationItem);
+    const count = await convItems.length;
+
+    let foundDm = false;
+    for (let i = 0; i < count; i++) {
+      await convItems[i].click();
+      await browser.pause(300);
+
+      // Check if Verify button appears (only for DM conversations)
+      const verifyVisible = await isDisplayed('//*[contains(@class, "chat-header-actions")]//*[contains(., "Verify")]', 1000);
+      if (verifyVisible) {
+        foundDm = true;
+
+        // Click Verify
+        const verifyBtn = await hasText('.chat-header-actions button', 'Verify');
+        await verifyBtn.click();
+
+        // Safety number modal should appear
+        const safetyModal = await $(SEL.safetyNumberModal);
+        await safetyModal.waitForDisplayed({ timeout: 3_000 });
+
+        // Should have safety number grid
+        const safetyGrid = await $(SEL.safetyNumberGrid);
+        await expect(safetyGrid).toBeDisplayed();
+
+        // Close by clicking Close button
+        const closeBtn = await hasText('.safety-number-content button', 'Close');
+        await closeBtn.click();
+        await safetyModal.waitForDisplayed({ timeout: 2_000, reverse: true });
+        break;
+      }
+    }
+
+    // If no DM conversations, test passes — just verify page loaded
+    if (!foundDm) {
+      const chatPage = await $(SEL.chatPage);
+      await expect(chatPage).toBeDisplayed();
+    }
+  });
+
+  it('should not show error banner (chat server running)', async () => {
+    await navigateTo('Chat');
+
+    const chatPage = await $(SEL.chatPage);
+    await chatPage.waitForDisplayed({ timeout: 5_000 });
+
+    // Should not have an error banner
+    const hasError = await isDisplayed('.error-banner', 1000);
+    expect(hasError).toBeFalsy();
   });
 });

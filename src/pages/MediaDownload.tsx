@@ -32,7 +32,6 @@ export default function MediaDownload() {
   const {
     queueState,
     binaryStatus,
-    loading,
     installError,
     installingBinary,
     installProgress,
@@ -144,18 +143,6 @@ export default function MediaDownload() {
       handleFetch();
     }
   }, [handleFetch, fetchingMeta]);
-
-  if (loading) {
-    return (
-      <div className="media-download-page">
-        <h1>Media Download</h1>
-        <div className="fetch-loading">
-          <div className="spinner-small" />
-          Loading...
-        </div>
-      </div>
-    );
-  }
 
   // Separate video and audio formats for the selector
   const videoFormats = metadata?.formats.filter(f => f.hasVideo) ?? [];

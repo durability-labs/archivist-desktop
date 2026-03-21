@@ -7,12 +7,15 @@ import { resolveResource } from '@tauri-apps/api/path';
 import { readFile } from '@tauri-apps/plugin-fs';
 import '../styles/Onboarding.css';
 
+
+
 interface OnboardingProps {
   onComplete: () => void;
   onSkip: () => void;
+  startMusic: () => void;
 }
 
-function Onboarding({ onComplete, onSkip }: OnboardingProps) {
+function Onboarding({ onComplete, onSkip, startMusic }: OnboardingProps) {
   const {
     currentStep,
     setStep,
@@ -184,7 +187,9 @@ function Onboarding({ onComplete, onSkip }: OnboardingProps) {
   // Handle splash screen completion (video ended or skip)
   const handleSplashComplete = useCallback(() => {
     setStep('disclaimer');
-  }, [setStep]);
+    // Start background music when transitioning past splash
+    startMusic();
+  }, [setStep, startMusic]);
 
   // Handle disclaimer acknowledgment
   const handleDisclaimerAccept = useCallback(() => {

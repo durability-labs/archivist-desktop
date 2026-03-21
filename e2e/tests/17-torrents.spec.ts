@@ -1,249 +1,204 @@
-import { test, expect } from '@playwright/test';
-import { connectToApp, waitForPort, sleep, navigateTo, SEL } from '../helpers';
+import { navigateTo, ensurePastOnboarding, hasText, isDisplayed, getCount, sleep, SEL, waitAndAcceptAlert } from '../helpers';
 
-test.describe.serial('Torrents page', () => {
-  test.beforeAll(async () => {
-    await waitForPort(9222, 30_000);
+describe('Torrents page', () => {
+  before(async () => {
+    await ensurePastOnboarding();
   });
 
-  test('should navigate to Torrents page', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
-      await expect(page.locator(SEL.torrentsPage)).toBeVisible({ timeout: 5_000 });
-      await expect(page.locator(SEL.torrentsHeader)).toHaveText('Torrents');
-    } finally {
-      await browser.close();
+  it('should navigate to Torrents page', async () => {
+    await navigateTo('Torrents');
+    await expect($(SEL.torrentsPage)).toBeDisplayed();
+    await expect($(SEL.torrentsHeader)).toHaveText('Torrents');
+  });
+
+  it('should show empty state when no torrents', async () => {
+    await navigateTo('Torrents');
+    // Either show empty state OR existing torrents from previous session
+    const torrentCount = await getCount(SEL.torrentRow);
+    if (torrentCount === 0) {
+      const emptyState = $(SEL.torrentEmptyState);
+      await emptyState.waitForDisplayed({ timeout: 3_000 });
     }
   });
 
-  test('should show empty state when no torrents', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
-      // Either show empty state OR existing torrents from previous session
-      const hasTorrents = await page.locator(SEL.torrentRow).count() > 0;
-      if (!hasTorrents) {
-        await expect(page.locator(SEL.torrentEmptyState)).toBeVisible({ timeout: 3_000 });
+  it('should show add torrent bar with magnet input and file button', async () => {
+    await navigateTo('Torrents');
+    const magnetInput = $(SEL.magnetInput);
+    await magnetInput.waitForDisplayed({ timeout: 3_000 });
+    await expect(magnetInput).toHaveAttr('placeholder', expect.stringContaining('magnet'));
+    await expect($(SEL.addFileBtn)).toBeDisplayed();
+  });
+
+  it('should show global speed stats in header', async () => {
+    await navigateTo('Torrents');
+    const dlSpeed = $(SEL.globalDlSpeed);
+    await dlSpeed.waitForDisplayed({ timeout: 5_000 });
+    await expect($(SEL.globalUlSpeed)).toBeDisplayed();
+  });
+
+  it('should show status bar with speed limit inputs', async () => {
+    await navigateTo('Torrents');
+    const statusBar = $(SEL.torrentStatusBar);
+    await statusBar.waitForDisplayed({ timeout: 3_000 });
+    await expect($(SEL.speedLimitDl)).toBeDisplayed();
+    await expect($(SEL.speedLimitUl)).toBeDisplayed();
+  });
+
+  it('should add magnet link and show torrent in list', async () => {
+    await navigateTo('Torrents');
+
+    const magnetInput = $(SEL.magnetInput);
+    // Use a known valid magnet link for testing
+    const testMagnet = 'magnet:?xt=urn:btih:TESTINFOHASH&dn=test-file';
+    await magnetInput.setValue(testMagnet);
+
+    const addBtn = $(SEL.addMagnetBtn);
+    await addBtn.click();
+
+    // Torrent should appear in list (may be in initializing/downloading state)
+    await browser.waitUntil(
+      async () => (await getCount(SEL.torrentRow)) === 1,
+      { timeout: 15_000 },
+    );
+    await expect($(SEL.torrentStateBadge)).toBeDisplayed();
+  });
+
+  it('should select a torrent and show detail panel', async function () {
+    await navigateTo('Torrents');
+
+    const count = await getCount(SEL.torrentRow);
+    if (count > 0) {
+      // Click first torrent row
+      const rows = await $$(SEL.torrentRow);
+      await rows[0].click();
+      const detailPanel = $(SEL.torrentDetailPanel);
+      await detailPanel.waitForDisplayed({ timeout: 3_000 });
+
+      // Tabs should be visible
+      await expect($(SEL.detailTabFiles)).toBeDisplayed();
+      await expect($(SEL.detailTabPeers)).toBeDisplayed();
+      await expect($(SEL.detailTabInfo)).toBeDisplayed();
+    } else {
+      this.skip();
+    }
+  });
+
+  it('should switch detail panel tabs', async function () {
+    await navigateTo('Torrents');
+
+    const count = await getCount(SEL.torrentRow);
+    if (count > 0) {
+      const rows = await $$(SEL.torrentRow);
+      await rows[0].click();
+      const detailPanel = $(SEL.torrentDetailPanel);
+      await detailPanel.waitForDisplayed({ timeout: 3_000 });
+
+      // Click Files tab — should show file tree
+      await $(SEL.detailTabFiles).click();
+      await $(SEL.fileTree).waitForDisplayed({ timeout: 3_000 });
+
+      // Click Peers tab — should show peer table
+      await $(SEL.detailTabPeers).click();
+      await $(SEL.peerTable).waitForDisplayed({ timeout: 3_000 });
+
+      // Click Info tab — should show info hash
+      await $(SEL.detailTabInfo).click();
+      await $(SEL.torrentInfoHash).waitForDisplayed({ timeout: 3_000 });
+    } else {
+      this.skip();
+    }
+  });
+
+  it('should show progress bar for active torrents', async () => {
+    await navigateTo('Torrents');
+
+    const count = await getCount(SEL.torrentRow);
+    if (count > 0) {
+      // Each row should have a progress bar
+      const progress = $(SEL.torrentProgress);
+      await progress.waitForDisplayed({ timeout: 3_000 });
+    }
+  });
+
+  it('should pause and resume a torrent', async function () {
+    await navigateTo('Torrents');
+
+    const count = await getCount(SEL.torrentRow);
+    if (count > 0) {
+      const rows = await $$(SEL.torrentRow);
+      await rows[0].click();
+
+      // Click pause
+      const pauseBtn = $(SEL.torrentPauseBtn);
+      const pauseVisible = await pauseBtn.isDisplayed().catch(() => false);
+      if (pauseVisible) {
+        await pauseBtn.click();
+        await sleep(1000);
+        const badge = $(SEL.torrentStateBadge);
+        await expect(badge).toHaveText(expect.stringContaining('paused'), { wait: 5_000 });
+
+        // Click resume
+        const resumeBtn = $(SEL.torrentResumeBtn);
+        await resumeBtn.waitForDisplayed({ timeout: 3_000 });
+        await resumeBtn.click();
+        await sleep(1000);
+        const badgeAfter = $(SEL.torrentStateBadge);
+        const text = await badgeAfter.getText();
+        expect(text.toLowerCase()).not.toContain('paused');
       }
-    } finally {
-      await browser.close();
+    } else {
+      this.skip();
     }
   });
 
-  test('should show add torrent bar with magnet input and file button', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
-      await expect(page.locator(SEL.magnetInput)).toBeVisible({ timeout: 3_000 });
-      await expect(page.locator(SEL.magnetInput)).toHaveAttribute('placeholder', /magnet/i);
-      await expect(page.locator(SEL.addFileBtn)).toBeVisible();
-    } finally {
-      await browser.close();
-    }
-  });
+  it('should remove a torrent', async function () {
+    await navigateTo('Torrents');
 
-  test('should show global speed stats in header', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
-      await expect(page.locator(SEL.globalDlSpeed)).toBeVisible({ timeout: 5_000 });
-      await expect(page.locator(SEL.globalUlSpeed)).toBeVisible();
-    } finally {
-      await browser.close();
-    }
-  });
+    const countBefore = await getCount(SEL.torrentRow);
+    if (countBefore > 0) {
+      const rows = await $$(SEL.torrentRow);
+      await rows[0].click();
 
-  test('should show status bar with speed limit inputs', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
-      await expect(page.locator(SEL.torrentStatusBar)).toBeVisible({ timeout: 3_000 });
-      await expect(page.locator(SEL.speedLimitDl)).toBeVisible();
-      await expect(page.locator(SEL.speedLimitUl)).toBeVisible();
-    } finally {
-      await browser.close();
-    }
-  });
+      const removeBtn = $(SEL.torrentRemoveBtn);
+      const removeVisible = await removeBtn.isDisplayed().catch(() => false);
+      if (removeVisible) {
+        // Handle confirmation dialog
+        await removeBtn.click();
+        await waitAndAcceptAlert();
+        await sleep(2000);
 
-  test('should add magnet link and show torrent in list', async () => {
-    // Uses a well-known public domain torrent (Ubuntu ISO)
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
-
-      const magnetInput = page.locator(SEL.magnetInput);
-      // Use a known valid magnet link for testing
-      const testMagnet = 'magnet:?xt=urn:btih:TESTINFOHASH&dn=test-file';
-      await magnetInput.fill(testMagnet);
-
-      const addBtn = page.locator(SEL.addMagnetBtn);
-      await addBtn.click();
-
-      // Torrent should appear in list (may be in initializing/downloading state)
-      await expect(page.locator(SEL.torrentRow)).toHaveCount(1, { timeout: 15_000 });
-      await expect(page.locator(SEL.torrentStateBadge).first()).toBeVisible();
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should select a torrent and show detail panel', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
-
-      const rows = page.locator(SEL.torrentRow);
-      const count = await rows.count();
-      if (count > 0) {
-        // Click first torrent row
-        await rows.first().click();
-        await expect(page.locator(SEL.torrentDetailPanel)).toBeVisible({ timeout: 3_000 });
-
-        // Tabs should be visible
-        await expect(page.locator(SEL.detailTabFiles)).toBeVisible();
-        await expect(page.locator(SEL.detailTabPeers)).toBeVisible();
-        await expect(page.locator(SEL.detailTabInfo)).toBeVisible();
-      } else {
-        test.skip(true, 'No torrents in list to select');
+        const countAfter = await getCount(SEL.torrentRow);
+        expect(countAfter).toBeLessThan(countBefore);
       }
-    } finally {
-      await browser.close();
+    } else {
+      this.skip();
     }
   });
 
-  test('should switch detail panel tabs', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
+  it('should toggle file checkboxes in detail panel', async function () {
+    await navigateTo('Torrents');
 
-      const rows = page.locator(SEL.torrentRow);
-      if (await rows.count() > 0) {
-        await rows.first().click();
-        await expect(page.locator(SEL.torrentDetailPanel)).toBeVisible({ timeout: 3_000 });
+    const count = await getCount(SEL.torrentRow);
+    if (count > 0) {
+      const rows = await $$(SEL.torrentRow);
+      await rows[0].click();
+      await $(SEL.detailTabFiles).click();
+      await $(SEL.fileTree).waitForDisplayed({ timeout: 3_000 });
 
-        // Click Files tab — should show file tree
-        await page.locator(SEL.detailTabFiles).click();
-        await expect(page.locator(SEL.fileTree)).toBeVisible({ timeout: 3_000 });
+      const checkboxes = $$(SEL.fileCheckbox);
+      if ((await checkboxes.length) > 1) {
+        // Uncheck the second file
+        const secondCheckbox = checkboxes[1];
+        const wasChecked = await secondCheckbox.isSelected();
+        await secondCheckbox.click();
+        const isNowChecked = await secondCheckbox.isSelected();
+        expect(isNowChecked).not.toBe(wasChecked);
 
-        // Click Peers tab — should show peer table
-        await page.locator(SEL.detailTabPeers).click();
-        await expect(page.locator(SEL.peerTable)).toBeVisible({ timeout: 3_000 });
-
-        // Click Info tab — should show info hash
-        await page.locator(SEL.detailTabInfo).click();
-        await expect(page.locator(SEL.torrentInfoHash)).toBeVisible({ timeout: 3_000 });
-      } else {
-        test.skip(true, 'No torrents available for detail view');
+        // Re-check it to restore state
+        await secondCheckbox.click();
       }
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should show progress bar for active torrents', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
-
-      const rows = page.locator(SEL.torrentRow);
-      if (await rows.count() > 0) {
-        // Each row should have a progress bar
-        await expect(page.locator(SEL.torrentProgress).first()).toBeVisible({ timeout: 3_000 });
-      }
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should pause and resume a torrent', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
-
-      const rows = page.locator(SEL.torrentRow);
-      if (await rows.count() > 0) {
-        await rows.first().click();
-
-        // Click pause
-        const pauseBtn = page.locator(SEL.torrentPauseBtn);
-        if (await pauseBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-          await pauseBtn.click();
-          await sleep(1000);
-          await expect(page.locator(SEL.torrentStateBadge).first()).toContainText(/paused/i, { timeout: 5_000 });
-
-          // Click resume
-          const resumeBtn = page.locator(SEL.torrentResumeBtn);
-          await expect(resumeBtn).toBeVisible({ timeout: 3_000 });
-          await resumeBtn.click();
-          await sleep(1000);
-          await expect(page.locator(SEL.torrentStateBadge).first()).not.toContainText(/paused/i, { timeout: 5_000 });
-        }
-      } else {
-        test.skip(true, 'No torrents available to pause/resume');
-      }
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should remove a torrent', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
-
-      const rows = page.locator(SEL.torrentRow);
-      const countBefore = await rows.count();
-      if (countBefore > 0) {
-        await rows.first().click();
-
-        const removeBtn = page.locator(SEL.torrentRemoveBtn);
-        if (await removeBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-          // Handle confirmation dialog
-          page.on('dialog', (dialog) => dialog.accept());
-          await removeBtn.click();
-          await sleep(2000);
-
-          const countAfter = await page.locator(SEL.torrentRow).count();
-          expect(countAfter).toBeLessThan(countBefore);
-        }
-      } else {
-        test.skip(true, 'No torrents available to remove');
-      }
-    } finally {
-      await browser.close();
-    }
-  });
-
-  test('should toggle file checkboxes in detail panel', async () => {
-    const { browser, page } = await connectToApp();
-    try {
-      await navigateTo(page, 'Torrents');
-
-      const rows = page.locator(SEL.torrentRow);
-      if (await rows.count() > 0) {
-        await rows.first().click();
-        await page.locator(SEL.detailTabFiles).click();
-        await expect(page.locator(SEL.fileTree)).toBeVisible({ timeout: 3_000 });
-
-        const checkboxes = page.locator(SEL.fileCheckbox);
-        const checkboxCount = await checkboxes.count();
-        if (checkboxCount > 1) {
-          // Uncheck the second file
-          const secondCheckbox = checkboxes.nth(1);
-          const wasChecked = await secondCheckbox.isChecked();
-          await secondCheckbox.click();
-          const isNowChecked = await secondCheckbox.isChecked();
-          expect(isNowChecked).not.toBe(wasChecked);
-
-          // Re-check it to restore state
-          await secondCheckbox.click();
-        }
-      } else {
-        test.skip(true, 'No torrents available for file selection');
-      }
-    } finally {
-      await browser.close();
+    } else {
+      this.skip();
     }
   });
 });

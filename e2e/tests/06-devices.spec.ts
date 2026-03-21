@@ -1,167 +1,122 @@
-import { test, expect } from '@playwright/test';
 import {
-  connectToApp,
   waitForPort,
   apiDebugInfo,
   navigateTo,
+  hasText,
+  isDisplayed,
+  getCount,
   SEL,
 } from '../helpers';
 
 /**
- * Phase 3 — Devices & Add Device page functional tests (Playwright via CDP)
+ * Phase 3 — Devices & Add Device page functional tests (WebdriverIO + tauri-driver)
  */
 
-test.describe('Devices page', () => {
-  test.beforeAll(async () => {
-    await waitForPort(9222, 15_000);
+describe('Devices page', () => {
+  before(async () => {
     await waitForPort(8080, 15_000);
   });
 
-  test('should display local peer ID on Devices page', async () => {
-    const { browser, page } = await connectToApp();
+  it('should display local peer ID on Devices page', async () => {
+    await navigateTo('My Devices');
 
-    try {
-      await navigateTo(page, 'My Devices');
+    const header = await $('.page-header h2');
+    await expect(header).toHaveText('Devices');
 
-      await expect(page.locator('.page-header h2')).toHaveText('Devices');
+    // "This Device" section should be visible
+    const thisDevice = await $(SEL.thisDevice);
+    await expect(thisDevice).toBeDisplayed({ wait: 5_000 });
 
-      // "This Device" section should be visible
-      await expect(page.locator(SEL.thisDevice)).toBeVisible({ timeout: 5_000 });
+    // Peer ID from the API should appear (truncated) in the UI
+    const info = await apiDebugInfo();
+    const peerIdStart = info.id.substring(0, 8);
+    const peerIdEl = await $(`*=${peerIdStart}`);
+    await expect(peerIdEl).toBeDisplayed({ wait: 5_000 });
 
-      // Peer ID from the API should appear (truncated) in the UI
-      const info = await apiDebugInfo();
-      const peerIdStart = info.id.substring(0, 8);
-      await expect(page.locator(`text=${peerIdStart}`)).toBeVisible({ timeout: 5_000 });
-
-      // Online badge should show
-      await expect(page.locator(SEL.deviceBadgeOnline)).toBeVisible();
-    } finally {
-      await browser.close();
-    }
+    // Online badge should show
+    const onlineBadge = await $(SEL.deviceBadgeOnline);
+    await expect(onlineBadge).toBeDisplayed();
   });
 
-  test('should have Chat button on connected peer cards', async () => {
-    const { browser, page } = await connectToApp();
+  it('should have Chat button on connected peer cards', async () => {
+    await navigateTo('My Devices');
 
-    try {
-      await navigateTo(page, 'My Devices');
+    // Check connected peer cards for Chat buttons
+    const connectedPeerCards = $$('.device-card.peer:not(.offline)');
+    const count = await connectedPeerCards.length;
 
-      // Check connected peer cards for Chat buttons
-      const connectedPeerCards = page.locator('.device-card.peer:not(.offline)');
-      const count = await connectedPeerCards.count();
-
-      if (count > 0) {
-        for (let i = 0; i < count; i++) {
-          const chatBtn = connectedPeerCards.nth(i).locator('.device-actions button:has-text("Chat")');
-          await expect(chatBtn).toBeVisible({ timeout: 3_000 });
-        }
+    if (count > 0) {
+      for (let i = 0; i < count; i++) {
+        const chatBtn = await connectedPeerCards[i].$('.device-actions *=Chat');
+        await expect(chatBtn).toBeDisplayed({ wait: 3_000 });
       }
-      // If no connected peers, test passes — Chat buttons only appear on connected peers
-    } finally {
-      await browser.close();
     }
+    // If no connected peers, test passes — Chat buttons only appear on connected peers
   });
 
-  test('should have Copy Peer ID and Copy SPR buttons', async () => {
-    const { browser, page } = await connectToApp();
+  it('should have Copy Peer ID and Copy SPR buttons', async () => {
+    await navigateTo('My Devices');
 
-    try {
-      await navigateTo(page, 'My Devices');
+    // Copy Peer ID button
+    const copyPeerIdBtn = await hasText('button', 'Copy Peer ID');
+    await expect(copyPeerIdBtn).toBeDisplayed({ wait: 5_000 });
 
-      // Copy Peer ID button
-      const copyPeerIdBtn = page.locator('button:has-text("Copy Peer ID")');
-      await expect(copyPeerIdBtn).toBeVisible({ timeout: 5_000 });
+    // Copy SPR button
+    const copySprBtn = await hasText('button', 'Copy SPR');
+    await expect(copySprBtn).toBeDisplayed({ wait: 5_000 });
 
-      // Copy SPR button
-      const copySprBtn = page.locator('button:has-text("Copy SPR")');
-      await expect(copySprBtn).toBeVisible({ timeout: 5_000 });
-
-      // Click Copy SPR and verify button feedback
-      await copySprBtn.click();
-      await expect(page.locator('button:has-text("Copied!")')).toBeVisible({ timeout: 3_000 });
-    } finally {
-      await browser.close();
-    }
+    // Click Copy SPR and verify button feedback
+    await copySprBtn.click();
+    const copiedBtn = await hasText('button', 'Copied!');
+    await expect(copiedBtn).toBeDisplayed({ wait: 3_000 });
   });
 });
 
-test.describe('Add Device page', () => {
-  test.beforeAll(async () => {
-    await waitForPort(9222, 15_000);
+describe('Add Device page', () => {
+  before(async () => {
+    await waitForPort(8080, 15_000);
   });
 
-  test('should navigate to Add Device page', async () => {
-    const { browser, page } = await connectToApp();
+  it('should navigate to Add Device page', async () => {
+    await navigateTo('Add Device');
 
-    try {
-      await navigateTo(page, 'Add Device');
+    const addDevicePage = await $(SEL.addDevicePage);
+    await expect(addDevicePage).toBeDisplayed({ wait: 5_000 });
 
-      await expect(page.locator(SEL.addDevicePage)).toBeVisible({ timeout: 5_000 });
-      await expect(page.locator('h2:has-text("Add a Device")')).toBeVisible();
+    const heading = await hasText('h2', 'Add a Device');
+    await expect(heading).toBeDisplayed();
 
-      // Peer address textarea should be visible
-      await expect(page.locator(SEL.peerAddressInput)).toBeVisible();
-    } finally {
-      await browser.close();
-    }
+    // Peer address textarea should be visible
+    const peerInput = await $(SEL.peerAddressInput);
+    await expect(peerInput).toBeDisplayed();
   });
 
-  test('should show error on invalid multiaddr', async () => {
-    const { browser, page } = await connectToApp();
+  it('should show error on invalid multiaddr', async () => {
+    await navigateTo('Add Device');
 
-    try {
-      await navigateTo(page, 'Add Device');
+    const textarea = await $(SEL.peerAddressInput);
+    await textarea.setValue('not-a-valid-multiaddr-or-spr');
 
-      const textarea = page.locator(SEL.peerAddressInput);
-      await textarea.fill('not-a-valid-multiaddr-or-spr');
+    // Click Connect
+    const connectBtn = await hasText('button', 'Connect');
+    await connectBtn.click();
 
-      // Click Connect
-      const connectBtn = page.locator('button:has-text("Connect")');
-      await connectBtn.click();
+    // Should transition to connecting, then error
+    // Wait for error state
+    const failedHeading = await hasText('h2', 'Connection Failed');
+    await expect(failedHeading).toBeDisplayed({ wait: 30_000 });
 
-      // Should transition to connecting, then error
-      // Wait for error state
-      await expect(page.locator('h2:has-text("Connection Failed")')).toBeVisible({
-        timeout: 30_000,
-      });
+    // Error details should be visible
+    const wizardError = await $(SEL.wizardError);
+    await expect(wizardError).toBeDisplayed();
 
-      // Error details should be visible
-      await expect(page.locator(SEL.wizardError)).toBeVisible();
-
-      // "Try Again" button should be available
-      await expect(page.locator('button:has-text("Try Again")')).toBeVisible();
-    } finally {
-      await browser.close();
-    }
+    // "Try Again" button should be available
+    const tryAgainBtn = await hasText('button', 'Try Again');
+    await expect(tryAgainBtn).toBeDisplayed();
   });
 
-  test.skip('should return to input state after clicking Try Again', async ({ }, testInfo) => {
+  it.skip('should return to input state after clicking Try Again', async function () {
     // SKIPPED: Connection timeout takes too long (>60s) and the test times out.
-    // The "Connection Failed" state may take 2+ minutes to appear for invalid addresses.
-    testInfo.setTimeout(120_000);
-    const { browser, page } = await connectToApp();
-
-    try {
-      await navigateTo(page, 'Add Device');
-
-      // Enter invalid address, trigger error
-      const textarea = page.locator(SEL.peerAddressInput);
-      await textarea.fill('invalid');
-      await page.locator('button:has-text("Connect")').click();
-
-      // Wait for error (may take up to 45s for connection timeout)
-      await expect(page.locator('h2:has-text("Connection Failed")')).toBeVisible({
-        timeout: 50_000,
-      });
-
-      // Click Try Again
-      await page.locator('button:has-text("Try Again")').click();
-
-      // Should be back on input step
-      await expect(page.locator('h2:has-text("Add a Device")')).toBeVisible({ timeout: 5_000 });
-      await expect(textarea).toBeVisible();
-    } finally {
-      await browser.close();
-    }
+    this.skip();
   });
 });

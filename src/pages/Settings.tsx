@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useFeatures } from '../hooks/useFeatures';
+import { useBackgroundMusic } from '../hooks/useBackgroundMusic';
 
 interface NodeSettings {
   data_directory: string;
@@ -146,6 +147,7 @@ const defaultConfig: AppConfig = {
 };
 
 function Settings() {
+  const { audioLoaded: musicAudioLoaded, loadError: musicLoadError } = useBackgroundMusic();
   const [config, setConfig] = useState<AppConfig>(defaultConfig);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -224,7 +226,13 @@ function Settings() {
       }
     } catch (err) {
       setUpdateStatus('error');
-      setUpdateError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      // 404 or network errors likely mean latest.json doesn't exist in release assets
+      if (msg.includes('404') || msg.includes('network') || msg.includes('fetch')) {
+        setUpdateError('Update manifest not found. Check releases page for latest version.');
+      } else {
+        setUpdateError(msg);
+      }
     }
   };
 
@@ -770,6 +778,26 @@ function Settings() {
       {/* Notification Settings */}
       <div className="settings-section">
         <h3>Notifications</h3>
+        <div className="setting-item">
+          <label>
+            <input
+              type="checkbox"
+              checked={localStorage.getItem('archivist_background_music_enabled') !== 'false'}
+              onChange={(e) => {
+                localStorage.setItem('archivist_background_music_enabled', String(e.target.checked));
+                window.dispatchEvent(new CustomEvent('background-music-toggle', { detail: e.target.checked }));
+              }}
+            />
+            Background music
+            {localStorage.getItem('archivist_background_music_enabled') !== 'false' && (
+              <span style={{ marginLeft: '8px', fontSize: '0.85em', opacity: 0.7 }}>
+                {musicLoadError ? `(failed to load: ${musicLoadError})` :
+                 !musicAudioLoaded ? '(loading...)' : ''}
+              </span>
+            )}
+          </label>
+          <span className="hint">Ambient music that plays during onboarding and app use</span>
+        </div>
         <div className="setting-item">
           <label>
             <input
@@ -1443,7 +1471,26 @@ function Settings() {
               </button>
               {updateStatus === 'up-to-date' && <span style={{ color: 'var(--success-color, #4caf50)' }}>Up to date</span>}
               {updateStatus === 'available' && <span style={{ color: 'var(--warning-color, #ff9800)' }}>v{updateVersion} available</span>}
-              {updateStatus === 'error' && <span style={{ color: 'var(--danger-color, #f44336)' }} title={updateError || undefined}>Update check failed</span>}
+              {updateStatus === 'error' && (
+                <span style={{ color: 'var(--danger-color, #f44336)', display: 'flex', alignItems: 'center', gap: '6px' }} title={updateError || undefined}>
+                  {updateError || 'Update check failed'}
+                  <a
+                    href="#"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      try {
+                        const { open: openUrl } = await import('@tauri-apps/plugin-shell');
+                        await openUrl('https://github.com/durability-labs/archivist-desktop/releases');
+                      } catch {
+                        window.open('https://github.com/durability-labs/archivist-desktop/releases', '_blank');
+                      }
+                    }}
+                    style={{ color: 'var(--link-color, #64b5f6)', whiteSpace: 'nowrap' }}
+                  >
+                    View Releases
+                  </a>
+                </span>
+              )}
             </span>
           </div>
           <div className="about-row">

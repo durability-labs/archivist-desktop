@@ -52,7 +52,8 @@
     ],
     "resources": {
       "resources/intro.webm": "./",
-      "resources/intro.mp4": "./"
+      "resources/intro.mp4": "./",
+      "resources/ripe-fruit.mp3": "./"
     },
     "icon": [
       "icons/32x32.png",

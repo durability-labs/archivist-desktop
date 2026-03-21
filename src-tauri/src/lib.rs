@@ -1,10 +1,10 @@
 mod commands;
 pub mod crypto;
-mod error;
+pub mod error;
 mod features;
 pub mod node_api;
 pub mod path_utils;
-mod services;
+pub mod services;
 mod state;
 
 use services::node::NodeManager;
@@ -151,6 +151,8 @@ pub fn run() {
             commands::remove_archive_task,
             commands::clear_completed_archives,
             commands::get_archived_sites,
+            commands::detect_discourse_forum,
+            commands::upload_archive_to_node,
             // Archive viewer commands
             commands::open_archive_viewer,
             commands::close_archive_viewer,
@@ -521,11 +523,35 @@ pub fn run() {
             let node = state.node.clone();
             let torrent = state.torrent.clone();
             let irc = state.irc.clone();
+            let manifest_server = state.manifest_server.clone();
+            let media_streaming = state.media_streaming.clone();
+            let chat_server = state.chat_server.clone();
+            let media = state.media.clone();
             tauri::async_runtime::block_on(async {
                 // Disconnect IRC
                 let mut irc = irc.write().await;
                 irc.disconnect();
                 drop(irc);
+
+                // Kill all active yt-dlp/ffmpeg child processes
+                let mut media = media.write().await;
+                media.cancel_all_active();
+                drop(media);
+
+                // Stop manifest discovery server
+                let mut manifest_server = manifest_server.write().await;
+                manifest_server.stop();
+                drop(manifest_server);
+
+                // Stop media streaming server
+                let mut media_streaming = media_streaming.write().await;
+                media_streaming.stop();
+                drop(media_streaming);
+
+                // Stop chat TLS server
+                let mut chat_server = chat_server.write().await;
+                chat_server.stop();
+                drop(chat_server);
 
                 // Shutdown torrent session
                 let mut torrent = torrent.write().await;
@@ -534,7 +560,7 @@ pub fn run() {
                 }
                 drop(torrent);
 
-                // Stop node sidecar
+                // Stop node sidecar (last, since other services may use it)
                 let mut node = node.write().await;
                 if let Err(e) = node.stop().await {
                     log::warn!("Sidecar cleanup on exit: {}", e);
@@ -567,12 +593,19 @@ fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>>
                 log::info!("Quit requested from tray");
                 let state = app.state::<AppState>();
                 let node = state.node.clone();
+                let media = state.media.clone();
                 tauri::async_runtime::block_on(async {
+                    // Kill active yt-dlp/ffmpeg processes immediately
+                    let mut media = media.write().await;
+                    media.cancel_all_active();
+                    drop(media);
+
                     let mut node = node.write().await;
                     if let Err(e) = node.stop().await {
                         log::warn!("Sidecar cleanup on quit: {}", e);
                     }
                 });
+                // app.exit(0) triggers RunEvent::Exit which handles remaining cleanup
                 app.exit(0);
             }
             _ => {}
