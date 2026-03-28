@@ -1,4 +1,5 @@
 use crate::error::Result;
+use crate::services::config::fetch_network_config;
 use crate::services::node::{NodeConfig, NodeStatus};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -60,10 +61,46 @@ pub(crate) async fn is_marketplace_contract_available(
 /// If the wallet is unlocked and the marketplace contract is available on-chain,
 /// inject the marketplace credentials into the node config so the sidecar starts
 /// with `persistence` flags.  Otherwise the node starts without marketplace.
+///
+/// Also fetches the latest network config from the remote endpoint to ensure
+/// contract addresses and RPC URLs are up-to-date (not stale hardcoded values).
 async fn try_inject_marketplace_config(state: &AppState) {
     let wallet = state.wallet.read().await;
     if !wallet.is_unlocked() {
         return;
+    }
+
+    // Fetch the active network before doing remote lookup
+    let network = {
+        let config = state.config.read().await;
+        config.get().blockchain.active_network
+    };
+
+    // Fetch live config from remote — updates contract address and RPC if changed
+    if let Some(remote) = fetch_network_config(network).await {
+        let mut config = state.config.write().await;
+        let mut app_config = config.get();
+        let old_contract = app_config.blockchain.marketplace_contract.clone();
+        app_config.blockchain.marketplace_contract = remote.marketplace_contract.clone();
+        if let Some(rpc) = remote.rpc_url {
+            app_config.blockchain.rpc_url = rpc;
+        }
+        if old_contract != remote.marketplace_contract {
+            log::info!(
+                "Updated marketplace contract from remote config: {} -> {}",
+                old_contract,
+                remote.marketplace_contract
+            );
+        }
+        let _ = config.update(app_config);
+    } else {
+        log::warn!("Could not fetch remote network config — using persisted/hardcoded values");
+    }
+
+    // Also set the correct sidecar name for this network
+    {
+        let mut node = state.node.write().await;
+        node.set_sidecar_name(NodeConfig::sidecar_name_for_network(network));
     }
 
     let config = state.config.read().await;
@@ -74,8 +111,10 @@ async fn try_inject_marketplace_config(state: &AppState) {
 
     if !is_marketplace_contract_available(&rpc_url, &contract).await {
         log::warn!(
-            "Skipping marketplace flags — contract not available. \
-             Node will start without marketplace features."
+            "Skipping marketplace flags — contract {} not available on {}. \
+             Node will start without marketplace features.",
+            contract,
+            rpc_url
         );
         // Clear any previously-set marketplace config so the node starts clean
         let mut node = state.node.write().await;

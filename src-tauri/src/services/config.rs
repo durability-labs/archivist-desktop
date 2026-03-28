@@ -27,7 +27,7 @@ impl ArchivistNetwork {
 
     pub fn default_marketplace_contract(&self) -> &'static str {
         match self {
-            Self::Devnet => "0x766e6E608E1FeB762b429155574016D1106b8D04",
+            Self::Devnet => "0xd9A453E8B5139E2E55Cf5B4049F8b7a6832c3d29",
             Self::Testnet => "0x9A110Ae7DC8916Fa741e38caAf204c3ace3eAB0c",
         }
     }
@@ -87,6 +87,11 @@ pub async fn fetch_token_from_marketplace(rpc_url: &str, marketplace: &str) -> O
 /// Fetch the marketplace contract address from the remote config endpoint.
 /// Returns `None` on any failure (network error, bad format, etc.).
 pub async fn fetch_remote_marketplace_contract(network: ArchivistNetwork) -> Option<String> {
+    // Prefer the full JSON config which is the source of truth
+    if let Some(remote) = fetch_network_config(network).await {
+        return Some(remote.marketplace_contract);
+    }
+    // Fallback: try the legacy single-value endpoint
     let url = format!("{}/marketplace", network.config_base_url());
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
@@ -106,6 +111,104 @@ pub async fn fetch_remote_marketplace_contract(network: ArchivistNetwork) -> Opt
     } else {
         None
     }
+}
+
+/// Parsed subset of the remote {network}.json configuration.
+/// Source of truth: `https://config.archivist.storage/{devnet|testnet}.json`
+#[derive(Debug, Clone)]
+pub struct RemoteNetworkConfig {
+    /// The latest supported archivist-node version (e.g., "96d45e5" or "v0.2.0")
+    pub latest_version: String,
+    /// Marketplace smart contract address
+    pub marketplace_contract: String,
+    /// RPC endpoint URL (from `rpcs[0]`)
+    pub rpc_url: Option<String>,
+    /// Bootstrap peer SPR records
+    pub sprs: Vec<String>,
+}
+
+/// Fetch the full network configuration JSON from the remote config endpoint.
+/// Returns `None` on any failure (network error, bad format, etc.).
+pub async fn fetch_network_config(network: ArchivistNetwork) -> Option<RemoteNetworkConfig> {
+    let url = format!("{}.json", network.config_base_url());
+    log::info!("Fetching network config from {}", url);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .ok()?;
+
+    let resp = client.get(&url).send().await.ok()?;
+    if !resp.status().is_success() {
+        log::warn!(
+            "Failed to fetch network config from {}: HTTP {}",
+            url,
+            resp.status()
+        );
+        return None;
+    }
+
+    let json: serde_json::Value = resp.json().await.ok()?;
+
+    // Extract latest version
+    let latest_version = json["latest"].as_str()?.to_string();
+
+    // Extract marketplace contract from marketplace[0].contractAddress
+    let marketplace_contract = json["marketplace"]
+        .as_array()?
+        .first()?
+        .get("contractAddress")?
+        .as_str()?
+        .to_string();
+
+    // Validate contract address format
+    if !marketplace_contract.starts_with("0x")
+        || marketplace_contract.len() != 42
+        || !marketplace_contract[2..]
+            .chars()
+            .all(|c| c.is_ascii_hexdigit())
+    {
+        log::warn!(
+            "Invalid marketplace contract address in remote config: {}",
+            marketplace_contract
+        );
+        return None;
+    }
+
+    // Extract RPC URL from rpcs[0]
+    let rpc_url = json["rpcs"]
+        .as_array()
+        .and_then(|arr| arr.first())
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    // Extract SPR records from sprs[0].records
+    let sprs: Vec<String> = json["sprs"]
+        .as_array()
+        .and_then(|arr| arr.first())
+        .and_then(|v| v.get("records"))
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    log::info!(
+        "Fetched network config: version={}, marketplace={}, rpc={:?}, sprs={}",
+        latest_version,
+        marketplace_contract,
+        rpc_url,
+        sprs.len()
+    );
+
+    Some(RemoteNetworkConfig {
+        latest_version,
+        marketplace_contract,
+        rpc_url,
+        sprs,
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

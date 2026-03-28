@@ -79,6 +79,9 @@ pub struct NodeConfig {
     pub log_level: String, // Log level: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL
     /// Optional external IP. When set, uses --nat=extip:<ip> instead of --nat=upnp.
     pub announce_ip: Option<String>,
+    /// Which sidecar binary to use ("archivist" for testnet, "archivist-devnet" for devnet)
+    #[serde(skip)]
+    pub sidecar_name: String,
     // Marketplace fields (set at runtime, not serialized to frontend)
     #[serde(skip)]
     pub eth_private_key: Option<String>,
@@ -108,6 +111,7 @@ impl Default for NodeConfig {
             health_check_interval_secs: 30,
             log_level: "DEBUG".to_string(), // Good balance for debugging
             announce_ip: None,
+            sidecar_name: "archivist".to_string(),
             eth_private_key: None,
             marketplace_address: None,
             eth_provider_url: None,
@@ -130,9 +134,18 @@ impl NodeConfig {
             health_check_interval_secs: 30,
             log_level: settings.log_level.clone(),
             announce_ip: settings.announce_ip.clone(),
+            sidecar_name: "archivist".to_string(),
             eth_private_key: None,
             marketplace_address: None,
             eth_provider_url: None,
+        }
+    }
+
+    /// Returns the sidecar name for a given network
+    pub fn sidecar_name_for_network(network: crate::services::config::ArchivistNetwork) -> String {
+        match network {
+            crate::services::config::ArchivistNetwork::Devnet => "archivist-devnet".to_string(),
+            crate::services::config::ArchivistNetwork::Testnet => "archivist".to_string(),
         }
     }
 }
@@ -333,8 +346,20 @@ impl NodeService {
         let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let sidecar_command = app_handle
             .shell()
-            .sidecar("archivist")
-            .map_err(|e| ArchivistError::NodeStartFailed(format!("Sidecar not found: {}", e)))?
+            .sidecar(&self.config.sidecar_name)
+            .map_err(|e| {
+                if self.config.sidecar_name.contains("devnet") {
+                    ArchivistError::NodeStartFailed(format!(
+                        "Devnet sidecar binary not available for this platform. \
+                         Build from archivist-node main branch — see \
+                         src-tauri/sidecars/DEVNET-SIDECAR-BUILD.md for instructions. \
+                         Original error: {}",
+                        e
+                    ))
+                } else {
+                    ArchivistError::NodeStartFailed(format!("Sidecar not found: {}", e))
+                }
+            })?
             .args(&args_refs);
 
         // Spawn the sidecar process
@@ -863,6 +888,11 @@ impl NodeService {
     /// Update node configuration (requires restart to take effect)
     pub fn set_config(&mut self, config: NodeConfig) {
         self.config = config;
+    }
+
+    /// Set the sidecar binary name (e.g., "archivist" for testnet, "archivist-devnet" for devnet)
+    pub fn set_sidecar_name(&mut self, name: String) {
+        self.config.sidecar_name = name;
     }
 
     /// Set marketplace-related config fields (private key, contract address, RPC URL)

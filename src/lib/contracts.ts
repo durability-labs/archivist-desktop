@@ -28,7 +28,7 @@ export const NETWORK_PRESETS: Record<ArchivistNetworkId, {
   devnet: {
     name: 'Devnet',
     rpcUrl: 'https://rpc.devnet.archivist.storage',
-    marketplace: '0x766e6E608E1FeB762b429155574016D1106b8D04',
+    marketplace: '0xd9A453E8B5139E2E55Cf5B4049F8b7a6832c3d29',
     token: '0xe2566cc08913e2d8ece3517e635335880c1c400a',
     explorerBaseUrl: 'https://explorer.devnet.archivist.storage',
   },

@@ -57,8 +57,10 @@ impl AppState {
             cfg
         };
 
-        // Create NodeConfig from persisted settings
-        let node_config = NodeConfig::from_node_settings(&app_config.node);
+        // Create NodeConfig from persisted settings, with network-appropriate sidecar binary
+        let mut node_config = NodeConfig::from_node_settings(&app_config.node);
+        node_config.sidecar_name =
+            NodeConfig::sidecar_name_for_network(app_config.blockchain.active_network);
 
         log::info!(
             "Initializing NodeService with config: api_port={}, discovery_port={}, listen_port={}, data_dir={}",

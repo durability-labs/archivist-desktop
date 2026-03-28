@@ -48,7 +48,8 @@
     "active": true,
     "targets": "all",
     "externalBin": [
-      "sidecars/archivist"
+      "sidecars/archivist",
+      "sidecars/archivist-devnet"
     ],
     "resources": {
       "resources/intro.webm": "./",

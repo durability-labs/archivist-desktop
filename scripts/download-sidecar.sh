@@ -218,16 +218,64 @@ download_for_target() {
     download_binary "$platform" "$target"
 }
 
+# Place the devnet sidecar binary (built from archivist-node main branch)
+# Requires ARCHIVIST_DEVNET_BINARY env var pointing to a pre-built binary,
+# or the binary is already in the sidecars directory.
+place_devnet_binary() {
+    local target="$1"
+    local devnet_name="archivist-devnet-${target}"
+
+    if [[ "$target" == *"windows"* ]]; then
+        devnet_name="${devnet_name}.exe"
+    fi
+
+    mkdir -p "${SIDECARS_DIR}"
+
+    if [[ -n "${ARCHIVIST_DEVNET_BINARY:-}" ]]; then
+        if [[ -f "${ARCHIVIST_DEVNET_BINARY}" ]]; then
+            echo "Placing devnet sidecar from ARCHIVIST_DEVNET_BINARY..."
+            cp "${ARCHIVIST_DEVNET_BINARY}" "${SIDECARS_DIR}/${devnet_name}"
+            chmod +x "${SIDECARS_DIR}/${devnet_name}"
+            echo "Devnet binary installed to: ${SIDECARS_DIR}/${devnet_name}"
+        else
+            echo "WARNING: ARCHIVIST_DEVNET_BINARY set but file not found: ${ARCHIVIST_DEVNET_BINARY}"
+            echo "         Devnet sidecar will not be available."
+        fi
+    elif [[ -f "${SIDECARS_DIR}/${devnet_name}" ]]; then
+        echo "Devnet sidecar already present: ${SIDECARS_DIR}/${devnet_name}"
+    else
+        echo "NOTE: No real devnet sidecar binary available for ${target}."
+        echo "      Creating placeholder so Tauri can build."
+        echo "      To enable devnet support, build archivist-node from the main branch of"
+        echo "      https://github.com/durability-labs/archivist-node and either:"
+        echo "        - Set ARCHIVIST_DEVNET_BINARY=/path/to/binary before running this script"
+        echo "        - Copy it manually to ${SIDECARS_DIR}/${devnet_name}"
+        echo "      See src-tauri/sidecars/DEVNET-SIDECAR-BUILD.md for full instructions."
+
+        # Create a placeholder so Tauri build doesn't fail
+        if [[ "$target" == *"windows"* ]]; then
+            # Empty file for Windows (can't use shell script)
+            touch "${SIDECARS_DIR}/${devnet_name}"
+        else
+            # Shell script that prints an error for Unix platforms
+            printf '#!/bin/sh\necho "ERROR: Devnet sidecar not available for this platform. Build from archivist-node main branch." >&2\nexit 1\n' > "${SIDECARS_DIR}/${devnet_name}"
+            chmod +x "${SIDECARS_DIR}/${devnet_name}"
+        fi
+    fi
+}
+
 # Main
 main() {
     if [[ -n "$1" ]]; then
         # Target specified as argument
         download_for_target "$1"
+        place_devnet_binary "$1"
     else
         # Auto-detect current platform
         local platform=$(detect_platform)
         local target=$(get_tauri_target)
         download_binary "$platform" "$target"
+        place_devnet_binary "$target"
     fi
 
     echo ""
