@@ -149,9 +149,11 @@ pub struct PeerInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageAsk {
+    #[serde(default, deserialize_with = "deserialize_string_or_u64")]
     pub slots: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_string_or_u64")]
     pub slot_size: u64,
+    #[serde(deserialize_with = "deserialize_string_or_u64")]
     pub duration: u64,
     #[serde(default)]
     pub proof_probability: String,
@@ -159,7 +161,7 @@ pub struct StorageAsk {
     pub price_per_byte_per_second: String,
     #[serde(default, rename = "collateralPerByte")]
     pub collateral_per_byte: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_string_or_u64")]
     pub max_slot_loss: u64,
 }
 
@@ -180,7 +182,7 @@ pub struct StorageRequest {
     pub client: String,
     pub ask: StorageAsk,
     pub content: StorageContent,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_string_or_u64")]
     pub expiry: u64,
     #[serde(default)]
     pub nonce: String,
@@ -191,8 +193,30 @@ pub struct StorageRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SalesSlot {
     pub request: StorageRequest,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_string_or_u64")]
     pub slot_index: u64,
+}
+
+/// Deserialize a JSON value that may be a string or number into a u64.
+/// The devnet sidecar returns some numeric fields as strings (e.g., "2592000").
+fn deserialize_string_or_u64<'de, D>(deserializer: D) -> std::result::Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::Number(n) => n
+            .as_u64()
+            .ok_or_else(|| serde::de::Error::custom("expected u64")),
+        serde_json::Value::String(s) => s
+            .parse::<u64>()
+            .map_err(|_| serde::de::Error::custom(format!("cannot parse '{}' as u64", s))),
+        serde_json::Value::Null => Ok(0),
+        other => Err(serde::de::Error::custom(format!(
+            "expected number or string, got {}",
+            other
+        ))),
+    }
 }
 
 /// Deserialize a JSON value that may be a number or string into a String.
