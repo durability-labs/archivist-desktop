@@ -6,7 +6,7 @@ use crate::services::node::NodeConfig;
 use crate::services::wallet::{WalletBalances, WalletInfo};
 use crate::state::AppState;
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 pub async fn get_wallet_info(state: State<'_, AppState>) -> Result<WalletInfo> {
@@ -55,6 +55,86 @@ pub async fn export_wallet(state: State<'_, AppState>, password: String) -> Resu
 pub async fn unlock_wallet(state: State<'_, AppState>, password: String) -> Result<WalletInfo> {
     let mut wallet = state.wallet.write().await;
     wallet.unlock_wallet(&password)
+}
+
+/// Unlock the wallet and restart the node with marketplace credentials in one
+/// atomic operation.  This avoids the intermediate "Marketplace not active"
+/// banner that appeared when unlock and restart were two separate frontend calls.
+#[tauri::command]
+pub async fn unlock_wallet_and_restart(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+    password: String,
+) -> Result<WalletInfo> {
+    log::info!("unlock_wallet_and_restart: starting");
+
+    // 1. Unlock wallet
+    {
+        let mut wallet = state.wallet.write().await;
+        wallet.unlock_wallet(&password)?;
+        log::info!(
+            "unlock_wallet_and_restart: wallet unlocked, has_key={}",
+            wallet.is_unlocked()
+        );
+    }
+
+    // 2. Inject marketplace config (fetches remote config + checks contract)
+    log::info!("unlock_wallet_and_restart: injecting marketplace config...");
+    super::node::try_inject_marketplace_config(&state).await;
+    log::info!("unlock_wallet_and_restart: marketplace config injected");
+
+    // 3. Restart node with new config
+    {
+        let mut node = state.node.write().await;
+        let cfg = node.get_config();
+        log::info!(
+            "unlock_wallet_and_restart: restarting node (sidecar={}, has_eth_key={}, marketplace_addr={:?})",
+            cfg.sidecar_name,
+            cfg.eth_private_key.is_some(),
+            cfg.marketplace_address
+        );
+        node.restart(&app_handle).await?;
+
+        // 4. Wait for API ready (up to 30 seconds)
+        for i in 0..30 {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            if node.health_check().await.unwrap_or(false) {
+                log::info!("unlock_wallet_and_restart: node API ready after {}s", i + 1);
+                break;
+            }
+        }
+    }
+
+    // 5. Return updated wallet info with marketplace status
+    let wallet = state.wallet.read().await;
+    let mut info = wallet.get_wallet_info().await?;
+    drop(wallet);
+
+    log::info!(
+        "unlock_wallet_and_restart: wallet info — marketplace_active={}, is_unlocked={}, has_key={}",
+        info.marketplace_active,
+        info.is_unlocked,
+        info.has_key
+    );
+
+    // Check if marketplace contract is available on-chain
+    if info.has_key && info.is_unlocked && !info.marketplace_active {
+        let config = state.config.read().await;
+        let app_config = config.get();
+        let rpc_url = app_config.blockchain.rpc_url.clone();
+        let contract = app_config.blockchain.marketplace_contract.clone();
+        drop(config);
+
+        let available = super::node::is_marketplace_contract_available(&rpc_url, &contract).await;
+        info.marketplace_unavailable = !available;
+        log::info!(
+            "unlock_wallet_and_restart: contract available={}, marketplace_unavailable={}",
+            available,
+            info.marketplace_unavailable
+        );
+    }
+
+    Ok(info)
 }
 
 #[tauri::command]

@@ -192,6 +192,7 @@ pub fn run() {
             commands::import_wallet,
             commands::export_wallet,
             commands::unlock_wallet,
+            commands::unlock_wallet_and_restart,
             commands::delete_wallet,
             commands::get_wallet_balances,
             commands::switch_network,

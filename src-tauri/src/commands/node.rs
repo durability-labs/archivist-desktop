@@ -64,7 +64,7 @@ pub(crate) async fn is_marketplace_contract_available(
 ///
 /// Also fetches the latest network config from the remote endpoint to ensure
 /// contract addresses and RPC URLs are up-to-date (not stale hardcoded values).
-async fn try_inject_marketplace_config(state: &AppState) {
+pub(crate) async fn try_inject_marketplace_config(state: &AppState) {
     let wallet = state.wallet.read().await;
     if !wallet.is_unlocked() {
         return;

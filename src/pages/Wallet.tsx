@@ -311,13 +311,9 @@ export default function Wallet() {
                       setBannerError(null);
                       setRestarting(true);
                       try {
-                        await invoke('unlock_wallet', { password: bannerPassword });
+                        await invoke('unlock_wallet_and_restart', { password: bannerPassword });
                         setBannerPassword('');
-                        await invoke('restart_node');
-                        for (let i = 0; i < 5; i++) {
-                          await new Promise(r => setTimeout(r, 2000));
-                          await refresh();
-                        }
+                        await refresh();
                       } catch (err) {
                         setBannerError(String(err));
                       }

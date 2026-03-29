@@ -333,7 +333,13 @@ impl NodeService {
                 }
             }
 
-            args.push("persistence".to_string());
+            // Devnet binary uses --persistence flag; testnet (v0.2.0) uses
+            // `persistence` as a positional subcommand
+            if self.config.sidecar_name.contains("devnet") {
+                args.push("--persistence".to_string());
+            } else {
+                args.push("persistence".to_string());
+            }
             args.push(format!("--eth-private-key={}", key_path.to_string_lossy()));
             if let Some(ref addr) = self.config.marketplace_address {
                 args.push(format!("--marketplace-address={}", addr));
