@@ -24,7 +24,7 @@ export default function Marketplace() {
     error,
     refresh,
   } = useMarketplace();
-  const { wallet } = useWallet();
+  const { wallet, loading: walletLoading } = useWallet();
   const navigate = useNavigate();
 
   // Provider form state
@@ -127,8 +127,8 @@ export default function Marketplace() {
 
       {error && <div className="mp-error">{error}</div>}
 
-      {/* Marketplace readiness banner */}
-      {!wallet?.hasKey && (
+      {/* Marketplace readiness banner — hide while wallet state is loading to avoid flash */}
+      {!walletLoading && !wallet?.hasKey && (
         <div className="mp-section" style={{ background: 'rgba(255, 170, 0, 0.08)', borderColor: 'var(--color-warning, #ffaa00)' }}>
           <h2>Set up your wallet to get started</h2>
           <p style={{ color: 'var(--text-dim)', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
@@ -140,7 +140,7 @@ export default function Marketplace() {
         </div>
       )}
 
-      {wallet?.hasKey && !wallet?.marketplaceActive && (
+      {!walletLoading && wallet?.hasKey && !wallet?.marketplaceActive && (
         <div className="mp-error" style={{ background: 'rgba(255, 170, 0, 0.1)', borderColor: 'var(--color-warning, #ffaa00)' }}>
           {wallet?.marketplaceUnavailable
             ? 'Marketplace contract not available on current network. Switch networks from the Wallet page.'
