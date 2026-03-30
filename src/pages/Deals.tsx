@@ -3,7 +3,7 @@ import { useMarketplace, type Purchase, type SalesSlot } from '../hooks/useMarke
 import '../styles/Marketplace.css';
 
 export default function Deals() {
-  const { slots, purchases, getPurchase, error, refresh } = useMarketplace();
+  const { slots, purchases, getPurchase, error, refresh, loading } = useMarketplace();
   const [expandedPurchase, setExpandedPurchase] = useState<string | null>(null);
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null);
   const [purchaseDetails, setPurchaseDetails] = useState<Record<string, Purchase>>({});
@@ -43,7 +43,9 @@ export default function Deals() {
           <button className="mp-refresh-btn" onClick={refresh}>Refresh</button>
         </div>
 
-        {purchases.length === 0 ? (
+        {loading ? (
+          <div className="mp-empty">Loading purchases...</div>
+        ) : purchases.length === 0 ? (
           <div className="mp-empty">No purchases yet. Request storage from the Marketplace page.</div>
         ) : (
           <table className="mp-table">
@@ -82,7 +84,9 @@ export default function Deals() {
       <div className="mp-section">
         <h2>My Slots</h2>
 
-        {slots.length === 0 ? (
+        {loading ? (
+          <div className="mp-empty">Loading slots...</div>
+        ) : slots.length === 0 ? (
           <div className="mp-empty">No active slots. Offer storage availability from the Marketplace page.</div>
         ) : (
           <table className="mp-table">
