@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useMarketplace } from '../hooks/useMarketplace';
 import { useWallet } from '../hooks/useWallet';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import '../styles/Marketplace.css';
 
 interface FileItem {
@@ -408,7 +408,7 @@ export default function Marketplace() {
               </tbody>
             </table>
             <p style={{ color: 'var(--text-dim)', fontSize: '0.8rem', marginTop: '0.5rem' }}>
-              View full purchase details on the <a href="/deals" style={{ color: 'var(--color-link)' }}>Deals</a> page.
+              View full purchase details on the <Link to="/marketplace/deals" style={{ color: 'var(--color-link)' }}>Deals</Link> page.
             </p>
           </>
         )}
