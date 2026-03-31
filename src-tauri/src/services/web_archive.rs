@@ -55,6 +55,9 @@ pub struct ArchiveOptions {
     /// Whether to fetch user profiles in discourse mode (default true)
     #[serde(default)]
     pub fetch_user_profiles: Option<bool>,
+    /// Custom output directory for the archive ZIP (default: app data dir)
+    #[serde(default)]
+    pub output_dir: Option<String>,
 }
 
 /// A tracked archive task in the queue
@@ -799,6 +802,99 @@ fn extract_assets(html: &str, page_url: &Url) -> Vec<AssetRef> {
         }
     }
 
+    // Video elements
+    if let Ok(sel) = Selector::parse("video[src]") {
+        for el in document.select(&sel) {
+            if let Some(src) = el.value().attr("src") {
+                if src.starts_with("data:") {
+                    continue;
+                }
+                if let Ok(url) = page_url.join(src) {
+                    let path = asset_url_to_path(&url);
+                    assets.push(AssetRef {
+                        url,
+                        relative_path: path,
+                    });
+                }
+            }
+        }
+    }
+
+    // Video poster images
+    if let Ok(sel) = Selector::parse("video[poster]") {
+        for el in document.select(&sel) {
+            if let Some(poster) = el.value().attr("poster") {
+                if let Ok(url) = page_url.join(poster) {
+                    let path = asset_url_to_path(&url);
+                    assets.push(AssetRef {
+                        url,
+                        relative_path: path,
+                    });
+                }
+            }
+        }
+    }
+
+    // Audio elements
+    if let Ok(sel) = Selector::parse("audio[src]") {
+        for el in document.select(&sel) {
+            if let Some(src) = el.value().attr("src") {
+                if src.starts_with("data:") {
+                    continue;
+                }
+                if let Ok(url) = page_url.join(src) {
+                    let path = asset_url_to_path(&url);
+                    assets.push(AssetRef {
+                        url,
+                        relative_path: path,
+                    });
+                }
+            }
+        }
+    }
+
+    // Source elements (inside video/audio)
+    if let Ok(sel) = Selector::parse("source[src]") {
+        for el in document.select(&sel) {
+            if let Some(src) = el.value().attr("src") {
+                if src.starts_with("data:") {
+                    continue;
+                }
+                if let Ok(url) = page_url.join(src) {
+                    let path = asset_url_to_path(&url);
+                    assets.push(AssetRef {
+                        url,
+                        relative_path: path,
+                    });
+                }
+            }
+        }
+    }
+
+    // Media file links (anchors pointing to media files)
+    if let Ok(sel) = Selector::parse("a[href]") {
+        for el in document.select(&sel) {
+            if let Some(href) = el.value().attr("href") {
+                let lower = href.to_lowercase();
+                let is_media = [
+                    ".mp3", ".mp4", ".webm", ".ogg", ".wav", ".flac", ".aac", ".gif", ".svg",
+                    ".avi", ".mkv", ".mov", ".m4a", ".opus",
+                ]
+                .iter()
+                .any(|ext| lower.ends_with(ext));
+                if is_media {
+                    if let Ok(url) = page_url.join(href) {
+                        let path = asset_url_to_path(&url);
+                        assets.push(AssetRef {
+                            url,
+                            relative_path: path,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     assets
 }
 
@@ -954,6 +1050,43 @@ fn rewrite_html_refs(html: &str, page_url: &Url, root_url: &Url) -> String {
                     let relative = compute_relative_path(&current_path, &asset_path);
                     let old_attr = format!("href=\"{}\"", href);
                     let new_attr = format!("href=\"{}\"", relative);
+                    result = result.replacen(&old_attr, &new_attr, 1);
+                }
+            }
+        }
+    }
+
+    // Rewrite <video src>, <audio src>, <source src>
+    for selector_str in &["video[src]", "audio[src]", "source[src]"] {
+        if let Ok(sel) = Selector::parse(selector_str) {
+            for el in document.select(&sel) {
+                if let Some(src) = el.value().attr("src") {
+                    if src.starts_with("data:") {
+                        continue;
+                    }
+                    if let Ok(resolved) = page_url.join(src) {
+                        let asset_path = asset_url_to_path(&resolved);
+                        let current_path = url_to_path(root_url, page_url);
+                        let relative = compute_relative_path(&current_path, &asset_path);
+                        let old_attr = format!("src=\"{}\"", src);
+                        let new_attr = format!("src=\"{}\"", relative);
+                        result = result.replacen(&old_attr, &new_attr, 1);
+                    }
+                }
+            }
+        }
+    }
+
+    // Rewrite <video poster>
+    if let Ok(sel) = Selector::parse("video[poster]") {
+        for el in document.select(&sel) {
+            if let Some(poster) = el.value().attr("poster") {
+                if let Ok(resolved) = page_url.join(poster) {
+                    let asset_path = asset_url_to_path(&resolved);
+                    let current_path = url_to_path(root_url, page_url);
+                    let relative = compute_relative_path(&current_path, &asset_path);
+                    let old_attr = format!("poster=\"{}\"", poster);
+                    let new_attr = format!("poster=\"{}\"", relative);
                     result = result.replacen(&old_attr, &new_attr, 1);
                 }
             }
@@ -1411,10 +1544,14 @@ async fn run_archive_pipeline(
 
     let zip_size = std::fs::metadata(&zip_path).map(|m| m.len()).unwrap_or(0);
 
-    let archives_dir = dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("archivist")
-        .join("archives");
+    let archives_dir = if let Some(ref custom_dir) = task.options.output_dir {
+        PathBuf::from(custom_dir)
+    } else {
+        dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("archivist")
+            .join("archives")
+    };
     std::fs::create_dir_all(&archives_dir).map_err(|e| {
         ArchivistError::WebArchiveError(format!("Failed to create archives directory: {}", e))
     })?;
@@ -1737,10 +1874,14 @@ async fn run_discourse_pipeline(
         zip_size
     );
 
-    let archives_dir = dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("archivist")
-        .join("archives");
+    let archives_dir = if let Some(ref custom_dir) = task.options.output_dir {
+        PathBuf::from(custom_dir)
+    } else {
+        dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("archivist")
+            .join("archives")
+    };
     std::fs::create_dir_all(&archives_dir).map_err(|e| {
         ArchivistError::WebArchiveError(format!("Failed to create archives directory: {}", e))
     })?;
@@ -1872,6 +2013,7 @@ mod tests {
             discourse_mode: None,
             max_topics: None,
             fetch_user_profiles: None,
+            output_dir: None,
         }
     }
 

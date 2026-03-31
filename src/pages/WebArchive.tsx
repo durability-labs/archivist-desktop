@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useWebArchive } from '../hooks/useWebArchive';
 import type { ArchiveTask } from '../lib/archiveTypes';
 import '../styles/WebArchive.css';
@@ -86,6 +87,11 @@ export default function WebArchive() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [uploadingPath, setUploadingPath] = useState<string | null>(null);
+  const [uploadResult, setUploadResult] = useState<{ path: string; cid?: string; error?: string } | null>(null);
+  const [outputDir, setOutputDir] = useState<string | null>(() => {
+    return localStorage.getItem('web_archive_output_dir');
+  });
 
   // Discourse forum detection
   const [isDiscourse, setIsDiscourse] = useState(false);
@@ -126,6 +132,7 @@ export default function WebArchive() {
         discourseMode: forumMode ? true : undefined,
         maxTopics: forumMode ? maxTopics : undefined,
         fetchUserProfiles: forumMode ? fetchUserProfiles : undefined,
+        outputDir: outputDir || undefined,
       });
       setUrl('');
     } catch (e) {
@@ -139,7 +146,7 @@ export default function WebArchive() {
     } finally {
       setSubmitting(false);
     }
-  }, [url, maxDepth, maxPages, includeAssets, singlePage, excludePatterns, forumMode, maxTopics, fetchUserProfiles, forumRequestDelay, queueArchive]);
+  }, [url, maxDepth, maxPages, includeAssets, singlePage, excludePatterns, forumMode, maxTopics, fetchUserProfiles, forumRequestDelay, outputDir, queueArchive]);
 
   const handleUrlBlur = useCallback(async () => {
     const trimmedUrl = url.trim();
@@ -251,6 +258,34 @@ export default function WebArchive() {
           >
             {submitting ? 'Queuing...' : 'Archive'}
           </button>
+        </div>
+
+        <div className="output-dir-row">
+          <label>Save to:</label>
+          <code className="output-dir-path">{outputDir || '~/.local/share/archivist/archives (default)'}</code>
+          <button
+            className="browse-btn"
+            onClick={async () => {
+              const selected = await open({ directory: true, title: 'Choose archive save location' });
+              if (selected) {
+                setOutputDir(selected as string);
+                localStorage.setItem('web_archive_output_dir', selected as string);
+              }
+            }}
+          >
+            Browse
+          </button>
+          {outputDir && (
+            <button
+              className="browse-btn"
+              onClick={() => {
+                setOutputDir(null);
+                localStorage.removeItem('web_archive_output_dir');
+              }}
+            >
+              Reset
+            </button>
+          )}
         </div>
 
         {submitError && <div className="submit-error">{submitError}</div>}
@@ -469,18 +504,34 @@ export default function WebArchive() {
                     </button>
                   )}
                   {site.localPath && !site.cid && (
-                    <button
-                      className="upload-btn"
-                      onClick={async () => {
-                        try {
-                          await uploadToNode(site.localPath!);
-                        } catch (e) {
-                          console.error('Upload failed:', e);
-                        }
-                      }}
-                    >
-                      Upload to Node
-                    </button>
+                    <>
+                      <button
+                        className="upload-btn"
+                        disabled={uploadingPath === site.localPath}
+                        onClick={async () => {
+                          setUploadingPath(site.localPath!);
+                          setUploadResult(null);
+                          try {
+                            const cid = await uploadToNode(site.localPath!);
+                            setUploadResult({ path: site.localPath!, cid });
+                          } catch (e) {
+                            setUploadResult({ path: site.localPath!, error: String(e) });
+                          } finally {
+                            setUploadingPath(null);
+                          }
+                        }}
+                      >
+                        {uploadingPath === site.localPath ? 'Uploading...' : 'Upload to Node'}
+                      </button>
+                      {uploadResult?.path === site.localPath && uploadResult.error && (
+                        <span className="upload-error" title={uploadResult.error}>Upload failed</span>
+                      )}
+                    </>
+                  )}
+                  {uploadResult?.path === site.localPath && uploadResult.cid && !site.cid && (
+                    <div className="archived-cid" title={uploadResult.cid}>
+                      CID: {uploadResult.cid.slice(0, 12)}...
+                    </div>
                   )}
                   {site.cid && (
                     <div className="archived-cid" title={site.cid}>

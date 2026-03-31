@@ -1,6 +1,6 @@
 {
   "name": "archivist-desktop",
-  "version": "0.2.3",
+  "version": "0.2.5",
   "private": true,
   "description": "Archivist Desktop - Decentralized Storage Client",
   "type": "module",

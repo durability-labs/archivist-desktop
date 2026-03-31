@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { usePeers } from '../hooks/usePeers';
+import SensitiveField from '../components/SensitiveField';
 
 function Peers() {
   const {
@@ -53,7 +54,7 @@ function Peers() {
           <h3>Your Node</h3>
           <div className="node-id">
             <span className="label">Peer ID:</span>
-            <code>{peerList.localPeerId}</code>
+            <SensitiveField value={peerList.localPeerId!} copyable />
           </div>
           {peerList.localAddresses.length > 0 && (
             <div className="node-addresses">

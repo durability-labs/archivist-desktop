@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useMarketplace } from '../hooks/useMarketplace';
 import { useWallet } from '../hooks/useWallet';
 import { useNavigate, Link } from 'react-router-dom';
+import InfoTooltip from '../components/InfoTooltip';
 import '../styles/Marketplace.css';
 
 interface FileItem {
@@ -209,7 +210,7 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Duration (seconds)</label>
+              <label>Duration (seconds)<InfoTooltip text="How long you're offering to store data. Measured in seconds (86400 = 1 day)." /></label>
               <input
                 type="text"
                 value={duration}
@@ -218,7 +219,7 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Min Price per Byte/Second</label>
+              <label>Min Price per Byte/Second<InfoTooltip text="The minimum rate you'll accept for storing data. Higher = more selective but fewer deals." /></label>
               <input
                 type="text"
                 value={minPricePerBytePerSecond}
@@ -227,7 +228,7 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Max Collateral per Byte</label>
+              <label>Max Collateral per Byte<InfoTooltip text="Maximum tokens you're willing to lock as a guarantee per byte stored. You lose this if you fail to store the data." /></label>
               <input
                 type="text"
                 value={maxCollateralPerByte}
@@ -236,7 +237,7 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Total Collateral</label>
+              <label>Total Collateral<InfoTooltip text="Total tokens locked as a guarantee for your storage commitment. Returned when you fulfill the storage deal." /></label>
               <input
                 type="text"
                 value={totalCollateral}
@@ -303,7 +304,7 @@ export default function Marketplace() {
               </datalist>
             </div>
             <div className="mp-field">
-              <label>Duration (seconds)</label>
+              <label>Duration (seconds)<InfoTooltip text="How long you want your data stored. Measured in seconds (2592000 = 30 days)." /></label>
               <input
                 type="text"
                 value={reqDuration}
@@ -312,7 +313,7 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Price per Byte/Second</label>
+              <label>Price per Byte/Second<InfoTooltip text="How much you're willing to pay for storage per byte per second." /></label>
               <input
                 type="text"
                 value={reqPrice}
@@ -321,7 +322,7 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Proof Probability</label>
+              <label>Proof Probability<InfoTooltip text="How often storage providers must prove they still have your data. Lower number = more frequent proofs = higher assurance but higher cost." /></label>
               <input
                 type="text"
                 value={reqProofProbability}
@@ -330,7 +331,7 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Collateral per Byte</label>
+              <label>Collateral per Byte<InfoTooltip text="Tokens the provider must lock per byte as a guarantee. Higher = stronger guarantee your data is safe." /></label>
               <input
                 type="text"
                 value={reqCollateral}
@@ -339,7 +340,7 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Slots</label>
+              <label>Slots<InfoTooltip text="Number of storage providers that will each store a copy of your data. More slots = more redundancy." /></label>
               <input
                 type="number"
                 value={reqSlots}
@@ -348,7 +349,7 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Slot Size (bytes, 0 = auto)</label>
+              <label>Slot Size (bytes, 0 = auto)<InfoTooltip text="Size of each data chunk distributed to providers. Set to 0 for automatic calculation based on file size and slot count." /></label>
               <input
                 type="number"
                 value={reqSlotSize}
@@ -357,7 +358,7 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Max Slot Loss</label>
+              <label>Max Slot Loss<InfoTooltip text="Maximum number of storage slots that can fail before your data becomes unrecoverable. Must be less than total slots." /></label>
               <input
                 type="number"
                 value={reqMaxSlotLoss}
@@ -366,7 +367,7 @@ export default function Marketplace() {
               />
             </div>
             <div className="mp-field">
-              <label>Expiry (seconds)</label>
+              <label>Expiry (seconds)<InfoTooltip text="Time limit for providers to accept your storage request. After this, unfilled slots expire." /></label>
               <input
                 type="number"
                 value={reqExpiry}

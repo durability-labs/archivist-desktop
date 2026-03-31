@@ -23,6 +23,7 @@ export interface ArchiveOptions {
   discourseMode?: boolean;
   maxTopics?: number;
   fetchUserProfiles?: boolean;
+  outputDir?: string;
 }
 
 export interface ArchiveTask {

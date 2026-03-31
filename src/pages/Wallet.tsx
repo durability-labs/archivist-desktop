@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-shell';
 import { useWallet } from '../hooks/useWallet';
 import { getExplorerUrl, type ArchivistNetworkId } from '../lib/contracts';
+import SensitiveField from '../components/SensitiveField';
 import '../styles/Marketplace.css';
 
 export default function Wallet() {
@@ -22,7 +23,6 @@ export default function Wallet() {
     switchNetwork,
   } = useWallet();
 
-  const [copied, setCopied] = useState(false);
   const [faucetMessage, setFaucetMessage] = useState<string | null>(null);
   const [restarting, setRestarting] = useState(false);
 
@@ -73,17 +73,6 @@ export default function Wallet() {
       console.error('Failed to switch network:', err);
     } finally {
       setNetworkSwitching(false);
-    }
-  };
-
-  const copyAddress = async () => {
-    if (!wallet?.address) return;
-    try {
-      await navigator.clipboard.writeText(wallet.address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // clipboard not available
     }
   };
 
@@ -398,11 +387,10 @@ export default function Wallet() {
 
             <h3>ETH Address</h3>
             <div className="wallet-address">
-              <code>{isZeroAddr ? 'Not available' : wallet?.address}</code>
-              {!isZeroAddr && (
-                <button className="wallet-copy-btn" onClick={copyAddress}>
-                  {copied ? 'Copied!' : 'Copy'}
-                </button>
+              {isZeroAddr ? (
+                <code>Not available</code>
+              ) : (
+                <SensitiveField value={wallet!.address} copyable />
               )}
             </div>
 
@@ -570,7 +558,7 @@ export default function Wallet() {
                 <span className="contract-label">Marketplace</span>
                 {blockchainConfig?.marketplaceContract ? (
                   <>
-                    <code>{blockchainConfig.marketplaceContract}</code>
+                    <SensitiveField value={blockchainConfig.marketplaceContract} />
                     <a href={getExplorerUrl(activeNetwork, blockchainConfig.marketplaceContract)} target="_blank" rel="noopener noreferrer">View</a>
                   </>
                 ) : (
@@ -582,7 +570,7 @@ export default function Wallet() {
                 <span className="contract-label">Token</span>
                 {blockchainConfig?.tokenContract ? (
                   <>
-                    <code>{blockchainConfig.tokenContract}</code>
+                    <SensitiveField value={blockchainConfig.tokenContract} />
                     <a href={getExplorerUrl(activeNetwork, blockchainConfig.tokenContract)} target="_blank" rel="noopener noreferrer">View</a>
                   </>
                 ) : (

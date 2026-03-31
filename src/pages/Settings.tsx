@@ -227,9 +227,9 @@ function Settings() {
     } catch (err) {
       setUpdateStatus('error');
       const msg = err instanceof Error ? err.message : String(err);
-      // 404 or network errors likely mean latest.json doesn't exist in release assets
-      if (msg.includes('404') || msg.includes('network') || msg.includes('fetch')) {
-        setUpdateError('Update manifest not found. Check releases page for latest version.');
+      // 404, network errors, or "Not Found" mean latest.json doesn't exist in release assets
+      if (msg.includes('404') || msg.includes('Not Found') || msg.includes('network') || msg.includes('fetch') || msg.includes('not allowed by ACL')) {
+        setUpdateError('No published update available. You may be running a local or pre-release build.');
       } else {
         setUpdateError(msg);
       }

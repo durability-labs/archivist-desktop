@@ -790,6 +790,60 @@ tr:hover td {
   font-style: italic;
 }
 
+.more-addresses.clickable {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.more-addresses.clickable:hover {
+  color: var(--phosphor);
+}
+
+/* Sensitive field toggle */
+.sensitive-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sensitive-field code {
+  font-family: var(--font-mono, 'Fira Code', monospace);
+}
+
+.sensitive-field code.no-mono {
+  font-family: inherit;
+}
+
+.sensitive-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  opacity: 0.5;
+  padding: 0 0.15rem;
+  line-height: 1;
+}
+
+.sensitive-toggle:hover {
+  opacity: 1;
+}
+
+.sensitive-copy {
+  background: none;
+  border: 1px solid var(--term-border, #333);
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.sensitive-copy:hover {
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+}
+
 .api-info {
   background-color: var(--color-bg-secondary);
   border: 1px solid var(--color-border);

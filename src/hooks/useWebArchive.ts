@@ -91,7 +91,7 @@ export function useWebArchive() {
   }, []);
 
   const uploadToNode = useCallback(async (localPath: string): Promise<string> => {
-    const cid = await invoke<string>('upload_archive_to_node', { local_path: localPath });
+    const cid = await invoke<string>('upload_archive_to_node', { localPath });
     await refreshQueue();
     return cid;
   }, [refreshQueue]);

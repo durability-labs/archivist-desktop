@@ -351,3 +351,58 @@
 .mp-section-header h2 {
   margin: 0;
 }
+
+/* Info tooltip */
+.info-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  cursor: help;
+}
+
+.info-tooltip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--term-border, #444);
+  color: var(--color-text-muted, #888);
+  font-size: 0.65rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.info-tooltip-text {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--term-dark, #1a1a1a);
+  border: 1px solid var(--term-border, #444);
+  color: var(--color-text, #ccc);
+  padding: 0.45rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-style: normal;
+  line-height: 1.4;
+  max-width: 260px;
+  min-width: 180px;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 100;
+}
+
+.info-tooltip:hover .info-tooltip-text {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.info-tooltip:hover .info-tooltip-icon {
+  border-color: var(--phosphor, #0f0);
+  color: var(--phosphor, #0f0);
+}

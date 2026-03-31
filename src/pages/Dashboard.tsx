@@ -5,6 +5,7 @@ import { useSync, SyncState } from '../hooks/useSync';
 import { usePeers } from '../hooks/usePeers';
 import { invoke } from '@tauri-apps/api/core';
 import IrcChat from '../components/IrcChat';
+import SensitiveField from '../components/SensitiveField';
 import '../styles/Dashboard.css';
 
 interface DiagnosticInfo {
@@ -380,7 +381,8 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
 }
 
 // Advanced View - Full detailed information
-function AdvancedView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, copied, copyToClipboard, getShareableAddress, connectedPeerCount, showDiagnostics, setShowDiagnostics, diagnostics, runningDiagnostics, runDiagnostics }: AdvancedViewProps) {
+function AdvancedView({ status, loading, isRunning, isStopped, isError, isTransitioning, handleStart, handleStop, handleRestart, getStateLabel, getStateClass, formatUptime, formatBytes, syncState, copied: _copied, copyToClipboard: _copyToClipboard, getShareableAddress, connectedPeerCount, showDiagnostics, setShowDiagnostics, diagnostics, runningDiagnostics, runDiagnostics }: AdvancedViewProps) {
+  const [showAllAddresses, setShowAllAddresses] = useState(false);
   return (
     <div className="advanced-view">
       <div className="stats-grid">
@@ -460,56 +462,32 @@ function AdvancedView({ status, loading, isRunning, isStopped, isError, isTransi
           <h3>Peer Identity</h3>
           <div className="peer-id-row">
             <label>Peer ID:</label>
-            <div className="copyable-field">
-              <code className="peer-id">{status.peerId}</code>
-              <button
-                className="copy-button"
-                onClick={() => copyToClipboard(status.peerId!, 'peerId')}
-                title="Copy Peer ID"
-              >
-                {copied === 'peerId' ? '✓' : 'Copy'}
-              </button>
-            </div>
+            <SensitiveField value={status.peerId!} copyable />
           </div>
           {status.addresses.length > 0 && status.peerId && getShareableAddress(status.addresses, status.publicIp) && (
             <div className="peer-id-row">
               <label>Connect Multiaddr (share this):</label>
-              <div className="copyable-field">
-                <code className="multiaddr">{getShareableAddress(status.addresses, status.publicIp)}/p2p/{status.peerId}</code>
-                <button
-                  className="copy-button"
-                  onClick={() => copyToClipboard(`${getShareableAddress(status.addresses, status.publicIp)}/p2p/${status.peerId}`, 'multiaddr')}
-                  title="Copy Multiaddr"
-                >
-                  {copied === 'multiaddr' ? '✓' : 'Copy'}
-                </button>
-              </div>
+              <SensitiveField value={`${getShareableAddress(status.addresses, status.publicIp)}/p2p/${status.peerId}`} copyable />
             </div>
           )}
           {status.spr && (
             <div className="peer-id-row">
               <label>SPR (for connecting):</label>
-              <div className="copyable-field">
-                <code className="spr">{status.spr.substring(0, 40)}...</code>
-                <button
-                  className="copy-button"
-                  onClick={() => copyToClipboard(status.spr!, 'spr')}
-                  title="Copy SPR"
-                >
-                  {copied === 'spr' ? '✓' : 'Copy'}
-                </button>
-              </div>
+              <SensitiveField value={status.spr} copyable />
             </div>
           )}
           {status.addresses.length > 0 && (
             <div className="peer-id-row">
               <label>Addresses:</label>
               <div className="addresses-list">
-                {status.addresses.slice(0, 3).map((addr: string, i: number) => (
+                {(showAllAddresses ? status.addresses : status.addresses.slice(0, 3)).map((addr: string, i: number) => (
                   <code key={i} className="address">{addr}</code>
                 ))}
-                {status.addresses.length > 3 && (
-                  <span className="more-addresses">+{status.addresses.length - 3} more</span>
+                {status.addresses.length > 3 && !showAllAddresses && (
+                  <span className="more-addresses clickable" onClick={() => setShowAllAddresses(true)}>+{status.addresses.length - 3} more</span>
+                )}
+                {status.addresses.length > 3 && showAllAddresses && (
+                  <span className="more-addresses clickable" onClick={() => setShowAllAddresses(false)}>Show less</span>
                 )}
               </div>
             </div>
@@ -520,7 +498,7 @@ function AdvancedView({ status, loading, isRunning, isStopped, isError, isTransi
       {status.apiUrl && (
         <div className="api-info">
           <h3>Node API</h3>
-          <p><code>{status.apiUrl}</code></p>
+          <p><SensitiveField value={status.apiUrl} /></p>
         </div>
       )}
 
