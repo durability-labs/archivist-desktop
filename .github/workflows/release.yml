@@ -104,10 +104,62 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Download sidecar binary
-        run: bash scripts/download-sidecar.sh ${{ matrix.target }}
-        env:
-          SKIP_CHECKSUM_VERIFY: "true"
+      - name: Install Nim 2.2.6
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            # Windows: download choosenim and install
+            curl -L https://nim-lang.org/choosenim/init.sh -o /tmp/choosenim.sh
+            bash /tmp/choosenim.sh -y 2.2.6
+          else
+            curl https://nim-lang.org/choosenim/init.sh -sSf | bash -s -- -y 2.2.6
+          fi
+          echo "$HOME/.nimble/bin" >> $GITHUB_PATH
+
+      - name: Build archivist-node sidecar from source
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/durability-labs/archivist-node.git /tmp/archivist-node
+          cd /tmp/archivist-node
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+          # Build circom FFI (Rust dependency)
+          cd vendor/nimble/circomcompat/vendor/circom-compat-ffi
+          cargo build --release
+          cd ../../../../..
+
+          # Create probestack stub (needed for wasmer FFI linking)
+          printf 'void __rust_probestack(void) {}\n' > /tmp/stub.c
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            gcc -c /tmp/stub.c -o /tmp/stub.o 2>/dev/null || cl /c /Fo/tmp/stub.obj /tmp/stub.c 2>/dev/null || true
+          else
+            cc -c /tmp/stub.c -o /tmp/stub.o
+          fi
+
+          # Build archivist-node
+          mkdir -p build
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            nim c --out:build/archivist.exe --passL:/tmp/stub.o archivist.nim || nim c --out:build/archivist.exe archivist.nim
+          else
+            nim c --out:build/archivist --passL:/tmp/stub.o archivist.nim
+          fi
+
+          # Copy to sidecars directory for both testnet and devnet
+          mkdir -p $GITHUB_WORKSPACE/src-tauri/sidecars
+          TARGET="${{ matrix.target }}"
+          if [[ "$TARGET" == *"windows"* ]]; then
+            cp build/archivist.exe "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-${TARGET}.exe"
+            cp build/archivist.exe "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-devnet-${TARGET}.exe"
+          else
+            cp build/archivist "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-${TARGET}"
+            cp build/archivist "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-devnet-${TARGET}"
+            chmod +x "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-${TARGET}"
+            chmod +x "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-devnet-${TARGET}"
+          fi
+
+          echo "Sidecar built and installed:"
+          ls -lh "$GITHUB_WORKSPACE/src-tauri/sidecars/"
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # v0.6.1

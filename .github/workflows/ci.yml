@@ -80,19 +80,23 @@ jobs:
       - name: Create sidecar placeholder
         shell: bash
         run: |
-          # Create placeholder sidecar to satisfy Tauri build script
-          # The actual sidecar is only needed for runtime, not for clippy/tests
+          # Create placeholder sidecars (testnet + devnet) to satisfy Tauri build script
+          # The actual sidecars are only needed for runtime, not for clippy/tests
           mkdir -p src-tauri/sidecars
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             touch src-tauri/sidecars/archivist-x86_64-pc-windows-msvc.exe
+            touch src-tauri/sidecars/archivist-devnet-x86_64-pc-windows-msvc.exe
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             if [[ "$(uname -m)" == "arm64" ]]; then
               touch src-tauri/sidecars/archivist-aarch64-apple-darwin
+              touch src-tauri/sidecars/archivist-devnet-aarch64-apple-darwin
             else
               touch src-tauri/sidecars/archivist-x86_64-apple-darwin
+              touch src-tauri/sidecars/archivist-devnet-x86_64-apple-darwin
             fi
           else
             touch src-tauri/sidecars/archivist-x86_64-unknown-linux-gnu
+            touch src-tauri/sidecars/archivist-devnet-x86_64-unknown-linux-gnu
           fi
 
       - name: Check formatting
@@ -222,6 +226,7 @@ jobs:
         run: |
           mkdir -p src-tauri/sidecars
           touch src-tauri/sidecars/archivist-x86_64-unknown-linux-gnu
+          touch src-tauri/sidecars/archivist-devnet-x86_64-unknown-linux-gnu
 
       - name: Generate coverage
         working-directory: src-tauri
