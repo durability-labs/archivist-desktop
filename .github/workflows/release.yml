@@ -134,24 +134,17 @@ jobs:
           git submodule update --init --recursive
 
           # Build native C libraries (miniupnpc + libnatpmp)
+          NAT_VENDOR="/tmp/archivist-node/vendor/nimble/nat_traversal/vendor"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            cd vendor/nimble/nat_traversal/vendor/miniupnp/miniupnpc
-            mingw32-make CFLAGS="-Os -fPIC" -f Makefile.mingw libminiupnpc.a || true
-            cd ../../../libnatpmp-upstream
-            mingw32-make OS=mingw CFLAGS="-Wall -Os -fPIC -DWIN32 -DNATPMP_STATICLIB -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" libnatpmp.a || true
-            cd ../../../../..
+            (cd "$NAT_VENDOR/miniupnp/miniupnpc" && mingw32-make CFLAGS="-Os -fPIC" -f Makefile.mingw libminiupnpc.a) || true
+            (cd "$NAT_VENDOR/libnatpmp-upstream" && mingw32-make OS=mingw CFLAGS="-Wall -Os -fPIC -DWIN32 -DNATPMP_STATICLIB -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" libnatpmp.a) || true
           else
-            cd vendor/nimble/nat_traversal/vendor/miniupnp/miniupnpc
-            make CFLAGS="-Os -fPIC" build/libminiupnpc.a
-            cd ../../../libnatpmp-upstream
-            make CFLAGS="-Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" libnatpmp.a
-            cd ../../../../..
+            (cd "$NAT_VENDOR/miniupnp/miniupnpc" && make CFLAGS="-Os -fPIC" build/libminiupnpc.a)
+            (cd "$NAT_VENDOR/libnatpmp-upstream" && make CFLAGS="-Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" libnatpmp.a)
           fi
 
           # Build circom FFI (Rust dependency)
-          cd vendor/nimble/circomcompat/vendor/circom-compat-ffi
-          cargo build --release
-          cd ../../../../..
+          (cd vendor/nimble/circomcompat/vendor/circom-compat-ffi && cargo build --release)
 
           # Create probestack stub (needed for wasmer FFI linking)
           printf 'void __rust_probestack(void) {}\n' > /tmp/stub.c
