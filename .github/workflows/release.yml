@@ -104,17 +104,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Nim 2.2.6
+      - name: Install Nim 2.2.6 (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            # Windows: download choosenim and install
-            curl -L https://nim-lang.org/choosenim/init.sh -o /tmp/choosenim.sh
-            bash /tmp/choosenim.sh -y 2.2.6
-          else
-            curl https://nim-lang.org/choosenim/init.sh -sSf | bash -s -- -y 2.2.6
-          fi
+          curl https://nim-lang.org/choosenim/init.sh -sSf | bash -s -- -y 2.2.6
           echo "$HOME/.nimble/bin" >> $GITHUB_PATH
+
+      - name: Install Nim 2.2.6 (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $url = "https://nim-lang.org/download/nim-2.2.6_x64.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\nim.zip"
+          Expand-Archive -Path "$env:TEMP\nim.zip" -DestinationPath "$env:TEMP\nim" -Force
+          $nimDir = Get-ChildItem "$env:TEMP\nim" -Directory | Select-Object -First 1
+          echo "$($nimDir.FullName)\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install CMake (macOS)
+        if: runner.os == 'macOS'
+        run: brew install cmake
 
       - name: Build archivist-node sidecar from source
         shell: bash
@@ -124,6 +133,21 @@ jobs:
           git submodule sync --recursive
           git submodule update --init --recursive
 
+          # Build native C libraries (miniupnpc + libnatpmp)
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cd vendor/nimble/nat_traversal/vendor/miniupnp/miniupnpc
+            mingw32-make CFLAGS="-Os -fPIC" -f Makefile.mingw libminiupnpc.a || true
+            cd ../../../libnatpmp-upstream
+            mingw32-make OS=mingw CFLAGS="-Wall -Os -fPIC -DWIN32 -DNATPMP_STATICLIB -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" libnatpmp.a || true
+            cd ../../../../..
+          else
+            cd vendor/nimble/nat_traversal/vendor/miniupnp/miniupnpc
+            make CFLAGS="-Os -fPIC" build/libminiupnpc.a
+            cd ../../../libnatpmp-upstream
+            make CFLAGS="-Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" libnatpmp.a
+            cd ../../../../..
+          fi
+
           # Build circom FFI (Rust dependency)
           cd vendor/nimble/circomcompat/vendor/circom-compat-ffi
           cargo build --release
@@ -131,16 +155,12 @@ jobs:
 
           # Create probestack stub (needed for wasmer FFI linking)
           printf 'void __rust_probestack(void) {}\n' > /tmp/stub.c
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            gcc -c /tmp/stub.c -o /tmp/stub.o 2>/dev/null || cl /c /Fo/tmp/stub.obj /tmp/stub.c 2>/dev/null || true
-          else
-            cc -c /tmp/stub.c -o /tmp/stub.o
-          fi
+          cc -c /tmp/stub.c -o /tmp/stub.o 2>/dev/null || gcc -c /tmp/stub.c -o /tmp/stub.o 2>/dev/null || true
 
           # Build archivist-node
           mkdir -p build
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            nim c --out:build/archivist.exe --passL:/tmp/stub.o archivist.nim || nim c --out:build/archivist.exe archivist.nim
+            nim c --out:build/archivist.exe archivist.nim
           else
             nim c --out:build/archivist --passL:/tmp/stub.o archivist.nim
           fi
