@@ -145,11 +145,15 @@ jobs:
 
           # Build circom FFI (Rust dependency)
           # On Windows, Nim links with MinGW g++ so we need GNU-compatible .a files
+          CIRCOM_DIR="vendor/nimble/circomcompat/vendor/circom-compat-ffi"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             rustup target add x86_64-pc-windows-gnu
-            (cd vendor/nimble/circomcompat/vendor/circom-compat-ffi && cargo build --release --target x86_64-pc-windows-gnu)
+            (cd "$CIRCOM_DIR" && cargo build --release --target x86_64-pc-windows-gnu)
+            # Copy GNU .a to where Nim expects it (target/release/)
+            cp "$CIRCOM_DIR/target/x86_64-pc-windows-gnu/release/libcircom_compat_ffi.a" "$CIRCOM_DIR/target/release/" 2>/dev/null || \
+            cp "$CIRCOM_DIR/target/x86_64-pc-windows-gnu/release/"*.a "$CIRCOM_DIR/target/release/" 2>/dev/null || true
           else
-            (cd vendor/nimble/circomcompat/vendor/circom-compat-ffi && cargo build --release)
+            (cd "$CIRCOM_DIR" && cargo build --release)
           fi
 
           # Create probestack stub (needed for wasmer FFI linking)
