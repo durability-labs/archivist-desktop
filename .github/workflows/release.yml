@@ -144,7 +144,13 @@ jobs:
           fi
 
           # Build circom FFI (Rust dependency)
-          (cd vendor/nimble/circomcompat/vendor/circom-compat-ffi && cargo build --release)
+          # On Windows, Nim links with MinGW g++ so we need GNU-compatible .a files
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            rustup target add x86_64-pc-windows-gnu
+            (cd vendor/nimble/circomcompat/vendor/circom-compat-ffi && cargo build --release --target x86_64-pc-windows-gnu)
+          else
+            (cd vendor/nimble/circomcompat/vendor/circom-compat-ffi && cargo build --release)
+          fi
 
           # Create probestack stub (needed for wasmer FFI linking)
           printf 'void __rust_probestack(void) {}\n' > /tmp/stub.c
