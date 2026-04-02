@@ -137,7 +137,7 @@ jobs:
           NAT_VENDOR="/tmp/archivist-node/vendor/nimble/nat_traversal/vendor"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             (cd "$NAT_VENDOR/miniupnp/miniupnpc" && mingw32-make CFLAGS="-Os -fPIC" -f Makefile.mingw libminiupnpc.a) || true
-            (cd "$NAT_VENDOR/libnatpmp-upstream" && mingw32-make OS=mingw CFLAGS="-Wall -Os -fPIC -DWIN32 -DNATPMP_STATICLIB -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" libnatpmp.a) || true
+            (cd "$NAT_VENDOR/libnatpmp-upstream" && mingw32-make OS=mingw CC=gcc CFLAGS="-Wall -Os -fPIC -DWIN32 -DNATPMP_STATICLIB -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" libnatpmp.a) || true
           else
             (cd "$NAT_VENDOR/miniupnp/miniupnpc" && make CFLAGS="-Os -fPIC" build/libminiupnpc.a)
             (cd "$NAT_VENDOR/libnatpmp-upstream" && make CFLAGS="-Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" libnatpmp.a)
