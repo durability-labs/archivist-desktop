@@ -15,7 +15,10 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "prepare": "husky install || true"
+    "prepare": "husky install || true",
+    "test:release": "bash scripts/release-test.sh",
+    "test:release:skip-build": "bash scripts/release-test.sh --skip-build",
+    "test:e2e:pw": "playwright test --config e2e/playwright/playwright.config.ts"
   },
   "keywords": [
     "archivist",
@@ -44,6 +47,7 @@
     "globals": "^15.14.0",
     "husky": "^9.1.7",
     "jsdom": "^25.0.1",
+    "@playwright/test": "^1.58.2",
     "playwright-core": "^1.58.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.23.0",

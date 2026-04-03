@@ -7,25 +7,43 @@ import * as net from 'net';
 
 let tauriDriver: ChildProcess | null = null;
 
+// Check for release build mode via environment variable
+const isReleaseBuild = process.env.RELEASE_BUILD === '1' || process.env.RELEASE_BUILD === 'true';
+
 /**
- * Locate the debug binary produced by `pnpm tauri build --debug`.
+ * Locate the application binary.
+ * Set RELEASE_BUILD=1 to use release build instead of debug.
  */
-function findDebugBinary(): string {
-  const candidates = [
-    // Linux
-    path.resolve(__dirname, '..', 'src-tauri', 'target', 'debug', 'archivist-desktop'),
-    // macOS
-    path.resolve(__dirname, '..', 'src-tauri', 'target', 'debug', 'bundle', 'macos', 'Archivist Desktop.app', 'Contents', 'MacOS', 'archivist-desktop'),
-    // Windows
-    path.resolve(__dirname, '..', 'src-tauri', 'target', 'debug', 'archivist-desktop.exe'),
+function findBinary(): string {
+  const baseDir = path.resolve(__dirname, '..', 'src-tauri', 'target');
+  const release = isReleaseBuild;
+
+  const candidates: string[] = release ? [
+    // macOS release bundle
+    path.join(baseDir, 'release', 'bundle', 'macos', 'Archivist.app', 'Contents', 'MacOS', 'archivist-desktop'),
+    // Linux release binary
+    path.join(baseDir, 'release', 'archivist-desktop'),
+    // Windows release binary
+    path.join(baseDir, 'release', 'archivist-desktop.exe'),
+  ] : [
+    // Linux debug
+    path.join(baseDir, 'debug', 'archivist-desktop'),
+    // macOS debug bundle
+    path.join(baseDir, 'debug', 'bundle', 'macos', 'Archivist Desktop.app', 'Contents', 'MacOS', 'archivist-desktop'),
+    // Windows debug
+    path.join(baseDir, 'debug', 'archivist-desktop.exe'),
   ];
 
   for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
+    if (fs.existsSync(p)) {
+      console.log(`[wdio] Using ${release ? 'RELEASE' : 'DEBUG'} binary: ${p}`);
+      return p;
+    }
   }
 
+  const buildCmd = release ? 'pnpm tauri build' : 'pnpm tauri build --debug';
   throw new Error(
-    `Debug binary not found. Run 'pnpm tauri build --debug' first.\nSearched:\n  ${candidates.join('\n  ')}`
+    `${release ? 'Release' : 'Debug'} binary not found. Run '${buildCmd}' first.\nSearched:\n  ${candidates.join('\n  ')}`
   );
 }
 
@@ -60,7 +78,7 @@ export const config: Options.Testrunner & { capabilities: any[] } = {
     {
       maxInstances: 1,
       'tauri:options': {
-        application: findDebugBinary(),
+        application: findBinary(),
         webviewOptions: {},
       },
     } as any,

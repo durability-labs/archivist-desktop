@@ -632,10 +632,14 @@ mod tests {
     #[test]
     fn test_ffmpeg_download_url_format() {
         let (url, archive_type) = BinaryManager::ffmpeg_download_url();
-        assert!(url.contains("ffmpeg"));
+        assert!(url.contains("ffmpeg") || url.contains("Ffmpeg") || url.contains("FFmpeg"));
+        // macOS uses non-GitHub mirrors (osxexperts.net, evermeet.cx)
+        #[cfg(target_os = "linux")]
         assert!(url.contains("github.com"));
-        #[cfg(not(target_os = "windows"))]
+        #[cfg(target_os = "linux")]
         assert_eq!(archive_type, "tar.xz");
+        #[cfg(target_os = "macos")]
+        assert_eq!(archive_type, "zip");
         #[cfg(target_os = "windows")]
         assert_eq!(archive_type, "zip");
     }
