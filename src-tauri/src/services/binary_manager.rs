@@ -504,12 +504,16 @@ impl BinaryManager {
                 "tar.xz",
             )
         }
-        #[cfg(target_os = "macos")]
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
             (
-                "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-macos64-gpl.tar.xz".to_string(),
-                "tar.xz",
+                "https://www.osxexperts.net/ffmpeg81arm.zip".to_string(),
+                "zip",
             )
+        }
+        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+        {
+            ("https://evermeet.cx/ffmpeg/get/zip".to_string(), "zip")
         }
         #[cfg(target_os = "windows")]
         {
