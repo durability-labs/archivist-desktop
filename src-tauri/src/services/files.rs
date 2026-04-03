@@ -134,9 +134,19 @@ impl FileService {
     pub async fn refresh_from_node(&mut self) -> Result<()> {
         match self.api_client.list_data().await {
             Ok(response) => {
-                // Rebuild cache from node data, preserving local metadata for known files
+                // Rebuild cache from node data, preserving local metadata for known files.
+                // Skip verifiable erasure-coded copies created for storage requests —
+                // these are internal artifacts and would show as confusing duplicates.
                 let mut new_files = HashMap::new();
                 for item in response.content {
+                    if item
+                        .manifest
+                        .as_ref()
+                        .and_then(|m| m.verifiable)
+                        .unwrap_or(false)
+                    {
+                        continue;
+                    }
                     let file_info = if let Some(existing) = self.files.get(&item.cid) {
                         existing.clone()
                     } else {

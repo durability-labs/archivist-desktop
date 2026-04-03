@@ -24,6 +24,11 @@
   nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Archivist Backup Trigger" dir=in action=allow protocol=tcp localport=8086'
 
   DetailPrint "All firewall rules configured for Archivist"
+
+  ; Clear corrupted block store from previous versions to avoid
+  ; "Cid doesn't match the data" manifest errors after sidecar upgrades
+  DetailPrint "Clearing legacy block store for compatibility..."
+  RMDir /r "$APPDATA\archivist\repo"
 !macroend
 
 !macro CUSTOM_UNINSTALL

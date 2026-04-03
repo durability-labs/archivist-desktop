@@ -132,6 +132,9 @@ pub struct ManifestInfo {
     pub dataset_size: Option<u64>,
     #[serde(default)]
     pub protected: Option<bool>,
+    /// Whether this is a verifiable erasure-coded copy created for a storage request.
+    #[serde(default)]
+    pub verifiable: Option<bool>,
 }
 
 /// Peer information from /api/archivist/v1/peers

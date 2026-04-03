@@ -267,6 +267,11 @@ pub struct AppConfig {
     // IRC settings (native Libera.Chat client)
     #[serde(default)]
     pub irc: IrcSettings,
+
+    /// Tracks the app version that last wrote to the data directory.
+    /// Used to detect upgrades that require repo migration (e.g. block format changes).
+    #[serde(default)]
+    pub data_version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -678,6 +683,7 @@ impl Default for AppConfig {
             marketplace: MarketplaceSettings::default(),
             torrent: TorrentSettings::default(),
             irc: IrcSettings::default(),
+            data_version: None,
         }
     }
 }

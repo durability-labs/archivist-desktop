@@ -54,6 +54,30 @@ impl AppState {
                 cfg.blockchain.token_contract = expected_token.to_string();
                 let _ = config_service.update(cfg.clone());
             }
+
+            // Migrate: clear repo when upgrading from a different app version.
+            // Sidecar binary upgrades can change the block encoding, leaving old
+            // manifest blocks unreadable ("Cid doesn't match the data").
+            let current_version = env!("CARGO_PKG_VERSION");
+            let previous_version = cfg.data_version.as_deref().unwrap_or("unknown");
+            if previous_version != current_version {
+                let repo_dir = std::path::Path::new(&cfg.node.data_directory).join("repo");
+                if repo_dir.exists() {
+                    // Note: log plugin is not yet initialized at this point, so use eprintln
+                    eprintln!(
+                        "[archivist] App version changed ({} -> {}), clearing block store at {} to avoid manifest corruption",
+                        previous_version,
+                        current_version,
+                        repo_dir.display()
+                    );
+                    if let Err(e) = std::fs::remove_dir_all(&repo_dir) {
+                        eprintln!("[archivist] Failed to clear repo directory: {}", e);
+                    }
+                }
+                cfg.data_version = Some(current_version.to_string());
+                let _ = config_service.update(cfg.clone());
+            }
+
             cfg
         };
 

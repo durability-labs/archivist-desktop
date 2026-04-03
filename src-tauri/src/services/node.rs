@@ -401,7 +401,7 @@ impl NodeService {
             .build()
             .unwrap();
 
-        let max_wait = Duration::from_secs(15);
+        let max_wait = Duration::from_secs(60);
         let start = Instant::now();
         let mut ready = false;
 
