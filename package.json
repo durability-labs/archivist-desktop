@@ -36,7 +36,7 @@
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
     "@types/qrcode": "^1.5.6",
-    "@types/react": "^19.2.7",
+    "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "@vitest/coverage-v8": "^2.1.8",
@@ -64,8 +64,8 @@
     "@tauri-apps/plugin-updater": "^2.10.0",
     "hls.js": "^1.6.15",
     "qrcode": "^1.5.4",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "react-router-dom": "^6.30.2"
   }
 }
