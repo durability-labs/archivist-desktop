@@ -143,6 +143,12 @@ echo -e "${BLUE}[6/6]${NC} Running E2E smoke tests..."
 
 if [ "$USE_PLAYWRIGHT" = true ]; then
   echo "  Using Playwright (testing against Vite dev server)..."
+  # Remove stale playwright from e2e/node_modules to prevent version conflict
+  # (e2e/ is a WebDriverIO project; its transitive playwright can clash with root @playwright/test)
+  if [ -d "$E2E_DIR/node_modules/playwright" ]; then
+    rm -rf "$E2E_DIR/node_modules/playwright"
+    echo "  Cleaned stale e2e/node_modules/playwright"
+  fi
   echo ""
   cd "$ROOT_DIR"
   pnpm exec playwright test --config e2e/playwright/playwright.config.ts
