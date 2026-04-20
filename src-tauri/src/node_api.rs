@@ -237,57 +237,48 @@ where
     }
 }
 
-fn deserialize_number_or_string_opt<'de, D>(
-    deserializer: D,
-) -> std::result::Result<Option<String>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let value = serde_json::Value::deserialize(deserializer)?;
-    match value {
-        serde_json::Value::Null => Ok(None),
-        serde_json::Value::String(s) => Ok(Some(s)),
-        serde_json::Value::Number(n) => Ok(Some(n.to_string())),
-        other => Ok(Some(other.to_string())),
-    }
-}
-
-/// Provider availability offer
+/// Provider availability offer.
+///
+/// Wire format (archivist-node main branch, commit ba37d61+):
+/// ```json
+/// {
+///   "maximumDuration": "86400",
+///   "minimumPricePerBytePerSecond": "1",
+///   "maximumCollateralPerByte": "1",
+///   "availableUntil": 0
+/// }
+/// ```
+/// Note: the v0.2.0 release had `totalSize`, `freeSize`, `duration`, `id`,
+/// `totalCollateral` etc. — those were all removed on main.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Availability {
-    pub id: String,
     #[serde(default, deserialize_with = "deserialize_number_or_string")]
-    pub total_size: String,
-    #[serde(default, deserialize_with = "deserialize_number_or_string")]
-    pub free_size: String,
-    #[serde(default, deserialize_with = "deserialize_number_or_string")]
-    pub duration: String,
-    #[serde(default, rename = "minPricePerBytePerSecond")]
-    pub min_price_per_byte_per_second: String,
-    #[serde(default, rename = "maxCollateralPerByte")]
-    pub max_collateral_per_byte: Option<String>,
+    pub maximum_duration: String,
     #[serde(default)]
-    pub total_collateral: String,
+    pub minimum_price_per_byte_per_second: String,
     #[serde(default)]
-    pub total_remaining_collateral: Option<String>,
+    pub maximum_collateral_per_byte: String,
+    /// Unix timestamp. 0 means no restriction.
     #[serde(default)]
-    pub enabled: Option<bool>,
-    #[serde(default, deserialize_with = "deserialize_number_or_string_opt")]
-    pub until: Option<String>,
+    pub available_until: u64,
 }
 
-/// Request body for creating an availability offer
+/// Request body for creating/updating an availability offer.
+/// Field set matches the GET response above (minus `availableUntil` optionality).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AvailabilityRequest {
-    pub total_size: String,
-    pub duration: String,
-    #[serde(rename = "minPricePerBytePerSecond")]
-    pub min_price_per_byte_per_second: String,
-    #[serde(rename = "maxCollateralPerByte")]
-    pub max_collateral_per_byte: String,
-    pub total_collateral: String,
+    pub maximum_duration: String,
+    pub minimum_price_per_byte_per_second: String,
+    pub maximum_collateral_per_byte: String,
+    /// Unix timestamp. 0 means no restriction. Optional per the spec.
+    #[serde(skip_serializing_if = "is_zero_u64", default)]
+    pub available_until: u64,
+}
+
+fn is_zero_u64(v: &u64) -> bool {
+    *v == 0
 }
 
 /// Request body for creating a storage request
@@ -954,7 +945,11 @@ impl NodeApiClient {
             .map_err(|e| ArchivistError::ApiError(format!("Failed to parse sales slot: {}", e)))
     }
 
-    /// Get provider's availability offers
+    /// Get the provider's current availability.
+    ///
+    /// archivist-node main returns a single object (or 404 when none is set).
+    /// We wrap the result in a `Vec` for frontend compatibility: empty vec
+    /// means "no availability configured", length-1 vec means "one is set".
     pub async fn get_availability(&self) -> Result<Vec<Availability>> {
         let url = format!("{}/api/archivist/v1/sales/availability", self.base_url);
 
@@ -963,10 +958,15 @@ impl NodeApiClient {
                 ArchivistError::ApiError(format!("Failed to get availability: {}", e))
             })?;
 
-        if !response.status().is_success() {
+        let status = response.status();
+        if status == reqwest::StatusCode::NOT_FOUND {
+            // No availability configured yet — treat as empty list.
+            return Ok(Vec::new());
+        }
+        if !status.is_success() {
             return Err(ArchivistError::ApiError(format!(
                 "Failed to get availability: HTTP {}",
-                response.status()
+                status
             )));
         }
 
@@ -974,6 +974,12 @@ impl NodeApiClient {
             ArchivistError::ApiError(format!("Failed to read availability response body: {}", e))
         })?;
         log::debug!("Availability GET response body: {}", body);
+
+        // The new API returns a single object. If an older node ever returns a
+        // bare array, accept that too so we don't hard-fail on upgrade paths.
+        if let Ok(single) = serde_json::from_str::<Availability>(&body) {
+            return Ok(vec![single]);
+        }
         serde_json::from_str::<Vec<Availability>>(&body).map_err(|e| {
             log::error!("Failed to parse availability: {} — body: {}", e, body);
             ArchivistError::ApiError(format!(

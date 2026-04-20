@@ -820,7 +820,7 @@ impl SiteBuilder {
                 .sum();
             cat_post_counts.push((&cat.name, pc));
         }
-        cat_post_counts.sort_by(|a, b| b.1.cmp(&a.1));
+        cat_post_counts.sort_by_key(|x| std::cmp::Reverse(x.1));
         let top_cats: Vec<_> = cat_post_counts.iter().take(10).collect();
         if !top_cats.is_empty() {
             let max_val = top_cats[0].1.max(1);
@@ -840,7 +840,7 @@ impl SiteBuilder {
             *user_post_counts.entry(&p.username).or_insert(0) += 1;
         }
         let mut top_users: Vec<_> = user_post_counts.into_iter().collect();
-        top_users.sort_by(|a, b| b.1.cmp(&a.1));
+        top_users.sort_by_key(|x| std::cmp::Reverse(x.1));
         top_users.truncate(10);
         if !top_users.is_empty() {
             let max_val = top_users[0].1.max(1);
@@ -856,7 +856,7 @@ impl SiteBuilder {
 
         // Most viewed topics
         let mut viewed: Vec<&DiscourseTopic> = self.topics.iter().collect();
-        viewed.sort_by(|a, b| b.views.cmp(&a.views));
+        viewed.sort_by_key(|t| std::cmp::Reverse(t.views));
         viewed.truncate(10);
         if !viewed.is_empty() {
             let max_val = viewed[0].views.max(1);

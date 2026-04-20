@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMarketplace, type Purchase, type SalesSlot } from '../hooks/useMarketplace';
+import CidDisplay from '../components/CidDisplay';
 import '../styles/Marketplace.css';
 
 export default function Deals() {
@@ -62,7 +63,7 @@ export default function Deals() {
                     onClick={() => handleExpandPurchase(id)}
                     style={{ cursor: 'pointer' }}
                   >
-                    <td title={id}>{id.slice(0, 16)}...</td>
+                    <td><CidDisplay cid={id} /></td>
                   </tr>
                   {expandedPurchase === id && (
                     <tr key={`${id}-detail`}>
@@ -108,10 +109,10 @@ export default function Deals() {
                     style={{ cursor: 'pointer' }}
                   >
                     <td>{s.slotIndex}</td>
-                    <td title={s.request.content.cid}>{s.request.content.cid.slice(0, 12)}...</td>
+                    <td><CidDisplay cid={s.request.content.cid} /></td>
                     <td>{s.request.ask.slots}</td>
                     <td>{s.request.ask.duration}</td>
-                    <td title={s.request.client}>{s.request.client.slice(0, 12) || '-'}...</td>
+                    <td><CidDisplay cid={s.request.client || '-'} /></td>
                   </tr>
                   {expandedSlot === i && (
                     <tr key={`slot-${i}-detail`}>

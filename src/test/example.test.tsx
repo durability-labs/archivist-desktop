@@ -93,9 +93,9 @@ describe('App', () => {
     // Check primary navigation links (restructured nav)
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Upload & Download' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Folder Upload' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Media Downloader' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Make a Deal' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });
 
   it('renders Dashboard by default', () => {

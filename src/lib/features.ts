@@ -23,3 +23,12 @@ export type FeatureKey = keyof typeof FEATURES;
 export function isFeatureEnabled(feature: FeatureKey): boolean {
   return FEATURES[feature];
 }
+
+/** Check developer mode from localStorage cache (for non-React contexts). */
+export function isDeveloperMode(): boolean {
+  try {
+    return localStorage.getItem('archivist_developer_mode') === 'true';
+  } catch {
+    return false;
+  }
+}

@@ -140,9 +140,19 @@ impl MediaDownloadService {
         log::info!("Fetching metadata for: {}", url);
 
         let mut cmd = tokio::process::Command::new(&yt_dlp);
-        cmd.args(["-j", "--no-playlist", "--no-warnings", url])
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
+        // Recent yt-dlp (2025+) requires a JS runtime for YouTube extraction.
+        // Tell it to try Node.js (build prerequisite) in addition to deno.
+        // If neither is installed, yt-dlp falls back to limited extraction.
+        cmd.args([
+            "-j",
+            "--no-playlist",
+            "--no-warnings",
+            "--js-runtimes",
+            "nodejs",
+            url,
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
         #[cfg(windows)]
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
         let output = cmd.output().await.map_err(|e| {
@@ -395,9 +405,15 @@ impl MediaDownloadService {
             }),
         );
 
-        // Build yt-dlp arguments
-        let mut args: Vec<String> =
-            vec!["--newline".to_string(), "--windows-filenames".to_string()];
+        // Build yt-dlp arguments.
+        // --js-runtimes nodejs: recent yt-dlp (2025+) requires a JS runtime for
+        // YouTube. If Node.js isn't on PATH, yt-dlp falls back gracefully.
+        let mut args: Vec<String> = vec![
+            "--newline".to_string(),
+            "--windows-filenames".to_string(),
+            "--js-runtimes".to_string(),
+            "nodejs".to_string(),
+        ];
 
         // Format selection
         if task.options.audio_only {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useNode } from '../hooks/useNode';
 import { useSync } from '../hooks/useSync';
 import { useOnboarding, OnboardingStep } from '../hooks/useOnboarding';
@@ -11,14 +12,14 @@ import '../styles/Onboarding.css';
 
 interface OnboardingProps {
   onComplete: () => void;
-  onSkip: () => void;
   startMusic: () => void;
 }
 
-function Onboarding({ onComplete, onSkip, startMusic }: OnboardingProps) {
+function Onboarding({ onComplete, startMusic }: OnboardingProps) {
   const {
     currentStep,
     setStep,
+    isFirstRun,
     nodeReady,
     setNodeReady,
     quickBackupPath,
@@ -40,17 +41,21 @@ function Onboarding({ onComplete, onSkip, startMusic }: OnboardingProps) {
   // Track if sync completion timer has been started to prevent cycling
   const syncCompletionStarted = useRef(false);
 
-  // Auto-start node when entering 'node-starting' step
+  // Auto-start node when entering 'node-starting' step.
+  //
+  // If a wallet was created, handleWalletCreated already called
+  // unlock_wallet_and_restart (which restarts with --persistence). This
+  // effect only needs to handle the case where the user SKIPPED wallet
+  // creation and the node isn't running yet.
   useEffect(() => {
     if (currentStep === 'node-starting' && !isRunning && !isStartingNode) {
       setIsStartingNode(true);
       startNode()
-        .then(() => {
-          setIsStartingNode(false);
-        })
         .catch((e) => {
-          setIsStartingNode(false);
           setError(e instanceof Error ? e.message : String(e));
+        })
+        .finally(() => {
+          setIsStartingNode(false);
         });
     }
   }, [currentStep, isRunning, isStartingNode, startNode, setError]);
@@ -126,8 +131,55 @@ function Onboarding({ onComplete, onSkip, startMusic }: OnboardingProps) {
     }
   }, [currentStep, quickBackupPath, syncState.folders, setFirstFileCid]);
 
-  // Handle "Get Started" click
+  // Handle "Get Started":
+  //   - First-run user (no completion flag): continue to wallet setup.
+  //   - Return user: dismiss onboarding and redirect to Dashboard. The splash
+  //     + disclaimer + welcome cards play every launch, but setup steps stay
+  //     first-run-only so returning users don't redo wallet/folder choice.
   const handleGetStarted = useCallback(() => {
+    if (isFirstRun) {
+      setStep('wallet-setup');
+    } else {
+      onComplete();
+    }
+  }, [isFirstRun, setStep, onComplete]);
+
+  // Handle wallet creation during onboarding.
+  // Call unlock_wallet_and_restart IMMEDIATELY after generate_wallet — don't
+  // defer to a useEffect, because React's batching means the effect fires
+  // with stale useState values (walletCreated=false) while the external store
+  // update (currentStep='node-starting') is already applied. This race caused
+  // the node to stay running without marketplace flags.
+  const handleWalletCreated = useCallback(async (password: string) => {
+    setError(null);
+    try {
+      // Try generating a new wallet. If one already exists (e.g. user reset
+      // onboarding after a previous run), skip generation and just unlock +
+      // restart with marketplace flags using the entered password.
+      try {
+        await invoke('generate_wallet', { password });
+      } catch (genErr) {
+        const msg = String(genErr);
+        if (!msg.includes('already exists')) {
+          throw genErr; // real error — propagate
+        }
+        // Wallet already exists — that's fine, proceed to unlock + restart.
+      }
+
+      // Restart the node with marketplace flags. The node is likely already
+      // running from auto_start, so unlock_wallet_and_restart injects the
+      // wallet credentials + restarts with --persistence.
+      await invoke('unlock_wallet_and_restart', { password });
+
+      setStep('node-starting');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      throw e; // re-throw so WalletSetupScreen resets its `creating` state
+    }
+  }, [setStep, setError]);
+
+  // Handle wallet skip during onboarding
+  const handleWalletSkip = useCallback(() => {
     setStep('node-starting');
   }, [setStep]);
 
@@ -179,12 +231,7 @@ function Onboarding({ onComplete, onSkip, startMusic }: OnboardingProps) {
     onComplete();
   }, [onComplete]);
 
-  // Handle skip - use prop from App to ensure shared state
-  const handleSkip = useCallback(() => {
-    onSkip();
-  }, [onSkip]);
-
-  // Handle splash screen completion (video ended or skip)
+  // Handle splash screen completion (video ended or CSS fallback)
   const handleSplashComplete = useCallback(() => {
     setStep('disclaimer');
     // Start background music when transitioning past splash
@@ -200,11 +247,13 @@ function Onboarding({ onComplete, onSkip, startMusic }: OnboardingProps) {
   const renderStep = () => {
     switch (currentStep) {
       case 'splash':
-        return <SplashScreen onComplete={handleSplashComplete} onSkip={handleSplashComplete} />;
+        return <SplashScreen onComplete={handleSplashComplete} />;
       case 'disclaimer':
         return <DisclaimerScreen onAccept={handleDisclaimerAccept} />;
       case 'welcome':
-        return <WelcomeScreen onGetStarted={handleGetStarted} onSkip={handleSkip} />;
+        return <WelcomeScreen onGetStarted={handleGetStarted} />;
+      case 'wallet-setup':
+        return <WalletSetupScreen onCreateWallet={handleWalletCreated} onSkip={handleWalletSkip} error={error} />;
       case 'node-starting':
         return <NodeStartingScreen isRunning={isRunning} nodeReady={nodeReady} error={error} />;
       case 'folder-select':
@@ -232,7 +281,7 @@ function Onboarding({ onComplete, onSkip, startMusic }: OnboardingProps) {
 
   // For splash screen, render without the container chrome
   if (currentStep === 'splash') {
-    return <SplashScreen onComplete={handleSplashComplete} onSkip={handleSplashComplete} />;
+    return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
   return (
@@ -251,7 +300,7 @@ interface StepIndicatorProps {
 }
 
 function StepIndicator({ currentStep }: StepIndicatorProps) {
-  const steps: OnboardingStep[] = ['disclaimer', 'welcome', 'node-starting', 'folder-select', 'syncing'];
+  const steps: OnboardingStep[] = ['disclaimer', 'welcome', 'wallet-setup', 'node-starting', 'folder-select', 'syncing'];
   const currentIndex = steps.indexOf(currentStep);
 
   return (
@@ -266,13 +315,14 @@ function StepIndicator({ currentStep }: StepIndicatorProps) {
   );
 }
 
-// Splash screen component - plays branding video
+// Splash screen component - plays branding video.
+// The intro is intentionally unskippable: the user must wait for the video to
+// end (or the CSS fallback animation to complete) and then click Continue.
 interface SplashScreenProps {
   onComplete: () => void;
-  onSkip: () => void;
 }
 
-function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
+function SplashScreen({ onComplete }: SplashScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const blobUrlRef = useRef<string | null>(null);
   const [videoLoaded, setVideoLoaded] = useState(false);
@@ -280,6 +330,8 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [showPlayOverlay, setShowPlayOverlay] = useState(false);
   const [playbackStarted, setPlaybackStarted] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [videoEnded, setVideoEnded] = useState(false);
   const lastProgressTime = useRef<number>(0);
   const stallCheckInterval = useRef<number | null>(null);
 
@@ -360,6 +412,7 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
   const handlePlayClick = useCallback(() => {
     setShowPlayOverlay(false);
     if (videoRef.current) {
+      videoRef.current.muted = isMuted;
       videoRef.current.play()
         .then(() => {
           setPlaybackStarted(true);
@@ -370,6 +423,17 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
           setShowFallback(true);
         });
     }
+  }, [isMuted]);
+
+  // Toggle mute
+  const handleToggleMute = useCallback(() => {
+    setIsMuted(prev => {
+      const newMuted = !prev;
+      if (videoRef.current) {
+        videoRef.current.muted = newMuted;
+      }
+      return newMuted;
+    });
   }, []);
 
   // Handle video data loaded (first frame available)
@@ -468,9 +532,6 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
           <h1 className="splash-title">Archivist</h1>
           <p className="splash-tagline">Decentralized Storage</p>
         </div>
-        <button className="splash-skip" onClick={onSkip}>
-          Skip
-        </button>
       </div>
     );
   }
@@ -517,7 +578,7 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
         playsInline
         preload="auto"
         className="splash-video"
-        onEnded={onComplete}
+        onEnded={() => setVideoEnded(true)}
         onLoadedData={handleLoadedData}
         onCanPlayThrough={handleCanPlayThrough}
         onTimeUpdate={handleTimeUpdate}
@@ -534,9 +595,22 @@ function SplashScreen({ onComplete, onSkip }: SplashScreenProps) {
           <p className="splash-play-text">Click to play</p>
         </div>
       )}
-      <button className="splash-skip" onClick={onSkip}>
-        Skip
-      </button>
+      {videoEnded && (
+        <div className="splash-continue-overlay">
+          <button className="btn-primary btn-large" onClick={onComplete}>
+            Continue
+          </button>
+        </div>
+      )}
+      {playbackStarted && (
+        <button className="splash-mute" onClick={handleToggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
+          {isMuted ? (
+            <svg viewBox="0 0 24 24" width="24" height="24"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="none" stroke="currentColor" strokeWidth="2" /><line x1="23" y1="9" x2="17" y2="15" stroke="currentColor" strokeWidth="2" /><line x1="17" y1="9" x2="23" y2="15" stroke="currentColor" strokeWidth="2" /></svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="24" height="24"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" fill="none" stroke="currentColor" strokeWidth="2" /></svg>
+          )}
+        </button>
+      )}
     </div>
   );
 }
@@ -573,6 +647,7 @@ function DisclaimerScreen({ onAccept }: DisclaimerScreenProps) {
           <li>There is no guarantee of data persistence or recovery</li>
           <li>Always maintain separate backups of important files</li>
           <li>This software is provided "as-is" without warranty of any kind</li>
+          <li>VPN connections may interfere with P2P networking. For best results, disable your VPN or configure a custom announce IP in Settings</li>
         </ul>
       </div>
 
@@ -589,13 +664,14 @@ function DisclaimerScreen({ onAccept }: DisclaimerScreenProps) {
   );
 }
 
-// Welcome screen component
+// Welcome screen component.
+// Intentionally has no "Skip for now" option — the welcome card plays on every
+// launch (not just first run), and offering a skip would contradict that.
 interface WelcomeScreenProps {
   onGetStarted: () => void;
-  onSkip: () => void;
 }
 
-function WelcomeScreen({ onGetStarted, onSkip }: WelcomeScreenProps) {
+function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
   return (
     <div className="onboarding-screen welcome-screen">
       <div className="welcome-icon">
@@ -631,9 +707,6 @@ function WelcomeScreen({ onGetStarted, onSkip }: WelcomeScreenProps) {
       <div className="welcome-actions">
         <button className="btn-primary btn-large" onClick={onGetStarted}>
           Get Started
-        </button>
-        <button className="btn-text" onClick={onSkip}>
-          Skip for now
         </button>
       </div>
     </div>
@@ -824,6 +897,98 @@ function SyncingScreen({ syncProgress, folderPath, firstFileCid, onComplete }: S
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// Wallet setup screen component - optional wallet creation during onboarding
+interface WalletSetupScreenProps {
+  onCreateWallet: (password: string) => Promise<void>;
+  onSkip: () => void;
+  error: string | null;
+}
+
+function WalletSetupScreen({ onCreateWallet, onSkip, error }: WalletSetupScreenProps) {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    setLocalError(null);
+    if (password.length < 8) {
+      setLocalError('Password must be at least 8 characters');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setLocalError('Passwords do not match');
+      return;
+    }
+    setCreating(true);
+    try {
+      await onCreateWallet(password);
+    } catch {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="onboarding-screen wallet-setup-screen">
+      <div className="welcome-icon">
+        <svg viewBox="0 0 24 24" width="48" height="48">
+          <rect x="2" y="6" width="20" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
+          <path d="M16 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" fill="currentColor" />
+          <path d="M2 10h20" stroke="currentColor" strokeWidth="2" />
+        </svg>
+      </div>
+      <h2>Set Up Your Wallet</h2>
+      <p className="welcome-description">
+        A wallet lets you use the Marketplace to create storage deals and earn tokens.
+        You can always set this up later from the Wallet page.
+      </p>
+
+      {(error || localError) && (
+        <div className="onboarding-error">
+          {localError || error}
+        </div>
+      )}
+
+      <div className="wallet-setup-form">
+        <div className="wallet-setup-field">
+          <label>Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Choose a password (min 8 characters)"
+            disabled={creating}
+          />
+        </div>
+        <div className="wallet-setup-field">
+          <label>Confirm Password</label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Re-enter your password"
+            disabled={creating}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+          />
+        </div>
+      </div>
+
+      <div className="welcome-actions">
+        <button
+          className="btn-primary btn-large"
+          onClick={handleCreate}
+          disabled={creating || !password || !confirmPassword}
+        >
+          {creating ? 'Creating Wallet...' : 'Create Wallet'}
+        </button>
+        <button className="btn-text" onClick={onSkip} disabled={creating}>
+          Skip for now
+        </button>
+      </div>
     </div>
   );
 }

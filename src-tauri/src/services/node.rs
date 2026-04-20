@@ -79,7 +79,8 @@ pub struct NodeConfig {
     pub log_level: String, // Log level: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL
     /// Optional external IP. When set, uses --nat=extip:<ip> instead of --nat=upnp.
     pub announce_ip: Option<String>,
-    /// Which sidecar binary to use ("archivist" for testnet, "archivist-devnet" for devnet)
+    /// Which sidecar binary to use. Always "archivist" — a single binary built from
+    /// the archivist-node main branch handles both devnet and testnet.
     #[serde(skip)]
     pub sidecar_name: String,
     // Marketplace fields (set at runtime, not serialized to frontend)
@@ -89,6 +90,10 @@ pub struct NodeConfig {
     pub marketplace_address: Option<String>,
     #[serde(skip)]
     pub eth_provider_url: Option<String>,
+    /// Bootstrap peer SPRs from the active network's remote config.
+    /// Forwarded to the sidecar as one `--bootstrap-node=<spr>` flag per entry.
+    #[serde(skip)]
+    pub bootstrap_nodes: Vec<String>,
 }
 
 impl Default for NodeConfig {
@@ -115,6 +120,7 @@ impl Default for NodeConfig {
             eth_private_key: None,
             marketplace_address: None,
             eth_provider_url: None,
+            bootstrap_nodes: Vec::new(),
         }
     }
 }
@@ -138,15 +144,14 @@ impl NodeConfig {
             eth_private_key: None,
             marketplace_address: None,
             eth_provider_url: None,
+            bootstrap_nodes: Vec::new(),
         }
     }
 
-    /// Returns the sidecar name for a given network
-    pub fn sidecar_name_for_network(network: crate::services::config::ArchivistNetwork) -> String {
-        match network {
-            crate::services::config::ArchivistNetwork::Devnet => "archivist-devnet".to_string(),
-            crate::services::config::ArchivistNetwork::Testnet => "archivist".to_string(),
-        }
+    /// Returns the sidecar name for a given network.
+    /// A single binary built from the archivist-node main branch handles both networks.
+    pub fn sidecar_name_for_network(_network: crate::services::config::ArchivistNetwork) -> String {
+        "archivist".to_string()
     }
 }
 
@@ -283,6 +288,18 @@ impl NodeService {
             },
         ];
 
+        // Forward bootstrap peers from the active network's remote config so devnet
+        // and testnet peers don't co-mingle at the libp2p discovery layer.
+        for spr in &self.config.bootstrap_nodes {
+            args.push(format!("--bootstrap-node={}", spr));
+        }
+        if !self.config.bootstrap_nodes.is_empty() {
+            log::info!(
+                "Starting node with {} bootstrap peers",
+                self.config.bootstrap_nodes.len()
+            );
+        }
+
         // Append marketplace flags when a private key is available
         // --eth-private-key expects a file path, not the raw key contents
         if let Some(ref key) = self.config.eth_private_key {
@@ -333,13 +350,9 @@ impl NodeService {
                 }
             }
 
-            // Devnet binary uses --persistence flag; testnet (v0.2.0) uses
-            // `persistence` as a positional subcommand
-            if self.config.sidecar_name.contains("devnet") {
-                args.push("--persistence".to_string());
-            } else {
-                args.push("persistence".to_string());
-            }
+            // archivist-node main branch (commit ba37d61+) uses --persistence as a
+            // top-level flag. The flag requires --eth-provider to also be set.
+            args.push("--persistence".to_string());
             args.push(format!("--eth-private-key={}", key_path.to_string_lossy()));
             if let Some(ref addr) = self.config.marketplace_address {
                 args.push(format!("--marketplace-address={}", addr));
@@ -353,19 +366,7 @@ impl NodeService {
         let sidecar_command = app_handle
             .shell()
             .sidecar(&self.config.sidecar_name)
-            .map_err(|e| {
-                if self.config.sidecar_name.contains("devnet") {
-                    ArchivistError::NodeStartFailed(format!(
-                        "Devnet sidecar binary not available for this platform. \
-                         Build from archivist-node main branch — see \
-                         src-tauri/sidecars/DEVNET-SIDECAR-BUILD.md for instructions. \
-                         Original error: {}",
-                        e
-                    ))
-                } else {
-                    ArchivistError::NodeStartFailed(format!("Sidecar not found: {}", e))
-                }
-            })?
+            .map_err(|e| ArchivistError::NodeStartFailed(format!("Sidecar not found: {}", e)))?
             .args(&args_refs);
 
         // Spawn the sidecar process
@@ -896,7 +897,7 @@ impl NodeService {
         self.config = config;
     }
 
-    /// Set the sidecar binary name (e.g., "archivist" for testnet, "archivist-devnet" for devnet)
+    /// Set the sidecar binary name (always "archivist" — single binary handles all networks).
     pub fn set_sidecar_name(&mut self, name: String) {
         self.config.sidecar_name = name;
     }
@@ -911,6 +912,12 @@ impl NodeService {
         self.config.eth_private_key = eth_private_key;
         self.config.marketplace_address = marketplace_address;
         self.config.eth_provider_url = eth_provider_url;
+    }
+
+    /// Set the bootstrap peer list (SPRs) the sidecar will use for P2P discovery.
+    /// Forwarded to the sidecar as `--bootstrap-node=<spr>` flags on next start.
+    pub fn set_bootstrap_nodes(&mut self, bootstrap_nodes: Vec<String>) {
+        self.config.bootstrap_nodes = bootstrap_nodes;
     }
 
     /// Check if node is healthy by pinging its API

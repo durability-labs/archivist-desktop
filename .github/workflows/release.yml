@@ -125,11 +125,27 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install cmake
 
-      - name: Build archivist-node sidecar from source
+      - name: Read pinned archivist-node commit
+        id: pinned
         shell: bash
         run: |
-          git clone --depth 1 https://github.com/durability-labs/archivist-node.git /tmp/archivist-node
+          COMMIT="$(tr -d '[:space:]' < ARCHIVIST_NODE_COMMIT)"
+          if [[ -z "$COMMIT" ]]; then
+            echo "ERROR: ARCHIVIST_NODE_COMMIT is empty"; exit 1
+          fi
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "Pinned archivist-node commit: $COMMIT"
+
+      - name: Build archivist-node sidecar from source
+        shell: bash
+        env:
+          ARCHIVIST_COMMIT: ${{ steps.pinned.outputs.commit }}
+        run: |
+          # Full clone so we can checkout a specific commit. --depth 1 would only
+          # fetch HEAD; for reproducibility we pin to ARCHIVIST_NODE_COMMIT instead.
+          git clone https://github.com/durability-labs/archivist-node.git /tmp/archivist-node
           cd /tmp/archivist-node
+          git checkout "$ARCHIVIST_COMMIT"
           git submodule sync --recursive
           git submodule update --init --recursive
 
@@ -168,17 +184,16 @@ jobs:
             nim c --out:build/archivist --passL:/tmp/stub.o archivist.nim
           fi
 
-          # Copy to sidecars directory for both testnet and devnet
+          # Copy to sidecars directory. A single binary now handles both devnet and
+          # testnet (unified after commit ba37d61 on archivist-node main), so there
+          # is no separate archivist-devnet-* copy.
           mkdir -p $GITHUB_WORKSPACE/src-tauri/sidecars
           TARGET="${{ matrix.target }}"
           if [[ "$TARGET" == *"windows"* ]]; then
             cp build/archivist.exe "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-${TARGET}.exe"
-            cp build/archivist.exe "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-devnet-${TARGET}.exe"
           else
             cp build/archivist "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-${TARGET}"
-            cp build/archivist "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-devnet-${TARGET}"
             chmod +x "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-${TARGET}"
-            chmod +x "$GITHUB_WORKSPACE/src-tauri/sidecars/archivist-devnet-${TARGET}"
           fi
 
           echo "Sidecar built and installed:"

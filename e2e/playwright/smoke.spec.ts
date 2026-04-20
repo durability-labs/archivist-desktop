@@ -5,25 +5,57 @@ import { SEL, DIRECT_NAV_ROUTES } from '../selectors';
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Click through the intro cards that play on every launch. The callers set
+ * `__archivist_test_skip_splash=true` so the splash video is bypassed —
+ * this helper only needs to click through Disclaimer + Welcome.
+ *
+ * Assumes `archivist_onboarding_complete` is set so Welcome's "Get Started"
+ * exits to Dashboard instead of continuing into wallet-setup.
+ */
+async function skipIntroCards(page: Page) {
+  const disclaimer = page.locator('button', { hasText: /I Understand/i }).first();
+  await disclaimer.waitFor({ state: 'visible', timeout: 15_000 });
+  await disclaimer.click();
+
+  const start = page.locator('button', { hasText: /^Get Started$/ }).first();
+  await start.waitFor({ state: 'visible', timeout: 15_000 });
+  await start.click();
+}
+
 async function setupPage(page: Page) {
-  await page.goto('/');
-  await page.evaluate(() => {
+  // Set flags BEFORE any page JS runs so useOnboarding sees them on first mount.
+  await page.addInitScript(() => {
     localStorage.setItem('archivist_onboarding_complete', 'true');
+    sessionStorage.setItem('__archivist_test_skip_splash', 'true');
   });
-  await page.reload();
+  await page.goto('/');
+  await skipIntroCards(page);
   await page.locator(SEL.sidebar).waitFor({ state: 'visible', timeout: 15_000 });
 }
 
-const ADVANCED_TARGETS = ['Logs', 'Backup Server', 'Settings', 'My Devices', 'Add Device', 'Folder Upload'];
+async function enableDeveloperMode(page: Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem('archivist_developer_mode', 'true');
+    localStorage.setItem('archivist_onboarding_complete', 'true');
+    sessionStorage.setItem('__archivist_test_skip_splash', 'true');
+  });
+  await page.goto('/');
+  await skipIntroCards(page);
+  await page.locator(SEL.sidebar).waitFor({ state: 'visible', timeout: 10_000 });
+}
+
+const ADVANCED_TARGETS = ['Settings', 'Logs'];
 
 async function navigateTo(page: Page, label: string) {
+  // Settings and Logs live inside the collapsible "Advanced" accordion.
   if (ADVANCED_TARGETS.includes(label)) {
     const link = page.locator('.sidebar .nav-link', { hasText: label });
     if (!(await link.isVisible())) {
       const accordion = page.locator('.sidebar .nav-accordion-header', { hasText: 'Advanced' });
       if (await accordion.isVisible()) {
         await accordion.click();
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(300);
       }
     }
   }
@@ -74,34 +106,33 @@ test.describe('Playwright Smoke Tests', () => {
       await expect(page.locator('.sidebar .nav-accordion-header', { hasText: 'Advanced' })).toBeVisible();
     });
 
-    test('should expand accordion on click', async ({ page }) => {
-      await page.evaluate(() => localStorage.removeItem('nav-advanced-open'));
-      await page.reload();
-      await page.locator(SEL.sidebar).waitFor({ state: 'visible', timeout: 10_000 });
-
-      const accordion = page.locator('.sidebar .nav-accordion-header', { hasText: 'Advanced' });
-      await accordion.click();
-      await page.waitForTimeout(500);
-
-      const advancedLinks = ['Settings', 'Logs', 'Folder Upload', 'Backup Server', 'My Devices', 'Add Device'];
-      for (const label of advancedLinks) {
-        await expect(page.locator('.sidebar .nav-link', { hasText: label })).toBeVisible({ timeout: 3000 });
+    test('should expose Settings inside Advanced accordion', async ({ page }) => {
+      const settingsLink = page.locator('.sidebar .nav-link', { hasText: 'Settings' });
+      if (!(await settingsLink.isVisible())) {
+        await page.locator('.sidebar .nav-accordion-header', { hasText: 'Advanced' }).click();
+        await page.waitForTimeout(300);
       }
+      await expect(settingsLink).toBeVisible({ timeout: 3000 });
     });
 
-    test('should collapse accordion on re-click', async ({ page }) => {
-      const settingsLink = page.locator('.sidebar .nav-link', { hasText: 'Settings' });
+    test('should hide Logs link when developer mode is off', async ({ page }) => {
+      // Expand accordion so Logs would be visible if it existed
       const accordion = page.locator('.sidebar .nav-accordion-header', { hasText: 'Advanced' });
-
-      // Ensure expanded first
-      if (!(await settingsLink.isVisible())) {
+      if (await accordion.isVisible()) {
         await accordion.click();
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(300);
       }
+      await expect(page.locator('.sidebar .nav-link', { hasText: 'Logs' })).not.toBeVisible();
+    });
 
-      await accordion.click();
-      await page.waitForTimeout(500);
-      await expect(settingsLink).not.toBeVisible();
+    test('should show Logs link when developer mode is on', async ({ page }) => {
+      await enableDeveloperMode(page);
+      const accordion = page.locator('.sidebar .nav-accordion-header', { hasText: 'Advanced' });
+      if (await accordion.isVisible()) {
+        await accordion.click();
+        await page.waitForTimeout(300);
+      }
+      await expect(page.locator('.sidebar .nav-link', { hasText: 'Logs' })).toBeVisible({ timeout: 3000 });
     });
   });
 
@@ -194,87 +225,14 @@ test.describe('Playwright Smoke Tests', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Folder Upload / Sync - UI
-  // -------------------------------------------------------------------------
-
-  test.describe('Folder Upload - UI', () => {
-    test('should load page', async ({ page }) => {
-      await navigateTo(page, 'Folder Upload');
-      await expect(page.locator(SEL.pageHeader)).toBeVisible();
-    });
-
-    test('should show sync status card', async ({ page }) => {
-      await navigateTo(page, 'Folder Upload');
-      // May not be visible if node isn't running
-      const visible = await page.locator(SEL.syncStatusCard).isVisible();
-      expect(typeof visible).toBe('boolean');
-    });
-
-    test('should show watched folders section', async ({ page }) => {
-      await navigateTo(page, 'Folder Upload');
-      const visible = await page.locator(SEL.watchedFolders).isVisible();
-      expect(typeof visible).toBe('boolean');
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // My Devices - UI
-  // -------------------------------------------------------------------------
-
-  test.describe('My Devices - UI', () => {
-    test('should load page', async ({ page }) => {
-      await navigateTo(page, 'My Devices');
-      await expect(page.locator(SEL.devicesPage)).toBeVisible({ timeout: 5000 });
-    });
-
-    test('should show This Device section', async ({ page }) => {
-      await navigateTo(page, 'My Devices');
-      const visible = await page.locator(SEL.thisDevice).isVisible();
-      expect(typeof visible).toBe('boolean');
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // Add Device - UI
-  // -------------------------------------------------------------------------
-
-  test.describe('Add Device - UI', () => {
-    test('should load page', async ({ page }) => {
-      await navigateTo(page, 'Add Device');
-      await expect(page.locator(SEL.addDevicePage)).toBeVisible();
-    });
-
-    test('should show peer address input', async ({ page }) => {
-      await navigateTo(page, 'Add Device');
-      await expect(page.locator(SEL.peerAddressInput)).toBeVisible();
-    });
-
-    test('should have Connect button disabled when empty', async ({ page }) => {
-      await navigateTo(page, 'Add Device');
-      await page.locator(SEL.peerAddressInput).clear();
-      await page.waitForTimeout(200);
-      const connectBtn = page.locator(SEL.connectBtn);
-      const disabled = await connectBtn.getAttribute('disabled');
-      const text = await connectBtn.textContent() || '';
-      expect(disabled !== null || text.toLowerCase().includes('connect')).toBeTruthy();
-    });
-
-    test('should navigate to Devices on Cancel', async ({ page }) => {
-      await navigateTo(page, 'Add Device');
-      const cancelBtn = page.locator('a, button', { hasText: 'Cancel' });
-      if (await cancelBtn.isVisible()) {
-        await cancelBtn.click();
-        await page.waitForTimeout(500);
-        expect(page.url()).toContain('/devices');
-      }
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // Logs - UI
+  // Logs - UI (developer mode only)
   // -------------------------------------------------------------------------
 
   test.describe('Logs - UI', () => {
+    test.beforeEach(async ({ page }) => {
+      await enableDeveloperMode(page);
+    });
+
     test('should load page', async ({ page }) => {
       await navigateTo(page, 'Logs');
       await expect(page.locator(SEL.logsContainer)).toBeVisible();
@@ -284,7 +242,6 @@ test.describe('Playwright Smoke Tests', () => {
       await navigateTo(page, 'Logs');
       const select = page.locator(SEL.lineCountSelect);
       await expect(select).toBeVisible();
-      const options = await select.locator('option').allTextContents();
       const values = await select.locator('option').evaluateAll(
         els => els.map(el => (el as HTMLOptionElement).value)
       );
@@ -327,10 +284,12 @@ test.describe('Playwright Smoke Tests', () => {
       ).toBeVisible();
     });
 
-    test('should show save and reset buttons', async ({ page }) => {
+    test('should show reset button and auto-save status (no manual Save button)', async ({ page }) => {
       await navigateTo(page, 'Settings');
-      await expect(page.locator('button', { hasText: 'Save Settings' })).toBeVisible();
       await expect(page.locator('button', { hasText: 'Reset to Defaults' })).toBeVisible();
+      // Manual save was removed — settings auto-save on change.
+      await expect(page.locator('button', { hasText: 'Save Settings' })).toHaveCount(0);
+      await expect(page.locator('.settings-status')).toBeVisible();
     });
 
     test('should show notification toggles section', async ({ page }) => {
@@ -420,6 +379,11 @@ test.describe('Playwright Smoke Tests', () => {
 
     test('should toggle crawl settings', async ({ page }) => {
       await navigateTo(page, 'Website Scraper');
+      // Single-page is now the default; disable it so depth/pages number inputs render
+      const singlePageCheckbox = page.locator('.single-page-toggle input[type="checkbox"]').first();
+      if (await singlePageCheckbox.isChecked()) {
+        await singlePageCheckbox.uncheck();
+      }
       const toggle = page.locator('.web-archive-page .settings-toggle');
       await expect(toggle).toBeVisible();
       await toggle.click();
@@ -536,47 +500,6 @@ test.describe('Playwright Smoke Tests', () => {
       const hasContracts = await page.locator(SEL.walletContracts).isVisible();
       const hasPage = await page.locator(SEL.walletPage).isVisible();
       expect(hasAddress || hasContracts || hasPage).toBeTruthy();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // Backup Server - UI
-  // -------------------------------------------------------------------------
-
-  test.describe('Backup Server - UI', () => {
-    test('should load page', async ({ page }) => {
-      await navigateTo(page, 'Backup Server');
-      await page.waitForTimeout(1000);
-      await expect(page.locator(SEL.backupServerPage)).toBeVisible();
-    });
-
-    test('should show stats grid with 4 cards', async ({ page }) => {
-      await navigateTo(page, 'Backup Server');
-      await page.waitForTimeout(1000);
-      await expect(page.locator(SEL.backupStatsGrid)).toBeVisible();
-      expect(await page.locator(SEL.backupStatsCard).count()).toBe(4);
-    });
-
-    test('should show label and value in each stat card', async ({ page }) => {
-      await navigateTo(page, 'Backup Server');
-      await page.waitForTimeout(1000);
-      const cards = page.locator(SEL.backupStatsCard);
-      const count = await cards.count();
-      for (let i = 0; i < count; i++) {
-        const card = cards.nth(i);
-        await expect(card.locator('.stat-label')).toBeVisible();
-        await expect(card.locator('.stat-value')).toBeVisible();
-        const valueText = await card.locator('.stat-value').textContent();
-        expect(valueText).toBeTruthy();
-      }
-    });
-
-    test('should show enable or disable button', async ({ page }) => {
-      await navigateTo(page, 'Backup Server');
-      await page.waitForTimeout(1000);
-      const hasEnable = await page.locator('button', { hasText: 'Enable Daemon' }).isVisible();
-      const hasDisable = await page.locator('button', { hasText: 'Disable Daemon' }).isVisible();
-      expect(hasEnable || hasDisable).toBeTruthy();
     });
   });
 

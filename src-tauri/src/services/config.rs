@@ -1,8 +1,12 @@
 use crate::error::{ArchivistError, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 
 /// Archivist network environment (devnet vs testnet)
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ArchivistNetwork {
     #[default]
@@ -127,9 +131,43 @@ pub struct RemoteNetworkConfig {
     pub sprs: Vec<String>,
 }
 
+/// In-memory cache for remote network config. Avoids duplicate HTTP fetches when
+/// `switch_network` and `try_apply_network_config` both run within seconds of each
+/// other (e.g., on user-initiated network switches).
+struct RemoteConfigCacheEntry {
+    fetched_at: Instant,
+    config: RemoteNetworkConfig,
+}
+
+static REMOTE_CONFIG_CACHE: OnceLock<RwLock<HashMap<ArchivistNetwork, RemoteConfigCacheEntry>>> =
+    OnceLock::new();
+const REMOTE_CONFIG_TTL: Duration = Duration::from_secs(60);
+
+fn remote_config_cache() -> &'static RwLock<HashMap<ArchivistNetwork, RemoteConfigCacheEntry>> {
+    REMOTE_CONFIG_CACHE.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
 /// Fetch the full network configuration JSON from the remote config endpoint.
 /// Returns `None` on any failure (network error, bad format, etc.).
+///
+/// Successful responses are cached for `REMOTE_CONFIG_TTL` to avoid duplicate
+/// HTTP requests when multiple call sites need the same data in quick succession.
 pub async fn fetch_network_config(network: ArchivistNetwork) -> Option<RemoteNetworkConfig> {
+    // Cache hit?
+    {
+        let cache = remote_config_cache().read().await;
+        if let Some(entry) = cache.get(&network) {
+            if entry.fetched_at.elapsed() < REMOTE_CONFIG_TTL {
+                log::debug!(
+                    "Using cached remote network config for {} (age={}s)",
+                    network.display_name(),
+                    entry.fetched_at.elapsed().as_secs()
+                );
+                return Some(entry.config.clone());
+            }
+        }
+    }
+
     let url = format!("{}.json", network.config_base_url());
     log::info!("Fetching network config from {}", url);
 
@@ -203,12 +241,26 @@ pub async fn fetch_network_config(network: ArchivistNetwork) -> Option<RemoteNet
         sprs.len()
     );
 
-    Some(RemoteNetworkConfig {
+    let config = RemoteNetworkConfig {
         latest_version,
         marketplace_contract,
         rpc_url,
         sprs,
-    })
+    };
+
+    // Cache the successful fetch
+    {
+        let mut cache = remote_config_cache().write().await;
+        cache.insert(
+            network,
+            RemoteConfigCacheEntry {
+                fetched_at: Instant::now(),
+                config: config.clone(),
+            },
+        );
+    }
+
+    Some(config)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -272,6 +324,10 @@ pub struct AppConfig {
     /// Used to detect upgrades that require repo migration (e.g. block format changes).
     #[serde(default)]
     pub data_version: Option<String>,
+
+    /// Developer mode toggle — shows advanced/experimental features when enabled.
+    #[serde(default)]
+    pub developer_mode: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -684,6 +740,7 @@ impl Default for AppConfig {
             torrent: TorrentSettings::default(),
             irc: IrcSettings::default(),
             data_version: None,
+            developer_mode: false,
         }
     }
 }

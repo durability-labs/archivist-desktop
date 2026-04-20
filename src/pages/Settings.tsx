@@ -1,8 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useFeatures } from '../hooks/useFeatures';
 import { useBackgroundMusic } from '../hooks/useBackgroundMusic';
+import { useToast } from '../contexts/ToastContext';
+import { useDeveloperMode } from '../contexts/DeveloperModeContext';
+
+const AUTO_SAVE_DEBOUNCE_MS = 600;
 
 interface NodeSettings {
   data_directory: string;
@@ -147,12 +151,16 @@ const defaultConfig: AppConfig = {
 };
 
 function Settings() {
+  const toast = useToast();
+  const { developerMode, setDeveloperMode } = useDeveloperMode();
   const { audioLoaded: musicAudioLoaded, loadError: musicLoadError } = useBackgroundMusic();
   const [config, setConfig] = useState<AppConfig>(defaultConfig);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  // Baseline of the last known-saved config. Used to skip auto-save when the
+  // current state exactly matches what's already on disk (e.g. right after load).
+  const lastSavedRef = useRef<AppConfig | null>(null);
   const [appVersion, setAppVersion] = useState('');
   const [platform, setPlatform] = useState('');
   const [excludeInput, setExcludeInput] = useState('');
@@ -179,6 +187,7 @@ function Settings() {
           invoke<string>('get_app_version'),
           invoke<string>('get_platform'),
         ]);
+        lastSavedRef.current = configResult;
         setConfig(configResult);
         setAppVersion(version);
         setPlatform(plat);
@@ -191,19 +200,31 @@ function Settings() {
     loadData();
   }, []);
 
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      setError(null);
-      await invoke('save_config', { config });
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save settings');
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Auto-save: persist the config ~600ms after the user stops editing.
+  // Avoids a "Save" button the user has to find and click for every change.
+  useEffect(() => {
+    if (loading) return;
+    if (lastSavedRef.current === null) return;
+    // Skip if the config matches what's already on disk (e.g. immediately after load).
+    if (JSON.stringify(config) === JSON.stringify(lastSavedRef.current)) return;
+
+    const handle = window.setTimeout(async () => {
+      try {
+        setSaving(true);
+        setError(null);
+        await invoke('save_config', { config });
+        lastSavedRef.current = config;
+        toast.success('Settings saved');
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        toast.error('Failed to save settings', msg);
+      } finally {
+        setSaving(false);
+      }
+    }, AUTO_SAVE_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(handle);
+  }, [config, loading, toast]);
 
   const checkForUpdates = async () => {
     setUpdateStatus('checking');
@@ -244,11 +265,13 @@ function Settings() {
       setError(null);
       await invoke('reset_config');
       const configResult = await invoke<AppConfig>('get_config');
+      // Update baseline first so the auto-save effect doesn't fire for this change.
+      lastSavedRef.current = configResult;
       setConfig(configResult);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      toast.success('Settings reset to defaults');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to reset settings');
+      const msg = e instanceof Error ? e.message : 'Failed to reset settings';
+      toast.error('Failed to reset settings', msg);
     }
   };
 
@@ -372,17 +395,16 @@ function Settings() {
       <div className="page-header">
         <h2>Settings</h2>
         <div className="actions">
+          <span className="settings-status" aria-live="polite">
+            {saving ? 'Saving…' : 'Changes save automatically'}
+          </span>
           <button onClick={handleReset} className="secondary">
             Reset to Defaults
-          </button>
-          <button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Settings'}
           </button>
         </div>
       </div>
 
       {error && <div className="error-banner">{error}</div>}
-      {success && <div className="success-banner">Settings saved successfully!</div>}
 
       {/* General Settings */}
       <div className="settings-section">
@@ -1411,8 +1433,7 @@ function Settings() {
               try {
                 setError(null);
                 const count = await invoke<number>('delete_all_files');
-                setSuccess(true);
-                setTimeout(() => setSuccess(false), 3000);
+                toast.success(`Cleared ${count} files from storage`);
                 console.log(`Cleared ${count} files from storage`);
               } catch (e) {
                 setError(e instanceof Error ? e.message : 'Failed to clear storage');
@@ -1424,28 +1445,56 @@ function Settings() {
         </div>
       </div>
 
+      {/* Network / VPN Notice */}
+      <div className="settings-section">
+        <h3>Network</h3>
+        <div className="setting-item">
+          <p className="hint" style={{ marginBottom: '8px', lineHeight: '1.6' }}>
+            If you are using a VPN, P2P networking may not work correctly. You may need to configure
+            a custom announce IP address above, or disable your VPN while using Archivist.
+            Ensure your VPN allows traffic on the configured ports (TCP {config.node.listen_port}, UDP {config.node.discovery_port}).
+          </p>
+        </div>
+      </div>
+
       {/* Developer / Debug Settings */}
       <div className="settings-section">
         <h3>Developer</h3>
         <div className="setting-item">
-          <label>Reset Onboarding</label>
+          <label>Developer Mode</label>
           <p className="hint" style={{ marginBottom: '8px' }}>
-            Clear onboarding state to see the welcome wizard again on next app launch.
+            Show advanced features like Logs. Intended for power users and developers.
           </p>
-          <button
-            className="secondary"
-            onClick={() => {
-              if (!confirm('Reset onboarding? The app will reload and show the welcome wizard.')) {
-                return;
-              }
-              localStorage.removeItem('archivist_onboarding_complete');
-              localStorage.removeItem('archivist_onboarding_step');
-              window.location.reload();
-            }}
-          >
-            Reset Onboarding
-          </button>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={developerMode}
+              onChange={(e) => setDeveloperMode(e.target.checked)}
+            />
+            <span>{developerMode ? 'Enabled' : 'Disabled'}</span>
+          </label>
         </div>
+        {developerMode && (
+          <div className="setting-item">
+            <label>Reset First-Run Setup</label>
+            <p className="hint" style={{ marginBottom: '8px' }}>
+              Re-run wallet setup and folder selection on next launch. The splash intro plays every launch and is not affected. Your data will not be affected.
+            </p>
+            <button
+              className="secondary"
+              onClick={() => {
+                if (!confirm('Reset first-run setup? The app will reload and walk you through wallet + folder selection again on next launch.')) {
+                  return;
+                }
+                localStorage.removeItem('archivist_onboarding_complete');
+                localStorage.removeItem('archivist_onboarding_step');
+                window.location.reload();
+              }}
+            >
+              Reset First-Run Setup
+            </button>
+          </div>
+        )}
       </div>
 
       {/* About */}

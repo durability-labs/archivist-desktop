@@ -80,7 +80,7 @@ pub async fn unlock_wallet_and_restart(
 
     // 2. Inject marketplace config (fetches remote config + checks contract)
     log::info!("unlock_wallet_and_restart: injecting marketplace config...");
-    super::node::try_inject_marketplace_config(&state).await;
+    super::node::try_apply_network_config(&state).await;
     log::info!("unlock_wallet_and_restart: marketplace config injected");
 
     // 3. Restart node with new config

@@ -455,8 +455,8 @@ impl SyncService {
             // Check if any folders need manifest generation (threshold reached)
             let folders_needing_manifest: Vec<String> = self
                 .folders
-                .iter()
-                .filter_map(|(id, _)| {
+                .keys()
+                .filter_map(|id| {
                     let changes = self.changes_since_manifest.get(id).copied().unwrap_or(0);
                     if changes >= self.manifest_update_threshold {
                         Some(id.clone())

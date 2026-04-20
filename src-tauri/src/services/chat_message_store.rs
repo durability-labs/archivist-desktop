@@ -171,7 +171,7 @@ impl MessageStore {
             })
             .collect();
 
-        summaries.sort_by(|a, b| b.last_message_at.cmp(&a.last_message_at));
+        summaries.sort_by_key(|s| std::cmp::Reverse(s.last_message_at));
         summaries
     }
 
