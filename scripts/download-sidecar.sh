@@ -1,27 +1,53 @@
 #!/bin/bash
-# Download the appropriate archivist-node binary for the current platform
-# This script is used during development and CI/CD builds
+# Download the archivist-node sidecar binary built from a pinned main-branch commit.
 #
-# Security: Verifies SHA256 checksums of downloaded binaries
+# Source of truth: durability-labs/archivist-node
+# Pinned commit:   read from ARCHIVIST_NODE_COMMIT at the repo root (shared with .github/workflows/release.yml)
+#
+# This script uses GitHub Actions artifacts (not GitHub Releases) because
+# main-branch builds are only published as workflow artifacts. This requires
+# `gh` CLI to be installed and authenticated (`gh auth login`).
+#
+# To upgrade:
+#   1. Pick a new commit on archivist-node main and confirm its "Release" workflow succeeded
+#   2. Update the commit SHA in /ARCHIVIST_NODE_COMMIT (repo root)
+#   3. Run this script for each platform you care about
+#   4. Update the SHA256s in get_checksum() with the values printed at the end of each run
+#
+# Security: Verifies SHA256 checksums of downloaded binaries.
 
 set -e
 
-ARCHIVIST_VERSION="v0.2.0"
-RELEASE_BASE_URL="https://github.com/durability-labs/archivist-node/releases/download/${ARCHIVIST_VERSION}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SIDECARS_DIR="${SCRIPT_DIR}/../src-tauri/sidecars"
+COMMIT_FILE="${SCRIPT_DIR}/../ARCHIVIST_NODE_COMMIT"
 
-# SHA256 checksums for archivist-node v0.2.0 binaries
-# These should be updated when upgrading ARCHIVIST_VERSION
-# Note: Using function instead of associative array for bash 3.x compatibility (macOS)
+if [[ ! -f "${COMMIT_FILE}" ]]; then
+    echo "ERROR: ${COMMIT_FILE} not found"
+    echo "       This file is the single source of truth for the pinned archivist-node commit."
+    exit 1
+fi
+
+# Read the pinned commit, strip whitespace/newlines
+ARCHIVIST_COMMIT="$(tr -d '[:space:]' < "${COMMIT_FILE}")"
+ARCHIVIST_REPO="durability-labs/archivist-node"
+
+if [[ -z "${ARCHIVIST_COMMIT}" ]]; then
+    echo "ERROR: ${COMMIT_FILE} is empty"
+    exit 1
+fi
+
+# SHA256 checksums for binaries built from $ARCHIVIST_COMMIT.
+# Update these whenever ARCHIVIST_COMMIT changes (script will print the actual hash).
 get_checksum() {
     local platform="$1"
     case "$platform" in
-        linux-amd64)   echo "b5df0f0252f42dfee7e26b0ec525354e92a90d1afde3d138f6deb35073de05e5" ;;
-        linux-arm64)   echo "97c4fe9d4fe8974a26fdce52a6c72cba6d007ad9b5bfb408b3573416299c4b8a" ;;
-        darwin-amd64)  echo "b2787f0ebd7b82f39505874e1126e0aeabc910f2dec8fb44d63027453180ebe4" ;;
-        darwin-arm64)  echo "6c74fcd35d3b7ecae613023181f613a915f20daa1447b054ee607deed6cc38d0" ;;
-        windows-amd64) echo "4034cc3c03518352200948bc2c6cf8260264d34aae6e3862bf1f6e5a64eb781b" ;;
+        windows-amd64) echo "a4f9df9431a4fd917981d01fc1e3b96e9ddcfede25be252111b1fce721500f56" ;;
+        # TODO: populate by running this script on each platform after bumping the commit
+        linux-amd64)   echo "" ;;
+        linux-arm64)   echo "" ;;
+        darwin-amd64)  echo "" ;;
+        darwin-arm64)  echo "" ;;
         *) echo "" ;;
     esac
 }
@@ -79,28 +105,6 @@ verify_checksum() {
     local expected_checksum="$2"
     local actual_checksum
 
-    if [[ "$SKIP_CHECKSUM_VERIFY" == "true" ]]; then
-        echo "WARNING: Skipping checksum verification (SKIP_CHECKSUM_VERIFY=true)"
-        return 0
-    fi
-
-    if [[ -z "$expected_checksum" || "$expected_checksum" == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ]]; then
-        echo "WARNING: No valid checksum configured for this platform."
-        echo "         To get the checksum, run: sha256sum <downloaded-archive>"
-        echo "         Then update CHECKSUMS in this script."
-        echo ""
-        read -p "Continue without verification? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "Aborting download."
-            exit 1
-        fi
-        return 0
-    fi
-
-    echo "Verifying checksum..."
-
-    # Use sha256sum on Linux, shasum on macOS
     if command -v sha256sum &> /dev/null; then
         actual_checksum=$(sha256sum "$file" | cut -d' ' -f1)
     elif command -v shasum &> /dev/null; then
@@ -110,83 +114,108 @@ verify_checksum() {
         exit 1
     fi
 
+    if [[ "$SKIP_CHECKSUM_VERIFY" == "true" ]]; then
+        echo "WARNING: Skipping checksum verification (SKIP_CHECKSUM_VERIFY=true)"
+        echo "Actual checksum: $actual_checksum"
+        return 0
+    fi
+
+    if [[ -z "$expected_checksum" ]]; then
+        echo "WARNING: No checksum configured for this platform yet."
+        echo "         Update get_checksum() in this script with:"
+        echo "           $actual_checksum"
+        echo ""
+        read -p "Continue without verification? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Aborting."
+            exit 1
+        fi
+        return 0
+    fi
+
     if [[ "$actual_checksum" != "$expected_checksum" ]]; then
         echo "ERROR: Checksum verification failed!"
         echo "  Expected: $expected_checksum"
         echo "  Actual:   $actual_checksum"
         echo ""
-        echo "This could indicate a corrupted download or a supply chain attack."
-        echo "Please verify the download source and try again."
+        echo "This could mean the upstream artifact was rebuilt or has been tampered with."
+        echo "If you trust the new artifact, update get_checksum() with the actual value."
         exit 1
     fi
 
     echo "Checksum verified: $actual_checksum"
 }
 
-# Download and extract the binary
+# Download the artifact for a platform via gh CLI
 download_binary() {
     local platform="$1"
     local target="$2"
+    local artifact_name
     local output_name="archivist-${target}"
-    local archive_name
-    local archive_ext
 
-    # Windows uses .zip format, others use .tar.gz
+    case "$platform" in
+        windows-amd64) artifact_name="release-archivist-main-windows-amd64.exe" ;;
+        linux-amd64)   artifact_name="release-archivist-main-linux-amd64" ;;
+        linux-arm64)   artifact_name="release-archivist-main-linux-arm64" ;;
+        darwin-amd64)  artifact_name="release-archivist-main-darwin-amd64" ;;
+        darwin-arm64)  artifact_name="release-archivist-main-darwin-arm64" ;;
+        *) echo "Unsupported platform: $platform"; exit 1 ;;
+    esac
+
     if [[ "$platform" == *"windows"* ]]; then
-        archive_ext="zip"
         output_name="${output_name}.exe"
-    else
-        archive_ext="tar.gz"
     fi
 
-    archive_name="archivist-${ARCHIVIST_VERSION}-${platform}.${archive_ext}"
-    # Note: v0.2.0 uses format: archivist-v0.2.0-linux-amd64.tar.gz
-    local download_url="${RELEASE_BASE_URL}/${archive_name}"
+    if ! command -v gh &> /dev/null; then
+        echo "ERROR: 'gh' CLI is required to download main-branch artifacts."
+        echo "       Install from https://cli.github.com/ and run 'gh auth login'."
+        exit 1
+    fi
 
-    echo "Downloading archivist-node ${ARCHIVIST_VERSION} for ${platform}..."
-    echo "URL: ${download_url}"
+    echo "Downloading archivist-node artifact '${artifact_name}'"
+    echo "  from commit ${ARCHIVIST_COMMIT:0:12} of ${ARCHIVIST_REPO}"
 
-    # Create sidecars directory if it doesn't exist
     mkdir -p "${SIDECARS_DIR}"
 
-    # Download to temp directory
-    local temp_dir=$(mktemp -d)
+    local temp_dir
+    temp_dir=$(mktemp -d)
     trap "rm -rf ${temp_dir}" EXIT
 
-    curl -L -o "${temp_dir}/archivist.${archive_ext}" "${download_url}"
+    gh run download \
+        --repo "${ARCHIVIST_REPO}" \
+        --name "${artifact_name}" \
+        --dir "${temp_dir}" \
+        $(gh api "repos/${ARCHIVIST_REPO}/actions/runs?head_sha=${ARCHIVIST_COMMIT}" \
+            --jq '.workflow_runs[] | select(.name=="Release") | .id' | head -1)
 
-    # Verify checksum before extraction
-    local expected_checksum
-    expected_checksum=$(get_checksum "$platform")
-    verify_checksum "${temp_dir}/archivist.${archive_ext}" "$expected_checksum"
-
-    echo "Extracting binary..."
-    if [[ "$archive_ext" == "zip" ]]; then
-        unzip -q "${temp_dir}/archivist.zip" -d "${temp_dir}"
-    else
-        tar -xzf "${temp_dir}/archivist.tar.gz" -C "${temp_dir}"
-    fi
-
-    # Find the binary (might be in a subdirectory or have version in name)
+    # Find the binary inside the extracted directory
     local binary_path
     if [[ "$platform" == *"windows"* ]]; then
-        binary_path=$(find "${temp_dir}" -name "archivist*.exe" -type f | head -1)
+        binary_path=$(find "${temp_dir}" -name "archivist-*-windows-amd64.exe" -type f | head -1)
     else
-        binary_path=$(find "${temp_dir}" -name "archivist*" -type f ! -name "*.tar.gz" ! -name "*.sha256" ! -name "*.zip" | head -1)
+        binary_path=$(find "${temp_dir}" -name "archivist-main-*" -type f ! -name "*.dll" | head -1)
     fi
 
     if [[ -z "$binary_path" ]]; then
-        echo "Error: Could not find archivist binary in archive"
+        echo "ERROR: Could not find archivist binary in artifact"
+        ls -la "${temp_dir}"
         exit 1
     fi
+
+    # Verify checksum on the binary itself (artifact zip checksum is not stable
+    # because GitHub re-zips on download)
+    local expected_checksum
+    expected_checksum=$(get_checksum "$platform")
+    verify_checksum "${binary_path}" "$expected_checksum"
 
     # Copy to sidecars directory with proper name
     cp "${binary_path}" "${SIDECARS_DIR}/${output_name}"
     chmod +x "${SIDECARS_DIR}/${output_name}"
 
-    echo "Binary installed to: ${SIDECARS_DIR}/${output_name}"
+    echo "Binary installed: ${SIDECARS_DIR}/${output_name}"
 
-    # For Windows, also copy the required DLLs (MinGW runtime)
+    # For Windows, also copy the bundled MinGW runtime DLLs
     if [[ "$platform" == *"windows"* ]]; then
         echo "Copying Windows runtime DLLs..."
         for dll in "${temp_dir}"/*.dll; do
@@ -218,64 +247,16 @@ download_for_target() {
     download_binary "$platform" "$target"
 }
 
-# Place the devnet sidecar binary (built from archivist-node main branch)
-# Requires ARCHIVIST_DEVNET_BINARY env var pointing to a pre-built binary,
-# or the binary is already in the sidecars directory.
-place_devnet_binary() {
-    local target="$1"
-    local devnet_name="archivist-devnet-${target}"
-
-    if [[ "$target" == *"windows"* ]]; then
-        devnet_name="${devnet_name}.exe"
-    fi
-
-    mkdir -p "${SIDECARS_DIR}"
-
-    if [[ -n "${ARCHIVIST_DEVNET_BINARY:-}" ]]; then
-        if [[ -f "${ARCHIVIST_DEVNET_BINARY}" ]]; then
-            echo "Placing devnet sidecar from ARCHIVIST_DEVNET_BINARY..."
-            cp "${ARCHIVIST_DEVNET_BINARY}" "${SIDECARS_DIR}/${devnet_name}"
-            chmod +x "${SIDECARS_DIR}/${devnet_name}"
-            echo "Devnet binary installed to: ${SIDECARS_DIR}/${devnet_name}"
-        else
-            echo "WARNING: ARCHIVIST_DEVNET_BINARY set but file not found: ${ARCHIVIST_DEVNET_BINARY}"
-            echo "         Devnet sidecar will not be available."
-        fi
-    elif [[ -f "${SIDECARS_DIR}/${devnet_name}" ]]; then
-        echo "Devnet sidecar already present: ${SIDECARS_DIR}/${devnet_name}"
-    else
-        echo "NOTE: No real devnet sidecar binary available for ${target}."
-        echo "      Creating placeholder so Tauri can build."
-        echo "      To enable devnet support, build archivist-node from the main branch of"
-        echo "      https://github.com/durability-labs/archivist-node and either:"
-        echo "        - Set ARCHIVIST_DEVNET_BINARY=/path/to/binary before running this script"
-        echo "        - Copy it manually to ${SIDECARS_DIR}/${devnet_name}"
-        echo "      See src-tauri/sidecars/DEVNET-SIDECAR-BUILD.md for full instructions."
-
-        # Create a placeholder so Tauri build doesn't fail
-        if [[ "$target" == *"windows"* ]]; then
-            # Empty file for Windows (can't use shell script)
-            touch "${SIDECARS_DIR}/${devnet_name}"
-        else
-            # Shell script that prints an error for Unix platforms
-            printf '#!/bin/sh\necho "ERROR: Devnet sidecar not available for this platform. Build from archivist-node main branch." >&2\nexit 1\n' > "${SIDECARS_DIR}/${devnet_name}"
-            chmod +x "${SIDECARS_DIR}/${devnet_name}"
-        fi
-    fi
-}
-
 # Main
 main() {
     if [[ -n "$1" ]]; then
-        # Target specified as argument
         download_for_target "$1"
-        place_devnet_binary "$1"
     else
-        # Auto-detect current platform
-        local platform=$(detect_platform)
-        local target=$(get_tauri_target)
+        local platform
+        platform=$(detect_platform)
+        local target
+        target=$(get_tauri_target)
         download_binary "$platform" "$target"
-        place_devnet_binary "$target"
     fi
 
     echo ""

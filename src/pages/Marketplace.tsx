@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useMarketplace } from '../hooks/useMarketplace';
 import { useWallet } from '../hooks/useWallet';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useToast } from '../contexts/ToastContext';
 import InfoTooltip from '../components/InfoTooltip';
+import CidDisplay from '../components/CidDisplay';
+import UnitInput from '../components/UnitInput';
 import '../styles/Marketplace.css';
 
 interface FileItem {
@@ -27,19 +30,22 @@ export default function Marketplace() {
   } = useMarketplace();
   const { wallet, loading: walletLoading } = useWallet();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const toast = useToast();
+  const [simpleMode, setSimpleMode] = useState(true);
 
-  // Provider form state
-  const [totalSize, setTotalSize] = useState('1073741824'); // 1 GB
-  const [duration, setDuration] = useState('86400'); // 1 day in seconds
-  const [minPricePerBytePerSecond, setMinPricePerBytePerSecond] = useState('1');
-  const [maxCollateralPerByte, setMaxCollateralPerByte] = useState('1');
-  const [totalCollateral, setTotalCollateral] = useState('1');
+  // Provider form state — matches archivist-node main (ba37d61+) availability schema.
+  // v0.2.0 fields `totalSize` and `totalCollateral` were removed by the upstream API.
+  const [maximumDuration, setMaximumDuration] = useState('86400'); // 1 day in seconds
+  const [minimumPricePerBytePerSecond, setMinimumPricePerBytePerSecond] = useState('1');
+  const [maximumCollateralPerByte, setMaximumCollateralPerByte] = useState('1');
+  const [availableUntil, setAvailableUntil] = useState('0'); // 0 = no restriction
   const [providerSubmitting, setProviderSubmitting] = useState(false);
   const [providerError, setProviderError] = useState<string | null>(null);
 
   // Client form state
   const [files, setFiles] = useState<FileItem[]>([]);
-  const [selectedCid, setSelectedCid] = useState('');
+  const [selectedCid, setSelectedCid] = useState(searchParams.get('cid') || '');
   const [reqDuration, setReqDuration] = useState('2592000');
   const [reqPrice, setReqPrice] = useState('2000');
   const [reqCollateral, setReqCollateral] = useState('1');
@@ -51,6 +57,16 @@ export default function Marketplace() {
   const [clientSubmitting, setClientSubmitting] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
   const [filesLoaded, setFilesLoaded] = useState(false);
+
+  // Pre-fill CID from URL query param
+  useEffect(() => {
+    const cidParam = searchParams.get('cid');
+    if (cidParam) {
+      setSelectedCid(cidParam);
+      loadFiles();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-calculate slot size from CID's dataset size and number of slots
   const computeSlotSize = (cid: string, slots: number, fileList: FileItem[]) => {
@@ -89,7 +105,12 @@ export default function Marketplace() {
     setProviderSubmitting(true);
     setProviderError(null);
     try {
-      await setAvailability({ totalSize, duration, minPricePerBytePerSecond, maxCollateralPerByte, totalCollateral });
+      await setAvailability({
+        maximumDuration,
+        minimumPricePerBytePerSecond,
+        maximumCollateralPerByte,
+        availableUntil: Number(availableUntil) || 0,
+      });
     } catch (err) {
       setProviderError(String(err));
     } finally {
@@ -115,6 +136,8 @@ export default function Marketplace() {
         expiry: reqExpiry,
       });
       setSelectedCid('');
+      toast.success('Storage request submitted successfully');
+      navigate('/marketplace/deals');
     } catch (err) {
       setClientError(String(err));
     } finally {
@@ -124,7 +147,24 @@ export default function Marketplace() {
 
   return (
     <div className="marketplace-page">
-      <h1>Marketplace</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+        <h1 style={{ margin: 0 }}>Marketplace</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {!walletLoading && wallet?.hasKey && wallet?.marketplaceActive && (
+            <span style={{ color: 'var(--color-success, #00ff41)', fontSize: '0.85rem' }}>Wallet Ready</span>
+          )}
+          {!walletLoading && wallet?.hasKey && !wallet?.marketplaceActive && (
+            <span style={{ color: 'var(--color-warning, #ffaa00)', fontSize: '0.85rem' }}>Marketplace Inactive</span>
+          )}
+          {!walletLoading && !wallet?.hasKey && (
+            <span style={{ color: 'var(--color-error, #ff4444)', fontSize: '0.85rem' }}>No Wallet</span>
+          )}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={!simpleMode} onChange={(e) => setSimpleMode(!e.target.checked)} />
+            Advanced Mode
+          </label>
+        </div>
+      </div>
 
       {error && <div className="mp-error">{error}</div>}
 
@@ -173,23 +213,19 @@ export default function Marketplace() {
             <table className="mp-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Total Size</th>
-                  <th>Free Size</th>
-                  <th>Duration</th>
+                  <th>Max Duration</th>
                   <th>Min Price/Byte/s</th>
-                  <th>Total Collateral</th>
+                  <th>Max Collateral/Byte</th>
+                  <th>Available Until</th>
                 </tr>
               </thead>
               <tbody>
-                {availability.map((a) => (
-                  <tr key={a.id}>
-                    <td title={a.id}>{a.id.slice(0, 8)}...</td>
-                    <td>{a.totalSize}</td>
-                    <td>{a.freeSize}</td>
-                    <td>{a.duration}</td>
-                    <td>{a.minPricePerBytePerSecond}</td>
-                    <td>{a.totalCollateral}</td>
+                {availability.map((a, i) => (
+                  <tr key={i}>
+                    <td>{a.maximumDuration}</td>
+                    <td>{a.minimumPricePerBytePerSecond}</td>
+                    <td>{a.maximumCollateralPerByte}</td>
+                    <td>{a.availableUntil === 0 ? 'Unlimited' : new Date(a.availableUntil * 1000).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -201,50 +237,39 @@ export default function Marketplace() {
         <form onSubmit={handleSetAvailability}>
           <div className="mp-form">
             <div className="mp-field">
-              <label>Total Size (bytes)</label>
-              <input
-                type="text"
-                value={totalSize}
-                onChange={(e) => setTotalSize(e.target.value)}
-                placeholder="1073741824"
-              />
-            </div>
-            <div className="mp-field">
-              <label>Duration (seconds)<InfoTooltip text="How long you're offering to store data. Measured in seconds (86400 = 1 day)." /></label>
-              <input
-                type="text"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                placeholder="86400"
-              />
+              <UnitInput type="time" value={maximumDuration} onChange={setMaximumDuration} label="Max Duration" tooltip="The longest storage duration you'll accept for any single deal." />
             </div>
             <div className="mp-field">
               <label>Min Price per Byte/Second<InfoTooltip text="The minimum rate you'll accept for storing data. Higher = more selective but fewer deals." /></label>
               <input
                 type="text"
-                value={minPricePerBytePerSecond}
-                onChange={(e) => setMinPricePerBytePerSecond(e.target.value)}
+                value={minimumPricePerBytePerSecond}
+                onChange={(e) => setMinimumPricePerBytePerSecond(e.target.value)}
                 placeholder="1"
               />
             </div>
-            <div className="mp-field">
-              <label>Max Collateral per Byte<InfoTooltip text="Maximum tokens you're willing to lock as a guarantee per byte stored. You lose this if you fail to store the data." /></label>
-              <input
-                type="text"
-                value={maxCollateralPerByte}
-                onChange={(e) => setMaxCollateralPerByte(e.target.value)}
-                placeholder="1"
-              />
-            </div>
-            <div className="mp-field">
-              <label>Total Collateral<InfoTooltip text="Total tokens locked as a guarantee for your storage commitment. Returned when you fulfill the storage deal." /></label>
-              <input
-                type="text"
-                value={totalCollateral}
-                onChange={(e) => setTotalCollateral(e.target.value)}
-                placeholder="1"
-              />
-            </div>
+            {!simpleMode && (
+              <>
+                <div className="mp-field">
+                  <label>Max Collateral per Byte<InfoTooltip text="Maximum tokens a client may require you to lock per byte. Higher = more deals you qualify for, but more at risk." /></label>
+                  <input
+                    type="text"
+                    value={maximumCollateralPerByte}
+                    onChange={(e) => setMaximumCollateralPerByte(e.target.value)}
+                    placeholder="1"
+                  />
+                </div>
+                <div className="mp-field">
+                  <label>Available Until (Unix timestamp, 0 = no limit)<InfoTooltip text="The latest time you're willing to host slots until. 0 means no time restriction." /></label>
+                  <input
+                    type="text"
+                    value={availableUntil}
+                    onChange={(e) => setAvailableUntil(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              </>
+            )}
           </div>
           {providerError && <div className="mp-error">{providerError}</div>}
           <button type="submit" className="mp-submit-btn" disabled={providerSubmitting}>
@@ -268,7 +293,7 @@ export default function Marketplace() {
                 {slots.map((s, i) => (
                   <tr key={i}>
                     <td>{s.slotIndex}</td>
-                    <td title={s.request.content.cid}>{s.request.content.cid.slice(0, 12)}...</td>
+                    <td><CidDisplay cid={s.request.content.cid} /></td>
                     <td>{s.request.ask.slots}</td>
                     <td>{s.request.ask.duration}</td>
                   </tr>
@@ -286,7 +311,7 @@ export default function Marketplace() {
         <form onSubmit={handleCreateRequest}>
           <div className="mp-form">
             <div className="mp-field full-width">
-              <label>CID</label>
+              <label>Content ID (CID)</label>
               <input
                 type="text"
                 value={selectedCid}
@@ -304,77 +329,70 @@ export default function Marketplace() {
               </datalist>
             </div>
             <div className="mp-field">
-              <label>Duration (seconds)<InfoTooltip text="How long you want your data stored. Measured in seconds (2592000 = 30 days)." /></label>
-              <input
-                type="text"
-                value={reqDuration}
-                onChange={(e) => setReqDuration(e.target.value)}
-                placeholder="2592000"
-              />
+              <UnitInput type="time" value={reqDuration} onChange={setReqDuration} label="Duration" tooltip="How long you want your data stored." />
             </div>
             <div className="mp-field">
-              <label>Price per Byte/Second<InfoTooltip text="How much you're willing to pay for storage per byte per second." /></label>
-              <input
-                type="text"
-                value={reqPrice}
-                onChange={(e) => setReqPrice(e.target.value)}
-                placeholder="2000"
-              />
-            </div>
-            <div className="mp-field">
-              <label>Proof Probability<InfoTooltip text="How often storage providers must prove they still have your data. Lower number = more frequent proofs = higher assurance but higher cost." /></label>
-              <input
-                type="text"
-                value={reqProofProbability}
-                onChange={(e) => setReqProofProbability(e.target.value)}
-                placeholder="200"
-              />
-            </div>
-            <div className="mp-field">
-              <label>Collateral per Byte<InfoTooltip text="Tokens the provider must lock per byte as a guarantee. Higher = stronger guarantee your data is safe." /></label>
-              <input
-                type="text"
-                value={reqCollateral}
-                onChange={(e) => setReqCollateral(e.target.value)}
-                placeholder="1"
-              />
-            </div>
-            <div className="mp-field">
-              <label>Slots<InfoTooltip text="Number of storage providers that will each store a copy of your data. More slots = more redundancy." /></label>
+              <label>Redundancy (Slots)<InfoTooltip text="Number of storage providers that will each store a copy of your data. More slots = more redundancy." /></label>
               <input
                 type="number"
                 value={reqSlots}
                 onChange={(e) => handleSlotsChange(Number(e.target.value))}
                 min={1}
+                max={8}
               />
             </div>
-            <div className="mp-field">
-              <label>Slot Size (bytes, 0 = auto)<InfoTooltip text="Size of each data chunk distributed to providers. Set to 0 for automatic calculation based on file size and slot count." /></label>
-              <input
-                type="number"
-                value={reqSlotSize}
-                onChange={(e) => setReqSlotSize(Number(e.target.value))}
-                min={0}
-              />
-            </div>
-            <div className="mp-field">
-              <label>Max Slot Loss<InfoTooltip text="Maximum number of storage slots that can fail before your data becomes unrecoverable. Must be less than total slots." /></label>
-              <input
-                type="number"
-                value={reqMaxSlotLoss}
-                onChange={(e) => setReqMaxSlotLoss(Number(e.target.value))}
-                min={0}
-              />
-            </div>
-            <div className="mp-field">
-              <label>Expiry (seconds)<InfoTooltip text="Time limit for providers to accept your storage request. After this, unfilled slots expire." /></label>
-              <input
-                type="number"
-                value={reqExpiry}
-                onChange={(e) => setReqExpiry(Number(e.target.value))}
-                min={0}
-              />
-            </div>
+            {!simpleMode && (
+              <>
+                <div className="mp-field">
+                  <label>Price per Byte/Second<InfoTooltip text="How much you're willing to pay for storage per byte per second." /></label>
+                  <input
+                    type="text"
+                    value={reqPrice}
+                    onChange={(e) => setReqPrice(e.target.value)}
+                    placeholder="2000"
+                  />
+                </div>
+                <div className="mp-field">
+                  <label>Proof Probability<InfoTooltip text="How often storage providers must prove they still have your data. Lower number = more frequent proofs = higher assurance but higher cost." /></label>
+                  <input
+                    type="text"
+                    value={reqProofProbability}
+                    onChange={(e) => setReqProofProbability(e.target.value)}
+                    placeholder="200"
+                  />
+                </div>
+                <div className="mp-field">
+                  <label>Collateral per Byte<InfoTooltip text="Tokens the provider must lock per byte as a guarantee. Higher = stronger guarantee your data is safe." /></label>
+                  <input
+                    type="text"
+                    value={reqCollateral}
+                    onChange={(e) => setReqCollateral(e.target.value)}
+                    placeholder="1"
+                  />
+                </div>
+                <div className="mp-field">
+                  <label>Slot Size (bytes, 0 = auto)<InfoTooltip text="Size of each data chunk distributed to providers. Set to 0 for automatic calculation based on file size and slot count." /></label>
+                  <input
+                    type="number"
+                    value={reqSlotSize}
+                    onChange={(e) => setReqSlotSize(Number(e.target.value))}
+                    min={0}
+                  />
+                </div>
+                <div className="mp-field">
+                  <label>Max Slot Loss<InfoTooltip text="Maximum number of storage slots that can fail before your data becomes unrecoverable. Must be less than total slots." /></label>
+                  <input
+                    type="number"
+                    value={reqMaxSlotLoss}
+                    onChange={(e) => setReqMaxSlotLoss(Number(e.target.value))}
+                    min={0}
+                  />
+                </div>
+                <div className="mp-field">
+                  <UnitInput type="time" value={String(reqExpiry)} onChange={(v) => setReqExpiry(Number(v))} label="Expiry" tooltip="Time limit for providers to accept your storage request. After this, unfilled slots expire." />
+                </div>
+              </>
+            )}
           </div>
           {clientError && <div className="mp-error">{clientError}</div>}
           {clientSubmitting && (
@@ -403,7 +421,7 @@ export default function Marketplace() {
               <tbody>
                 {purchases.map((id) => (
                   <tr key={id}>
-                    <td title={id}>{id.slice(0, 16)}...</td>
+                    <td><CidDisplay cid={id} /></td>
                   </tr>
                 ))}
               </tbody>

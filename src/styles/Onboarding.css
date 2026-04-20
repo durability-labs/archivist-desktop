@@ -41,10 +41,10 @@
 }
 
 .splash-skip {
-  position: absolute;
-  bottom: var(--spacing-xl);
-  right: var(--spacing-xl);
-  background: transparent;
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: rgba(0, 0, 0, 0.6);
   color: var(--term-text-dim);
   border: 1px solid var(--term-border);
   padding: var(--spacing-sm) var(--spacing-md);
@@ -53,6 +53,7 @@
   font-size: 0.875rem;
   font-family: var(--font-mono);
   transition: all var(--duration-normal) var(--ease-out);
+  z-index: 100;
 }
 
 .splash-skip:hover {
@@ -756,4 +757,99 @@
     padding: var(--spacing-sm) var(--spacing-lg);
     font-size: 1rem;
   }
+}
+
+/* Mute button overlay on splash video */
+.splash-mute {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--term-text-dim);
+  border: 1px solid var(--term-border);
+  padding: 8px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  z-index: 100;
+  transition: all var(--duration-normal) var(--ease-out);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.splash-mute:hover {
+  color: var(--phosphor);
+  border-color: var(--phosphor);
+}
+
+/* Continue overlay after video ends */
+.splash-continue-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 50;
+}
+
+/* Wallet setup screen */
+.wallet-setup-screen {
+  text-align: center;
+}
+
+.wallet-setup-form {
+  max-width: 400px;
+  margin: var(--spacing-xl) auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.wallet-setup-field {
+  text-align: left;
+}
+
+.wallet-setup-field label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  color: var(--term-text-dim);
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
+}
+
+.wallet-setup-field input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--term-dark);
+  border: 1px solid var(--term-border);
+  border-radius: var(--radius-md);
+  color: var(--term-text);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.wallet-setup-field input:focus {
+  border-color: var(--phosphor);
+  outline: none;
+}
+
+/* Scroll indicator badge for Logs */
+.scroll-indicator {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.scroll-indicator.following {
+  background: rgba(0, 255, 65, 0.15);
+  color: #00ff41;
+}
+
+.scroll-indicator.paused {
+  background: rgba(255, 170, 0, 0.15);
+  color: #ffaa00;
 }

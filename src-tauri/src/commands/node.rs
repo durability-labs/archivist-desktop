@@ -1,10 +1,13 @@
 use crate::error::Result;
-use crate::services::config::fetch_network_config;
-use crate::services::node::{NodeConfig, NodeStatus};
+use crate::services::config::{fetch_network_config, ConfigService};
+use crate::services::node::{NodeConfig, NodeService, NodeStatus};
+use crate::services::wallet::WalletService;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use std::io::BufRead;
+use std::sync::Arc;
 use tauri::{AppHandle, State};
+use tokio::sync::RwLock;
 
 /// Check if the marketplace contract has bytecode deployed at the given RPC endpoint.
 /// Returns `false` when the contract address is empty, the RPC is unreachable, or the
@@ -58,32 +61,49 @@ pub(crate) async fn is_marketplace_contract_available(
     }
 }
 
-/// If the wallet is unlocked and the marketplace contract is available on-chain,
-/// inject the marketplace credentials into the node config so the sidecar starts
-/// with `persistence` flags.  Otherwise the node starts without marketplace.
+/// Apply the active network's remote config to the running NodeConfig so the
+/// sidecar starts with the right blockchain endpoints and bootstrap peers.
 ///
-/// Also fetches the latest network config from the remote endpoint to ensure
-/// contract addresses and RPC URLs are up-to-date (not stale hardcoded values).
-pub(crate) async fn try_inject_marketplace_config(state: &AppState) {
-    let wallet = state.wallet.read().await;
-    if !wallet.is_unlocked() {
-        return;
-    }
+/// Always applies (regardless of wallet state):
+///   - Bootstrap peer SPRs (forwarded as `--bootstrap-node=<spr>` flags)
+///   - Updated marketplace contract address and RPC URL persisted to AppConfig
+///
+/// Only applies when the wallet is unlocked AND the marketplace contract is
+/// deployed on-chain:
+///   - `eth_private_key`, `marketplace_address`, `eth_provider_url` on NodeConfig
+///     (which causes `--persistence` + related flags to be passed)
+///
+/// `fetch_network_config` is cached for 60s so calling this repeatedly (e.g. from
+/// `switch_network` followed by `restart_node`) only does one HTTP request.
+/// Convenience wrapper for callers that already hold an `&AppState`.
+pub(crate) async fn try_apply_network_config(state: &AppState) {
+    try_apply_network_config_inner(&state.node, &state.wallet, &state.config).await
+}
 
-    // Fetch the active network before doing remote lookup
+/// Apply the active network's remote config to the running NodeConfig. Takes
+/// individual service handles so it can be invoked from contexts without an
+/// `AppState` reference (e.g. the auto-start task in lib.rs).
+pub(crate) async fn try_apply_network_config_inner(
+    node_svc: &Arc<RwLock<NodeService>>,
+    wallet_svc: &Arc<RwLock<WalletService>>,
+    config_svc: &Arc<RwLock<ConfigService>>,
+) {
     let network = {
-        let config = state.config.read().await;
+        let config = config_svc.read().await;
         config.get().blockchain.active_network
     };
 
-    // Fetch live config from remote — updates contract address and RPC if changed
-    if let Some(remote) = fetch_network_config(network).await {
-        let mut config = state.config.write().await;
+    // Fetch live config from remote (cached for 60s — see fetch_network_config).
+    let remote = fetch_network_config(network).await;
+
+    // Persist updated marketplace contract / RPC to AppConfig if remote fetch succeeded.
+    if let Some(ref remote) = remote {
+        let mut config = config_svc.write().await;
         let mut app_config = config.get();
         let old_contract = app_config.blockchain.marketplace_contract.clone();
         app_config.blockchain.marketplace_contract = remote.marketplace_contract.clone();
-        if let Some(rpc) = remote.rpc_url {
-            app_config.blockchain.rpc_url = rpc;
+        if let Some(ref rpc) = remote.rpc_url {
+            app_config.blockchain.rpc_url = rpc.clone();
         }
         if old_contract != remote.marketplace_contract {
             log::info!(
@@ -97,38 +117,56 @@ pub(crate) async fn try_inject_marketplace_config(state: &AppState) {
         log::warn!("Could not fetch remote network config — using persisted/hardcoded values");
     }
 
-    // Also set the correct sidecar name for this network
+    // Bootstrap peers and sidecar name apply regardless of wallet state — P2P
+    // discovery is needed even when the user isn't using marketplace features.
     {
-        let mut node = state.node.write().await;
+        let sprs = remote.as_ref().map(|r| r.sprs.clone()).unwrap_or_default();
+        let mut node = node_svc.write().await;
+        node.set_bootstrap_nodes(sprs);
         node.set_sidecar_name(NodeConfig::sidecar_name_for_network(network));
     }
 
-    let config = state.config.read().await;
-    let app_config = config.get();
-    let rpc_url = app_config.blockchain.rpc_url.clone();
-    let contract = app_config.blockchain.marketplace_contract.clone();
-    drop(config);
-
-    if !is_marketplace_contract_available(&rpc_url, &contract).await {
-        log::warn!(
-            "Skipping marketplace flags — contract {} not available on {}. \
-             Node will start without marketplace features.",
-            contract,
-            rpc_url
-        );
-        // Clear any previously-set marketplace config so the node starts clean
-        let mut node = state.node.write().await;
-        node.set_marketplace_config(None, None, None);
+    // Marketplace flags require an unlocked wallet. When the user has created
+    // or imported a wallet, the node MUST start with --persistence and the
+    // marketplace credentials regardless of whether the contract is currently
+    // reachable. Clearing the config here was the root cause of the "Marketplace
+    // not active" banner after onboarding — the user created a wallet, the RPC
+    // or contract check failed (timeout, DNS, VPN, not-yet-deployed), and the
+    // node started without persistence. The user then had to manually restart.
+    //
+    // The contract check is now advisory only: a log warning if it fails, but
+    // the node still starts with persistence. If the contract isn't available,
+    // marketplace operations will fail at transaction time with a clear error
+    // rather than the confusing "Marketplace not active" state.
+    let wallet = wallet_svc.read().await;
+    if !wallet.is_unlocked() {
         return;
     }
 
-    let config = state.config.read().await;
-    let app_config = config.get();
-    let mut node = state.node.write().await;
+    let (rpc_url, contract) = {
+        let config = config_svc.read().await;
+        let app_config = config.get();
+        (
+            app_config.blockchain.rpc_url.clone(),
+            app_config.blockchain.marketplace_contract.clone(),
+        )
+    };
+
+    if !is_marketplace_contract_available(&rpc_url, &contract).await {
+        log::warn!(
+            "Marketplace contract {} not reachable on {} — node will start with \
+             persistence anyway. Marketplace operations may fail until the contract \
+             is available.",
+            contract,
+            rpc_url
+        );
+    }
+
+    let mut node = node_svc.write().await;
     node.set_marketplace_config(
         wallet.get_private_key().map(|s| s.to_string()),
-        Some(app_config.blockchain.marketplace_contract.clone()),
-        Some(app_config.blockchain.rpc_url.clone()),
+        Some(contract),
+        Some(rpc_url),
     );
 }
 
@@ -149,7 +187,7 @@ pub struct DiagnosticInfo {
 #[tauri::command]
 pub async fn start_node(app_handle: AppHandle, state: State<'_, AppState>) -> Result<NodeStatus> {
     // Inject marketplace credentials only if the contract is actually deployed
-    try_inject_marketplace_config(&state).await;
+    try_apply_network_config(&state).await;
 
     let mut node = state.node.write().await;
     node.start(&app_handle).await?;
@@ -185,7 +223,7 @@ pub async fn stop_node(state: State<'_, AppState>) -> Result<NodeStatus> {
 #[tauri::command]
 pub async fn restart_node(app_handle: AppHandle, state: State<'_, AppState>) -> Result<NodeStatus> {
     // Inject marketplace credentials only if the contract is actually deployed
-    try_inject_marketplace_config(&state).await;
+    try_apply_network_config(&state).await;
 
     let mut node = state.node.write().await;
     node.restart(&app_handle).await?;

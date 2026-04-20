@@ -87,23 +87,37 @@ export default function Wallet() {
     try {
       await generateWallet(password);
       setSetupMode('none');
-      setPassword('');
       setConfirmPassword('');
       setSetupLoading(false);
       setRestarting(true);
+      // unlock_wallet_and_restart performs marketplace config injection + restart
+      // atomically. Plain restart_node would skip the marketplace injection,
+      // leaving the user with a "Marketplace not active" banner.
       try {
-        await invoke('restart_node');
-        for (let i = 0; i < 5; i++) {
-          await new Promise(r => setTimeout(r, 2000));
-          await refresh();
-        }
-      } catch { /* node may not be running */ }
+        await invoke('unlock_wallet_and_restart', { password });
+      } catch { /* node may not have been running */ }
+      setPassword('');
+      await refresh();
       setRestarting(false);
     } catch (err) {
       setSetupError(String(err));
       setSetupLoading(false);
     }
   };
+
+  // Show restart overlay when node is restarting
+  if (restarting) {
+    return (
+      <div className="wallet-page" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '400px', gap: '1rem' }}>
+        <div className="spinner" style={{ width: '48px', height: '48px' }} />
+        <h2 style={{ margin: 0 }}>Applying Wallet Configuration</h2>
+        <p style={{ color: 'var(--text-dim)', textAlign: 'center', maxWidth: '400px' }}>
+          Your node is restarting to apply the new wallet configuration.
+          This usually takes 10-15 seconds.
+        </p>
+      </div>
+    );
+  }
 
   const handleImport = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,18 +130,17 @@ export default function Wallet() {
     try {
       await importWallet(importKey, password);
       setSetupMode('none');
-      setPassword('');
       setConfirmPassword('');
       setImportKey('');
       setSetupLoading(false);
       setRestarting(true);
+      // unlock_wallet_and_restart injects marketplace config + restarts atomically.
+      // Plain restart_node skips the marketplace injection.
       try {
-        await invoke('restart_node');
-        for (let i = 0; i < 5; i++) {
-          await new Promise(r => setTimeout(r, 2000));
-          await refresh();
-        }
-      } catch { /* node may not be running */ }
+        await invoke('unlock_wallet_and_restart', { password });
+      } catch { /* node may not have been running */ }
+      setPassword('');
+      await refresh();
       setRestarting(false);
     } catch (err) {
       setSetupError(String(err));

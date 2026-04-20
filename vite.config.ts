@@ -23,7 +23,10 @@ export default defineConfig({
   },
   envPrefix: ['VITE_', 'TAURI_'],
   build: {
-    target: process.env.TAURI_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
+    // ES2021 covers all Tauri v2 targets: WebView2 (Edge/Chromium 105+),
+    // Safari 15+ (macOS 12+), WebKitGTK (recent Gnome). esbuild 0.27+ errors
+    // on destructuring transforms for safari13, which is unnecessary anyway.
+    target: 'es2021',
     minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
     sourcemap: !!process.env.TAURI_DEBUG,
   },

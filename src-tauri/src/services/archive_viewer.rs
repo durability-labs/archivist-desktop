@@ -68,13 +68,64 @@ impl ArchiveViewerServer {
                 ArchivistError::WebArchiveError(format!("Failed to download archive: {}", e))
             })?;
 
-        // 2. Extract the ZIP
+        // 2+3: extract + start server (shared path)
+        let url = self
+            .extract_and_serve(&temp_dir, &zip_path, original_url, false)
+            .await?;
+        self.current_cid = Some(cid.to_string());
+        Ok(url)
+    }
+
+    /// Open an archive from a local ZIP path (skips downloading from the node).
+    /// Useful for letting the user view a freshly scraped archive before
+    /// deciding whether to upload it.
+    pub async fn open_archive_from_path(
+        &mut self,
+        local_zip_path: &std::path::Path,
+        original_url: Option<&str>,
+    ) -> Result<String> {
+        if !local_zip_path.exists() {
+            return Err(ArchivistError::WebArchiveError(format!(
+                "Local archive not found: {}",
+                local_zip_path.display()
+            )));
+        }
+        if self.running {
+            self.close_archive();
+        }
+
+        let temp_dir =
+            std::env::temp_dir().join(format!("archivist-viewer-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&temp_dir).map_err(|e| {
+            ArchivistError::WebArchiveError(format!("Failed to create temp dir: {}", e))
+        })?;
+
+        // Don't copy the ZIP — just extract directly from its original location.
+        // The ZIP isn't deleted (unlike the downloaded-from-node case, where we
+        // own the copy in temp).
+        let url = self
+            .extract_and_serve(&temp_dir, local_zip_path, original_url, true)
+            .await?;
+        self.current_cid = None;
+        Ok(url)
+    }
+
+    /// Shared: extract a ZIP into `temp_dir/site/` and start the warp server.
+    /// If `keep_source_zip` is false the zip is removed after extraction
+    /// (used when the caller owns a downloaded copy).
+    async fn extract_and_serve(
+        &mut self,
+        temp_dir: &std::path::Path,
+        zip_path: &std::path::Path,
+        original_url: Option<&str>,
+        keep_source_zip: bool,
+    ) -> Result<String> {
         let extract_dir = temp_dir.join("site");
         std::fs::create_dir_all(&extract_dir).map_err(|e| {
             ArchivistError::WebArchiveError(format!("Failed to create extract dir: {}", e))
         })?;
 
-        let zip_path_clone = zip_path.clone();
+        let zip_path_clone = zip_path.to_path_buf();
         let extract_dir_clone = extract_dir.clone();
         tokio::task::spawn_blocking(move || extract_zip(&zip_path_clone, &extract_dir_clone))
             .await
@@ -82,19 +133,18 @@ impl ArchiveViewerServer {
                 ArchivistError::WebArchiveError(format!("Extract task failed: {}", e))
             })??;
 
-        // Clean up the ZIP file after extraction
-        let _ = std::fs::remove_file(&zip_path);
+        if !keep_source_zip {
+            let _ = std::fs::remove_file(zip_path);
+        }
 
-        // 3. Start the warp server
-        let serve_dir = extract_dir.clone();
+        // Start the warp server.
+        let serve_dir = extract_dir;
         let port = self.port;
 
-        // Health route
         let health_route = warp::path("health")
             .and(warp::get())
             .map(|| warp::reply::json(&serde_json::json!({"status": "ok"})));
 
-        // Serve static files from the extracted directory
         let static_files = warp::get()
             .and(warp::path::full())
             .and(warp::any().map(move || serve_dir.clone()))
@@ -113,8 +163,7 @@ impl ArchiveViewerServer {
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.shutdown_tx = Some(tx);
         self.running = true;
-        self.current_cid = Some(cid.to_string());
-        self.extract_dir = Some(temp_dir);
+        self.extract_dir = Some(temp_dir.to_path_buf());
 
         let (_, server) =
             warp::serve(routes).bind_with_graceful_shutdown(([127, 0, 0, 1], port), async {
@@ -126,7 +175,6 @@ impl ArchiveViewerServer {
 
         let base_url = format!("http://127.0.0.1:{}", port);
 
-        // Compute starting page path from original URL
         if let Some(url_str) = original_url {
             if let Ok(parsed) = url::Url::parse(url_str) {
                 let path = parsed.path().trim_start_matches('/');

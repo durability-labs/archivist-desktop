@@ -79,7 +79,45 @@ pub enum ArchivistError {
     IrcError(String),
 }
 
-// Make error serializable for Tauri commands
+impl ArchivistError {
+    /// Returns a stable error code for frontend matching.
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            ArchivistError::NodeNotRunning => "NODE_NOT_RUNNING",
+            ArchivistError::NodeAlreadyRunning => "NODE_ALREADY_RUNNING",
+            ArchivistError::NodeStartFailed(_) => "NODE_START_FAILED",
+            ArchivistError::NodeStopFailed(_) => "NODE_STOP_FAILED",
+            ArchivistError::FileNotFound(_) => "FILE_NOT_FOUND",
+            ArchivistError::FileOperationFailed(_) => "FILE_OPERATION_FAILED",
+            ArchivistError::SyncError(_) => "SYNC_ERROR",
+            ArchivistError::PeerConnectionFailed(_) => "PEER_CONNECTION_FAILED",
+            ArchivistError::ConfigError(_) => "CONFIG_ERROR",
+            ArchivistError::ApiError(_) => "API_ERROR",
+            ArchivistError::MediaDownloadError(_) => "MEDIA_DOWNLOAD_ERROR",
+            ArchivistError::BinaryNotFound(_) => "BINARY_NOT_FOUND",
+            ArchivistError::StreamingError(_) => "STREAMING_ERROR",
+            ArchivistError::WebArchiveError(_) => "WEB_ARCHIVE_ERROR",
+            ArchivistError::ChatError(_) => "CHAT_ERROR",
+            ArchivistError::CryptoError(_) => "CRYPTO_ERROR",
+            ArchivistError::TlsError(_) => "TLS_ERROR",
+            ArchivistError::SessionNotFound(_) => "SESSION_NOT_FOUND",
+            ArchivistError::IoError(_) => "IO_ERROR",
+            ArchivistError::SerializationError(_) => "SERIALIZATION_ERROR",
+            ArchivistError::WalletError(_) => "WALLET_ERROR",
+            ArchivistError::ContractError(_) => "CONTRACT_ERROR",
+            ArchivistError::MarketplaceError(_) => "MARKETPLACE_ERROR",
+            ArchivistError::TorrentError(_) => "TORRENT_ERROR",
+            ArchivistError::IrcError(_) => "IRC_ERROR",
+        }
+    }
+}
+
+// Serialize as a plain string for frontend consumption. The frontend has dozens
+// of `String(err)` / `e instanceof Error ? e.message : ...` call sites that
+// expect the error to stringify cleanly. A structured `{ code, message }` form
+// would surface as "[object Object]" at every call site that hasn't been
+// migrated. The `error_code()` accessor above is still available for any future
+// command that wants to expose machine-readable codes via a typed return value.
 impl Serialize for ArchivistError {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where

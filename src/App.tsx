@@ -3,17 +3,14 @@ import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate, useLocati
 import { useSoundNotifications } from './hooks/useSoundNotifications';
 import { useBackgroundMusic } from './hooks/useBackgroundMusic';
 import { useOnboarding } from './hooks/useOnboarding';
+import { useDeveloperMode } from './contexts/DeveloperModeContext';
 import NavAccordion from './components/NavAccordion';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import Files from './pages/Files';
-import Sync from './pages/Sync';
 import Peers from './pages/Peers';
 import Logs from './pages/Logs';
-import BackupServer from './pages/BackupServer';
 import Settings from './pages/Settings';
-import Devices from './pages/Devices';
-import AddDevice from './pages/AddDevice';
 import MediaDownload from './pages/MediaDownload';
 import MediaPlayer from './pages/MediaPlayer';
 import WebArchive from './pages/WebArchive';
@@ -46,6 +43,8 @@ function OnboardingRedirect() {
 }
 
 function AppInner() {
+  const { developerMode } = useDeveloperMode();
+
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <OnboardingRedirect />
@@ -90,26 +89,16 @@ function AppInner() {
               Torrents
             </NavLink>
 
-            {/* Advanced section - collapsible */}
+            {/* Advanced section — collapsible, contains Settings and (dev mode) Logs */}
             <NavAccordion title="Advanced" storageKey="nav-advanced-open" defaultOpen={false}>
               <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
                 Settings
               </NavLink>
-              <NavLink to="/logs" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                Logs
-              </NavLink>
-              <NavLink to="/sync" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                Folder Upload
-              </NavLink>
-              <NavLink to="/backup-server" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                Backup Server
-              </NavLink>
-              <NavLink to="/devices" end className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                My Devices
-              </NavLink>
-              <NavLink to="/devices/add" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                Add Device
-              </NavLink>
+              {developerMode && (
+                <NavLink to="/logs" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                  Logs
+                </NavLink>
+              )}
             </NavAccordion>
           </nav>
         </aside>
@@ -118,12 +107,8 @@ function AppInner() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/files" element={<Files />} />
-            <Route path="/sync" element={<Sync />} />
-            <Route path="/devices" element={<Devices />} />
-            <Route path="/devices/add" element={<AddDevice />} />
             <Route path="/peers" element={<Peers />} />
             <Route path="/logs" element={<Logs />} />
-            <Route path="/backup-server" element={<BackupServer />} />
             <Route path="/media" element={<MediaDownload />} />
             <Route path="/media/player/:taskId" element={<MediaPlayer />} />
             <Route path="/web-archive" element={<WebArchive />} />
@@ -144,18 +129,12 @@ function AppInner() {
 function App() {
   useSoundNotifications(); // Enable sound notifications globally
   const { startMusic } = useBackgroundMusic(); // Global background music
-  const { showOnboarding, loading, completeOnboarding, skipOnboarding } = useOnboarding();
+  const { showOnboarding, loading, completeOnboarding } = useOnboarding();
 
   // Wrapper for completeOnboarding that sets redirect flag
   const handleCompleteOnboarding = () => {
     localStorage.setItem(REDIRECT_AFTER_ONBOARDING_KEY, 'true');
     completeOnboarding();
-  };
-
-  // Wrapper for skipOnboarding that sets redirect flag
-  const handleSkipOnboarding = () => {
-    localStorage.setItem(REDIRECT_AFTER_ONBOARDING_KEY, 'true');
-    skipOnboarding();
   };
 
   // Show loading state while checking onboarding status
@@ -167,11 +146,12 @@ function App() {
     );
   }
 
-  // Show onboarding for first-run users
+  // Show onboarding — splash + disclaimer + welcome play on every launch,
+  // setup steps (wallet/folder/syncing) only on first run.
   if (showOnboarding) {
     return (
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Onboarding onComplete={handleCompleteOnboarding} onSkip={handleSkipOnboarding} startMusic={startMusic} />
+        <Onboarding onComplete={handleCompleteOnboarding} startMusic={startMusic} />
       </Router>
     );
   }

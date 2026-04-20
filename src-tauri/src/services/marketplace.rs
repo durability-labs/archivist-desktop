@@ -26,21 +26,23 @@ impl MarketplaceService {
         self.api_client.get_availability().await
     }
 
-    /// Publish a new availability offer
+    /// Publish a new availability offer.
+    ///
+    /// archivist-node main branch (ba37d61+) only supports three required
+    /// fields plus an optional `availableUntil`. `totalSize` and
+    /// `totalCollateral` from the v0.2.0 API are no longer accepted.
     pub async fn set_availability(
         &self,
-        total_size: String,
-        duration: String,
-        min_price_per_byte_per_second: String,
-        max_collateral_per_byte: String,
-        total_collateral: String,
+        maximum_duration: String,
+        minimum_price_per_byte_per_second: String,
+        maximum_collateral_per_byte: String,
+        available_until: Option<u64>,
     ) -> Result<Availability> {
         let req = AvailabilityRequest {
-            total_size,
-            duration,
-            min_price_per_byte_per_second,
-            max_collateral_per_byte,
-            total_collateral,
+            maximum_duration,
+            minimum_price_per_byte_per_second,
+            maximum_collateral_per_byte,
+            available_until: available_until.unwrap_or(0),
         };
         self.api_client.post_availability(&req).await
     }

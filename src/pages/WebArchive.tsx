@@ -74,6 +74,7 @@ export default function WebArchive() {
     viewerLoading,
     viewerCid,
     openViewer,
+    openViewerLocal,
     closeViewer,
   } = useWebArchive();
 
@@ -81,7 +82,7 @@ export default function WebArchive() {
   const [maxDepth, setMaxDepth] = useState(3);
   const [maxPages, setMaxPages] = useState(100);
   const [includeAssets, setIncludeAssets] = useState(true);
-  const [singlePage, setSinglePage] = useState(false);
+  const [singlePage, setSinglePage] = useState(true);
   const [excludePatterns, setExcludePatterns] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -450,7 +451,13 @@ export default function WebArchive() {
                 onPause={pauseArchive}
                 onResume={resumeArchive}
                 onRemove={removeTask}
-                onBrowse={task.cid ? () => openViewer(task.cid!, task.url) : undefined}
+                onBrowse={
+                  task.cid
+                    ? () => openViewer(task.cid!, task.url)
+                    : task.localPath
+                      ? () => openViewerLocal(task.localPath!, task.url)
+                      : undefined
+                }
                 viewerLoading={viewerLoading}
               />
             ))}
@@ -500,11 +507,19 @@ export default function WebArchive() {
                       onClick={() => openViewer(site.cid!, site.url)}
                       disabled={viewerLoading}
                     >
-                      {viewerLoading ? 'Loading...' : 'Browse'}
+                      {viewerLoading ? 'Loading...' : 'View'}
                     </button>
                   )}
                   {site.localPath && !site.cid && (
                     <>
+                      <button
+                        className="browse-btn"
+                        disabled={viewerLoading}
+                        onClick={() => openViewerLocal(site.localPath!, site.url)}
+                        title="Browse this archive without uploading to the node"
+                      >
+                        {viewerLoading ? 'Loading...' : 'View'}
+                      </button>
                       <button
                         className="upload-btn"
                         disabled={uploadingPath === site.localPath}
@@ -703,8 +718,9 @@ function TaskCard({
               className="browse-btn"
               onClick={onBrowse}
               disabled={viewerLoading}
+              title="Open the scraped site in an in-app viewer"
             >
-              {viewerLoading ? 'Loading...' : 'Browse'}
+              {viewerLoading ? 'Loading...' : 'View'}
             </button>
           )}
         </div>

@@ -77,6 +77,21 @@ pub async fn open_archive_viewer(
     viewer.open_archive(&cid, url.as_deref()).await
 }
 
+/// Open the archive viewer from a locally saved ZIP. Extracts to a temp dir
+/// and serves without going through the archivist node. Used to preview a
+/// freshly scraped archive before (or without) uploading it.
+#[tauri::command]
+pub async fn open_archive_viewer_local(
+    state: State<'_, AppState>,
+    local_path: String,
+    url: Option<String>,
+) -> Result<String> {
+    let mut viewer = state.archive_viewer.write().await;
+    viewer
+        .open_archive_from_path(std::path::Path::new(&local_path), url.as_deref())
+        .await
+}
+
 /// Close the archive viewer and clean up extracted files.
 #[tauri::command]
 pub async fn close_archive_viewer(state: State<'_, AppState>) -> Result<()> {

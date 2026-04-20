@@ -80,7 +80,10 @@ function Dashboard() {
     localStorage.setItem('dashboardViewMode', viewMode);
   }, [viewMode]);
 
+  const [isRestarting, setIsRestarting] = useState(false);
+
   const getStateLabel = (state: NodeState): string => {
+    if (isRestarting) return 'Restarting...';
     switch (state) {
       case 'stopped': return 'Stopped';
       case 'starting': return 'Starting...';
@@ -118,10 +121,14 @@ function Dashboard() {
   };
 
   const handleRestart = async () => {
+    if (!confirm('Restart the node? Active connections will be briefly interrupted.')) return;
     try {
+      setIsRestarting(true);
       await restartNode();
     } catch {
       // Error is already handled by the hook
+    } finally {
+      setIsRestarting(false);
     }
   };
 
@@ -323,7 +330,7 @@ function BasicView({ status, loading, isRunning, isStopped, isError, isTransitio
                 {loading ? 'Stopping...' : 'Stop Node'}
               </button>
               <button onClick={handleRestart} disabled={loading || isTransitioning} className="btn-large secondary">
-                Restart
+                Restart Node
               </button>
             </>
           ) : (

@@ -4,6 +4,8 @@ import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { validateCid, type CidValidationResult } from '../lib/cidValidation';
 import { sanitizeFilename } from '../lib/sanitizeFilename';
+import { useToast } from '../contexts/ToastContext';
+import CidDisplay from '../components/CidDisplay';
 
 interface UploadProgressEvent {
   filename: string;
@@ -43,6 +45,7 @@ interface UploadResult {
 }
 
 function Files() {
+  const toast = useToast();
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [totalSize, setTotalSize] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -162,6 +165,8 @@ function Files() {
       // Restore upload error so user sees it (loadFiles clears errors)
       if (uploadError) {
         setError(uploadError);
+      } else if (paths.length > 0) {
+        toast.success(`Uploaded ${paths.length} file${paths.length > 1 ? 's' : ''} successfully`);
       }
     } catch (e) {
       const msg = typeof e === 'string' ? e : (e instanceof Error ? e.message : 'Failed to upload file');
@@ -510,9 +515,7 @@ function Files() {
                     {file.isPinned && <span className="pin-badge" title="Pinned">📌</span>}
                   </td>
                   <td className="cid-cell">
-                    <code className="cid" title={`Click to copy: ${file.cid}`} onClick={() => handleCopyCid(file.cid)}>
-                      {file.cid}
-                    </code>
+                    <CidDisplay cid={file.cid} />
                   </td>
                   <td>{formatBytes(file.sizeBytes)}</td>
                   <td className="mime-type">{file.mimeType || '-'}</td>

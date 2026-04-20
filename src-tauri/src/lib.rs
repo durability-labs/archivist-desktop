@@ -155,6 +155,7 @@ pub fn run() {
             commands::upload_archive_to_node,
             // Archive viewer commands
             commands::open_archive_viewer,
+            commands::open_archive_viewer_local,
             commands::close_archive_viewer,
             commands::get_archive_viewer_status,
             // Streaming server commands
@@ -260,20 +261,15 @@ pub fn run() {
                 if node.get_config().auto_start {
                     drop(node); // Release read lock
 
-                    // Inject marketplace credentials from wallet if available
-                    {
-                        let wallet = wallet_svc.read().await;
-                        if wallet.is_unlocked() {
-                            let config = config_svc_for_autostart.read().await;
-                            let app_config = config.get();
-                            let mut node = node_svc.write().await;
-                            node.set_marketplace_config(
-                                wallet.get_private_key().map(|s| s.to_string()),
-                                Some(app_config.blockchain.marketplace_contract.clone()),
-                                Some(app_config.blockchain.rpc_url.clone()),
-                            );
-                        }
-                    }
+                    // Apply network config: fetches remote SPRs and marketplace contract,
+                    // sets bootstrap nodes, and (if wallet unlocked) injects marketplace
+                    // credentials so the sidecar starts with --persistence flags.
+                    commands::node::try_apply_network_config_inner(
+                        &node_svc,
+                        &wallet_svc,
+                        &config_svc_for_autostart,
+                    )
+                    .await;
 
                     let mut node = node_svc.write().await;
                     if let Err(e) = node.start(&app_handle).await {

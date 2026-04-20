@@ -178,6 +178,14 @@
 .actions {
   display: flex;
   gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.settings-status {
+  font-size: 0.8rem;
+  color: var(--term-text-dim, #888);
+  font-family: var(--font-mono);
+  margin-right: var(--spacing-sm);
 }
 
 /* Buttons - Terminal aesthetic with dim→bright pattern */

@@ -1,0 +1,124 @@
+Create new branch for these changes that we're going to plan together called `ux-overhaul` based on this QA feedback come up with an implementation plan in phases with  
+  tasks detailed out to modify the current Archivist Desktop implementation:
+1. Onboarding and first-run UX
+
+Intro audio is too abrupt and lacks obvious volume control.
+The onboarding reset flow exists, but behavior and purpose are not obvious.
+The Skip button is inconsistently visible unless the window is fullscreen, which makes onboarding feel broken.
+Forcing users through the intro is likely hurting usability more than helping.
+
+2. Settings and state clarity
+
+Settings persistence is confusing because users could not tell whether settings had actually been saved.
+Some state changes happen, but the UI does not clearly communicate that they were preserved.
+
+3. Wallet / node lifecycle confusion
+
+Generating a new wallet appears to trigger a restart, which feels unstable and can look like a crash.
+There is confusion between:
+starting the node,
+restarting the node,
+enabling marketplace / wallet-related functionality,
+and what each button actually does.
+The app needs clearer mental models and labels for what each startup action does.
+
+4. Upload / download / persistence workflow is not intuitive
+
+The current flow is too manual:
+user downloads or scrapes content,
+then has to go elsewhere in the app,
+then upload it into the node,
+then separately create a storage deal.
+Testers found it counterintuitive that content does not automatically get persisted after upload.
+Strong request for a simpler “download/import → upload → persist” path, ideally with fewer steps or a direct button.
+
+5. CID handling and content management
+
+Users want to copy the CID reliably from more places.
+Truncated CIDs look odd and reduce usability.
+There are places where a CID or archive entry appears briefly and disappears too quickly.
+Deleting/clearing completed items and deleting archives that no longer exist is confusing and seems buggy.
+
+6. Error messages need better UX
+
+Error toasts/messages disappear too fast for users to read.
+Current errors are too technical and not user-oriented.
+Testers wanted errors that explain:
+what failed,
+what object failed,
+and what the user should do next.
+“An existing connection was forcibly closed...” type errors are not useful for non-technical users.
+
+7. Advanced storage deal UI is too technical
+
+Inputs need “real units” instead of raw values only.
+Users explicitly asked for toggles or selectors like:
+bytes / MB / GB / TB
+seconds / days / months / years
+Suggested direction: hide advanced parameters behind a simpler mode like “Rent 10 GB for X time.”
+
+8. Web scraper UX feedback
+
+Need a default single-page scraper option.
+The scraper produces output, but re-uploading scraped content back into the app/node is awkward.
+Users want clearer affordances for taking scraped content and persisting it inside Archivist Desktop.
+There was discussion that the scraper works better than some other features, but still needs simplification.
+
+9. Logs UX
+
+Auto-scroll being on by default frustrated testers.
+Users may open logs specifically to inspect a previous failure, and auto-scroll fights that use case.
+Logs appear too network-heavy / too technical for normal users.
+The logs area is useful, but current UX is too developer-oriented.
+
+10. Marketplace / storage deal flow problems
+
+Creating a storage deal was not intuitive enough for testers to discover naturally.
+Even when following the flow, testers still hit bugs making deals.
+Refresh/state synchronization looked inconsistent: things sometimes worked only after restart or delayed refresh.
+Token / balance / readiness state was unclear during testing.
+
+11. VPN support and networking
+
+Users want the app to work through a VPN because they prefer using the GUI instead of building/running the node manually.
+VPN-related behavior appears fragile and may break IRC / Marketplace / node startup.
+Even after disabling VPN, some issues persisted, suggesting separate bugs.
+At minimum, the app needs:
+clearer VPN disclaimers,
+clearer unsupported-configuration messaging,
+and ideally future VPN support.
+
+12. Windows QA coverage
+
+Explicit feedback to test on Windows 10 more thoroughly.
+Some failures may be Windows-specific or insufficiently validated on that platform.
+
+13. Feature scoping / release strategy
+
+Multiple participants suggested that advanced/alpha features should be:
+hidden,
+gated behind “developer mode,”
+or marked clearly as experimental.
+Suggested pattern: simple default UI for normal users, advanced mode unlocked intentionally.
+This would reduce support burden and keep the core experience focused.
+
+14. Tone / product positioning
+
+Important non-functional QA feedback: the product should not communicate in a way that insults non-technical users.
+Testers made it clear that ease of use matters even for users who are not developers but still want to use the software seriously.
+
+Most repeated QA themes
+
+Too many manual steps
+Unclear button meanings / system state
+Errors are unreadable or disappear too fast
+Advanced settings are exposed too early
+Need a much simpler path for normal users
+
+A clean way to turn this into an internal QA artifact would be:
+
+Bugs
+UX confusion
+Feature requests
+Release-blocking issues
+Post-0.2.6 improvements

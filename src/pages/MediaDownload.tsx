@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { downloadDir } from '@tauri-apps/api/path';
 import {
@@ -8,6 +9,7 @@ import {
   DownloadTask,
 } from '../hooks/useMediaDownload';
 import { sanitizeFilename } from '../lib/sanitizeFilename';
+import { useToast } from '../contexts/ToastContext';
 import '../styles/MediaDownload.css';
 
 function formatDuration(seconds: number | null): string {
@@ -29,6 +31,7 @@ function formatBytes(bytes: number | null): string {
 
 export default function MediaDownload() {
   const navigate = useNavigate();
+  const toast = useToast();
   const {
     queueState,
     binaryStatus,
@@ -381,6 +384,14 @@ export default function MediaDownload() {
               onCancel={cancelDownload}
               onRemove={removeTask}
               onPlay={(id) => navigate(`/media/player/${id}`)}
+              onUploadToNode={async (path) => {
+                try {
+                  await invoke('upload_file', { path });
+                  toast.success('File uploaded to node');
+                } catch (e) {
+                  toast.error('Upload failed', String(e));
+                }
+              }}
             />
           ))
         )}
@@ -394,11 +405,13 @@ function TaskItem({
   onCancel,
   onRemove,
   onPlay,
+  onUploadToNode,
 }: {
   task: DownloadTask;
   onCancel: (id: string) => void;
   onRemove: (id: string) => void;
   onPlay: (id: string) => void;
+  onUploadToNode: (path: string) => void;
 }) {
   const isActive = task.state === 'downloading' || task.state === 'postProcessing';
   const isDone = task.state === 'completed' || task.state === 'failed' || task.state === 'cancelled';
@@ -438,6 +451,16 @@ function TaskItem({
       )}
 
       <div className="task-actions">
+        {task.state === 'completed' && task.outputPath && (
+          <button
+            className="task-action-btn"
+            onClick={() => onUploadToNode(task.outputPath!)}
+            title="Upload to Node"
+            style={{ fontSize: '0.75rem' }}
+          >
+            Upload
+          </button>
+        )}
         {task.state === 'completed' && task.outputPath && !task.options.audioOnly && (
           <button
             className="task-action-btn play"

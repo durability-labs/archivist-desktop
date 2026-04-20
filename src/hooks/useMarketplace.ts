@@ -29,17 +29,19 @@ export interface SalesSlot {
   slotIndex: number;
 }
 
+/**
+ * Provider availability offer.
+ *
+ * Matches the archivist-node main-branch (ba37d61+) schema, which replaced the
+ * v0.2.0 shape (`totalSize`, `freeSize`, `duration`, `totalCollateral` etc.)
+ * with a minimal 4-field representation.
+ */
 export interface Availability {
-  id: string;
-  totalSize: string;
-  freeSize: string;
-  duration: string;
-  minPricePerBytePerSecond: string;
-  maxCollateralPerByte?: string;
-  totalCollateral: string;
-  totalRemainingCollateral?: string;
-  enabled?: boolean;
-  until?: string;
+  maximumDuration: string;
+  minimumPricePerBytePerSecond: string;
+  maximumCollateralPerByte: string;
+  /** Unix timestamp. 0 means no restriction. */
+  availableUntil: number;
 }
 
 export interface Purchase {
@@ -50,11 +52,11 @@ export interface Purchase {
 }
 
 export interface SetAvailabilityParams {
-  totalSize: string;
-  duration: string;
-  minPricePerBytePerSecond: string;
-  maxCollateralPerByte: string;
-  totalCollateral: string;
+  maximumDuration: string;
+  minimumPricePerBytePerSecond: string;
+  maximumCollateralPerByte: string;
+  /** Unix timestamp. Omit or pass 0 for no restriction. */
+  availableUntil?: number;
 }
 
 export interface CreateStorageRequestParams {
@@ -123,11 +125,10 @@ export function useMarketplace(): UseMarketplace {
 
   const doSetAvailability = useCallback(async (params: SetAvailabilityParams) => {
     const result = await invoke<Availability>('set_availability', {
-      totalSize: params.totalSize,
-      duration: params.duration,
-      minPricePerBytePerSecond: params.minPricePerBytePerSecond,
-      maxCollateralPerByte: params.maxCollateralPerByte,
-      totalCollateral: params.totalCollateral,
+      maximumDuration: params.maximumDuration,
+      minimumPricePerBytePerSecond: params.minimumPricePerBytePerSecond,
+      maximumCollateralPerByte: params.maximumCollateralPerByte,
+      availableUntil: params.availableUntil ?? 0,
     });
     await refresh();
     return result;

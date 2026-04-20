@@ -118,6 +118,32 @@ export function useWebArchive() {
     }
   }, []);
 
+  /**
+   * Open the archive viewer for a locally saved archive ZIP, bypassing the
+   * node entirely. Useful for previewing a fresh scrape before uploading.
+   */
+  const openViewerLocal = useCallback(async (localPath: string, originalUrl?: string) => {
+    setViewerLoading(true);
+    try {
+      const viewerResult = await invoke<string>('open_archive_viewer_local', {
+        localPath,
+        url: originalUrl,
+      });
+      setViewerUrl(viewerResult);
+      setViewerCid(null);
+    } catch (e) {
+      setError(
+        typeof e === 'string'
+          ? e
+          : e instanceof Error
+            ? e.message
+            : 'Failed to open archive viewer'
+      );
+    } finally {
+      setViewerLoading(false);
+    }
+  }, []);
+
   const closeViewer = useCallback(async () => {
     try {
       await invoke('close_archive_viewer');
@@ -223,6 +249,7 @@ export function useWebArchive() {
     viewerLoading,
     viewerCid,
     openViewer,
+    openViewerLocal,
     closeViewer,
   };
 }

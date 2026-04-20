@@ -20,20 +20,18 @@ pub async fn get_availability(state: State<'_, AppState>) -> Result<Vec<Availabi
 #[tauri::command]
 pub async fn set_availability(
     state: State<'_, AppState>,
-    total_size: String,
-    duration: String,
-    min_price_per_byte_per_second: String,
-    max_collateral_per_byte: String,
-    total_collateral: String,
+    maximum_duration: String,
+    minimum_price_per_byte_per_second: String,
+    maximum_collateral_per_byte: String,
+    available_until: Option<u64>,
 ) -> Result<Availability> {
     let marketplace = state.marketplace.read().await;
     marketplace
         .set_availability(
-            total_size,
-            duration,
-            min_price_per_byte_per_second,
-            max_collateral_per_byte,
-            total_collateral,
+            maximum_duration,
+            minimum_price_per_byte_per_second,
+            maximum_collateral_per_byte,
+            available_until,
         )
         .await
 }

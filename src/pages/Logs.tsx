@@ -37,7 +37,7 @@ function Logs() {
 
   // Load settings from localStorage on mount
   const [autoRefresh, setAutoRefresh] = useState(() => loadSetting(STORAGE_KEYS.AUTO_REFRESH, true));
-  const [autoScroll, setAutoScroll] = useState(() => loadSetting(STORAGE_KEYS.AUTO_SCROLL, true));
+  const [autoScroll, setAutoScroll] = useState(() => loadSetting(STORAGE_KEYS.AUTO_SCROLL, false));
   const [lineCount, setLineCount] = useState(() => loadSetting(STORAGE_KEYS.LINE_COUNT, 500));
 
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -171,6 +171,9 @@ function Logs() {
               onChange={(e) => setAutoScroll(e.target.checked)}
             />
             <span>Auto-scroll</span>
+            <span className={`scroll-indicator ${autoScroll ? 'following' : 'paused'}`}>
+              {autoScroll ? 'Following' : 'Paused'}
+            </span>
           </label>
           <button onClick={fetchLogs} disabled={loading} className="btn-secondary">
             Refresh

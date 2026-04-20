@@ -192,6 +192,7 @@ jobs:
         run: SKIP_CHECKSUM_VERIFY=true pnpm download-sidecar
         env:
           SKIP_CHECKSUM_VERIFY: "true"
+          GH_TOKEN: ${{ github.token }}
 
       - name: Build Tauri app
         run: pnpm tauri build --debug
