@@ -47,9 +47,8 @@ pub async fn create_storage_request(
     proof_probability: String,
     price_per_byte_per_second: String,
     collateral_per_byte: String,
-    slots: u64,
-    slot_size: u64,
-    max_slot_loss: u64,
+    nodes: u64,
+    tolerance: u64,
     expiry: u64,
 ) -> Result<String> {
     let params = StorageRequestParams {
@@ -57,9 +56,8 @@ pub async fn create_storage_request(
         proof_probability,
         price_per_byte_per_second,
         collateral_per_byte,
-        slots,
-        slot_size,
-        max_slot_loss,
+        nodes,
+        tolerance,
         expiry,
     };
     let marketplace = state.marketplace.read().await;

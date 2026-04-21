@@ -65,9 +65,8 @@ export interface CreateStorageRequestParams {
   proofProbability: string;
   pricePerBytePerSecond: string;
   collateralPerByte: string;
-  slots: number;
-  slotSize: number;
-  maxSlotLoss: number;
+  nodes: number;
+  tolerance: number;
   expiry: number;
 }
 
@@ -141,9 +140,8 @@ export function useMarketplace(): UseMarketplace {
       proofProbability: params.proofProbability,
       pricePerBytePerSecond: params.pricePerBytePerSecond,
       collateralPerByte: params.collateralPerByte,
-      slots: params.slots,
-      slotSize: params.slotSize,
-      maxSlotLoss: params.maxSlotLoss,
+      nodes: params.nodes,
+      tolerance: params.tolerance,
       expiry: params.expiry,
     });
     await refresh();

@@ -281,7 +281,8 @@ fn is_zero_u64(v: &u64) -> bool {
     *v == 0
 }
 
-/// Request body for creating a storage request
+/// Request body for creating a storage request.
+/// Field names match the archivist-node REST API (POST /storage/request/{cid}).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageRequestParams {
@@ -291,11 +292,10 @@ pub struct StorageRequestParams {
     pub price_per_byte_per_second: String,
     #[serde(rename = "collateralPerByte")]
     pub collateral_per_byte: String,
-    pub slots: u64,
-    #[serde(default)]
-    pub slot_size: u64,
-    #[serde(default)]
-    pub max_slot_loss: u64,
+    /// Minimal number of nodes the content should be stored on (API field: "nodes")
+    pub nodes: u64,
+    /// Additional nodes on top of `nodes` that can be lost (API field: "tolerance")
+    pub tolerance: u64,
     #[serde(default)]
     pub expiry: u64,
 }

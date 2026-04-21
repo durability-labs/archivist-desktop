@@ -3,11 +3,12 @@ set -euo pipefail
 
 # =============================================================================
 # Release Test Runner for Archivist Desktop
-# Builds a release version, clears test data, then runs E2E smoke tests.
+# Kills running processes, uninstalls the app, purges all data,
+# builds a fresh release, installs it, and runs E2E smoke tests.
 #
 # Usage:
-#   ./scripts/release-test.sh              # Build + clear + test
-#   ./scripts/release-test.sh --skip-build # Clear + test (use existing build)
+#   ./scripts/release-test.sh              # Full: kill + purge + build + install + test
+#   ./scripts/release-test.sh --skip-build # Kill + purge + install (existing build) + test
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,11 +39,85 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+TOTAL_STEPS=8
+
 echo "=== Archivist Desktop Release Test ==="
 echo ""
 
-# 1. Check test driver (tauri-driver or Playwright)
-echo -e "${BLUE}[1/6]${NC} Checking test driver..."
+# 1. Kill running Archivist processes
+echo -e "${BLUE}[1/$TOTAL_STEPS]${NC} Killing running processes..."
+KILLED=false
+
+# Kill Archivist Desktop app
+if pgrep -f "archivist-desktop" > /dev/null 2>&1; then
+  pkill -f "archivist-desktop" 2>/dev/null && KILLED=true
+  echo -e "  ${GREEN}✓${NC} Killed archivist-desktop"
+fi
+
+# Kill archivist-node sidecar
+if pgrep -f "archivist-devnet|archivist-aarch64|archivist-x86_64" > /dev/null 2>&1; then
+  pkill -f "archivist-devnet|archivist-aarch64|archivist-x86_64" 2>/dev/null && KILLED=true
+  echo -e "  ${GREEN}✓${NC} Killed archivist-node sidecar"
+fi
+
+# macOS: also quit via osascript for clean shutdown
+if [ "$(uname -s)" = "Darwin" ]; then
+  osascript -e 'quit app "Archivist"' 2>/dev/null || true
+fi
+
+if [ "$KILLED" = false ]; then
+  echo -e "  ${YELLOW}!${NC} No running processes found"
+fi
+
+# Brief pause to let processes exit
+sleep 1
+
+# 2. Uninstall existing app and purge data
+echo -e "${BLUE}[2/$TOTAL_STEPS]${NC} Uninstalling app and purging data..."
+case "$(uname -s)" in
+  Darwin)
+    # Remove installed app
+    if [ -d "/Applications/Archivist.app" ]; then
+      rm -rf "/Applications/Archivist.app"
+      echo -e "  ${GREEN}✓${NC} Removed /Applications/Archivist.app"
+    fi
+    # Purge data directory (node repo, config, logs, binaries)
+    DATA_DIR="$HOME/Library/Application Support/archivist"
+    if [ -d "$DATA_DIR" ]; then
+      rm -rf "$DATA_DIR"
+      echo -e "  ${GREEN}✓${NC} Purged: $DATA_DIR"
+    fi
+    # Purge Tauri app config/webview data
+    TAURI_DATA="$HOME/Library/Application Support/storage.archivist.desktop"
+    if [ -d "$TAURI_DATA" ]; then
+      rm -rf "$TAURI_DATA"
+      echo -e "  ${GREEN}✓${NC} Purged: $TAURI_DATA"
+    fi
+    ;;
+  Linux)
+    DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/archivist"
+    if [ -d "$DATA_DIR" ]; then
+      rm -rf "$DATA_DIR"
+      echo -e "  ${GREEN}✓${NC} Purged: $DATA_DIR"
+    fi
+    CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/archivist"
+    if [ -d "$CONFIG_DIR" ]; then
+      rm -rf "$CONFIG_DIR"
+      echo -e "  ${GREEN}✓${NC} Purged: $CONFIG_DIR"
+    fi
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    if [ -n "${APPDATA:-}" ] && [ -d "$APPDATA/archivist" ]; then
+      rm -rf "$APPDATA/archivist"
+      echo -e "  ${GREEN}✓${NC} Purged: $APPDATA/archivist"
+    fi
+    ;;
+esac
+
+echo -e "  ${GREEN}✓${NC} Clean state"
+
+# 3. Check test driver (tauri-driver or Playwright)
+echo -e "${BLUE}[3/$TOTAL_STEPS]${NC} Checking test driver..."
 PLATFORM="$(uname -s)"
 
 case "$PLATFORM" in
@@ -74,8 +149,8 @@ if [ "$USE_PLAYWRIGHT" = true ]; then
   echo -e "  ${GREEN}✓${NC} Playwright found"
 fi
 
-# 2. Check sidecar
-echo -e "${BLUE}[2/6]${NC} Checking sidecar binary..."
+# 4. Check sidecar
+echo -e "${BLUE}[4/$TOTAL_STEPS]${NC} Checking sidecar binary..."
 SIDECAR_DIR="$ROOT_DIR/src-tauri/sidecars"
 if ls "$SIDECAR_DIR"/archivist-* 1> /dev/null 2>&1; then
   echo -e "  ${GREEN}✓${NC} Sidecar found"
@@ -85,8 +160,8 @@ else
   pnpm download-sidecar
 fi
 
-# 3. Build release (unless --skip-build)
-echo -e "${BLUE}[3/6]${NC} Building release..."
+# 5. Build release (unless --skip-build)
+echo -e "${BLUE}[5/$TOTAL_STEPS]${NC} Building release..."
 if [ "$SKIP_BUILD" = true ]; then
   echo -e "  ${YELLOW}Skipped${NC} (--skip-build)"
 else
@@ -95,8 +170,8 @@ else
   echo -e "  ${GREEN}✓${NC} Build complete"
 fi
 
-# 4. Verify release binary exists
-echo -e "${BLUE}[4/6]${NC} Verifying release binary..."
+# 6. Verify release binary exists
+echo -e "${BLUE}[6/$TOTAL_STEPS]${NC} Verifying release binary..."
 BINARY=""
 for candidate in \
   "$ROOT_DIR/src-tauri/target/release/bundle/macos/Archivist.app/Contents/MacOS/archivist-desktop" \
@@ -116,30 +191,25 @@ else
   exit 1
 fi
 
-# 5. Clear archivist data directory
-echo -e "${BLUE}[5/6]${NC} Clearing archivist data..."
-DATA_DIR=""
+# 7. Install fresh build
+echo -e "${BLUE}[7/$TOTAL_STEPS]${NC} Installing fresh build..."
 case "$(uname -s)" in
   Darwin)
-    DATA_DIR="$HOME/Library/Application Support/archivist"
+    APP_BUNDLE="$ROOT_DIR/src-tauri/target/release/bundle/macos/Archivist.app"
+    if [ -d "$APP_BUNDLE" ]; then
+      cp -R "$APP_BUNDLE" /Applications/Archivist.app
+      echo -e "  ${GREEN}✓${NC} Installed to /Applications/Archivist.app"
+    else
+      echo -e "  ${YELLOW}!${NC} No .app bundle found (binary-only build)"
+    fi
     ;;
-  Linux)
-    DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/archivist"
-    ;;
-  MINGW*|MSYS*|CYGWIN*)
-    DATA_DIR="$APPDATA/archivist"
+  *)
+    echo -e "  ${YELLOW}!${NC} Auto-install not supported on this platform"
     ;;
 esac
 
-if [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
-  rm -rf "$DATA_DIR"
-  echo -e "  ${GREEN}✓${NC} Cleared: $DATA_DIR"
-else
-  echo -e "  ${YELLOW}!${NC} No data directory found (clean state)"
-fi
-
-# 6. Run E2E smoke tests
-echo -e "${BLUE}[6/6]${NC} Running E2E smoke tests..."
+# 8. Run E2E smoke tests
+echo -e "${BLUE}[8/$TOTAL_STEPS]${NC} Running E2E smoke tests..."
 
 if [ "$USE_PLAYWRIGHT" = true ]; then
   echo "  Using Playwright (testing against Vite dev server)..."

@@ -46,14 +46,13 @@ export default function Marketplace() {
   // Client form state
   const [files, setFiles] = useState<FileItem[]>([]);
   const [selectedCid, setSelectedCid] = useState(searchParams.get('cid') || '');
-  const [reqDuration, setReqDuration] = useState('2592000');
-  const [reqPrice, setReqPrice] = useState('2000');
+  const [reqDuration, setReqDuration] = useState('950000');
+  const [reqPrice, setReqPrice] = useState('1000');
   const [reqCollateral, setReqCollateral] = useState('1');
-  const [reqSlots, setReqSlots] = useState(4);
-  const [reqSlotSize, setReqSlotSize] = useState(0);
-  const [reqMaxSlotLoss, setReqMaxSlotLoss] = useState(2);
-  const [reqProofProbability, setReqProofProbability] = useState('200');
-  const [reqExpiry, setReqExpiry] = useState(3600);
+  const [reqNodes, setReqNodes] = useState(4);
+  const [reqTolerance, setReqTolerance] = useState(2);
+  const [reqProofProbability, setReqProofProbability] = useState('500');
+  const [reqExpiry, setReqExpiry] = useState(2400);
   const [clientSubmitting, setClientSubmitting] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
   const [filesLoaded, setFilesLoaded] = useState(false);
@@ -68,24 +67,8 @@ export default function Marketplace() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-calculate slot size from CID's dataset size and number of slots
-  const computeSlotSize = (cid: string, slots: number, fileList: FileItem[]) => {
-    const file = fileList.find((f) => f.cid === cid);
-    if (file?.manifest?.datasetSize && slots > 0) {
-      setReqSlotSize(Math.ceil(file.manifest.datasetSize / slots));
-    } else {
-      setReqSlotSize(0);
-    }
-  };
-
   const handleCidChange = (cid: string) => {
     setSelectedCid(cid);
-    computeSlotSize(cid, reqSlots, files);
-  };
-
-  const handleSlotsChange = (slots: number) => {
-    setReqSlots(slots);
-    computeSlotSize(selectedCid, slots, files);
   };
 
   // Load files for CID selector
@@ -130,9 +113,8 @@ export default function Marketplace() {
         proofProbability: reqProofProbability,
         pricePerBytePerSecond: reqPrice,
         collateralPerByte: reqCollateral,
-        slots: reqSlots,
-        slotSize: reqSlotSize,
-        maxSlotLoss: reqMaxSlotLoss,
+        nodes: reqNodes,
+        tolerance: reqTolerance,
         expiry: reqExpiry,
       });
       setSelectedCid('');
@@ -332,12 +314,12 @@ export default function Marketplace() {
               <UnitInput type="time" value={reqDuration} onChange={setReqDuration} label="Duration" tooltip="How long you want your data stored." />
             </div>
             <div className="mp-field">
-              <label>Redundancy (Slots)<InfoTooltip text="Number of storage providers that will each store a copy of your data. More slots = more redundancy." /></label>
+              <label>Nodes<InfoTooltip text="Minimal number of storage provider nodes that will store your data. More nodes = more redundancy." /></label>
               <input
                 type="number"
-                value={reqSlots}
-                onChange={(e) => handleSlotsChange(Number(e.target.value))}
-                min={1}
+                value={reqNodes}
+                onChange={(e) => setReqNodes(Number(e.target.value))}
+                min={3}
                 max={8}
               />
             </div>
@@ -371,21 +353,12 @@ export default function Marketplace() {
                   />
                 </div>
                 <div className="mp-field">
-                  <label>Slot Size (bytes, 0 = auto)<InfoTooltip text="Size of each data chunk distributed to providers. Set to 0 for automatic calculation based on file size and slot count." /></label>
+                  <label>Tolerance<InfoTooltip text="Additional nodes on top of the minimum that can be lost before data becomes unrecoverable." /></label>
                   <input
                     type="number"
-                    value={reqSlotSize}
-                    onChange={(e) => setReqSlotSize(Number(e.target.value))}
-                    min={0}
-                  />
-                </div>
-                <div className="mp-field">
-                  <label>Max Slot Loss<InfoTooltip text="Maximum number of storage slots that can fail before your data becomes unrecoverable. Must be less than total slots." /></label>
-                  <input
-                    type="number"
-                    value={reqMaxSlotLoss}
-                    onChange={(e) => setReqMaxSlotLoss(Number(e.target.value))}
-                    min={0}
+                    value={reqTolerance}
+                    onChange={(e) => setReqTolerance(Number(e.target.value))}
+                    min={1}
                   />
                 </div>
                 <div className="mp-field">
