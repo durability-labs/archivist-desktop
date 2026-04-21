@@ -1545,7 +1545,19 @@ async fn run_archive_pipeline(
     let zip_size = std::fs::metadata(&zip_path).map(|m| m.len()).unwrap_or(0);
 
     let archives_dir = if let Some(ref custom_dir) = task.options.output_dir {
-        PathBuf::from(custom_dir)
+        let custom_path = PathBuf::from(custom_dir);
+        // Validate output directory is within user's home directory
+        if let Some(home) = dirs::home_dir() {
+            let canonical = custom_path
+                .canonicalize()
+                .unwrap_or_else(|_| custom_path.clone());
+            if !canonical.starts_with(&home) {
+                return Err(ArchivistError::WebArchiveError(
+                    "Output directory must be within your home directory".to_string(),
+                ));
+            }
+        }
+        custom_path
     } else {
         dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))
@@ -1875,7 +1887,19 @@ async fn run_discourse_pipeline(
     );
 
     let archives_dir = if let Some(ref custom_dir) = task.options.output_dir {
-        PathBuf::from(custom_dir)
+        let custom_path = PathBuf::from(custom_dir);
+        // Validate output directory is within user's home directory
+        if let Some(home) = dirs::home_dir() {
+            let canonical = custom_path
+                .canonicalize()
+                .unwrap_or_else(|_| custom_path.clone());
+            if !canonical.starts_with(&home) {
+                return Err(ArchivistError::WebArchiveError(
+                    "Output directory must be within your home directory".to_string(),
+                ));
+            }
+        }
+        custom_path
     } else {
         dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))

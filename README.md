@@ -48,21 +48,31 @@ See the <a href="screenshots/">screenshots/</a> directory for 22 screenshots cov
 - **Device Management** — My Devices overview and step-by-step Add Device wizard
 
 ### Marketplace
-- **Storage Marketplace** — browse providers offering storage slots, request storage on the network
+- **Storage Marketplace** — browse providers offering storage slots, request storage on the network; inline tooltips explain terms like collateral, slots, and proof probability
 - **My Deals** — view completed purchases and active provider slots
-- **Wallet** — Ethereum wallet with generate/import, balance tracking, and network switching
+- **Wallet** — Ethereum wallet with generate/import, balance tracking, and network switching (devnet/testnet)
 
 ### Archiving Tools
-- **Media Downloader** — download video and audio from 100+ sites via yt-dlp, quality selection, download queue
+- **Media Downloader** — download video and audio from 100+ sites via yt-dlp, quality selection, download queue with file path chooser
 - **Media Player** — built-in video player with playlist, accessible from completed downloads
 - **Torrents** — add magnet links and .torrent files, per-file selection, speed limits
-- **Web Archive** — crawl and archive websites to decentralized storage, browse archives in-app
+- **Web Archive** — crawl and archive websites (including video, audio, and media assets) to decentralized storage, browse archives in-app, choose output directory
+- **Discourse Forum Archiver** — specialized archiver for Discourse forums that generates full static HTML sites from forum API data
+
+### Communication
+- **IRC Chat** — embedded IRC chat client on the Dashboard
+- **P2P Encrypted Chat** — direct peer-to-peer messaging with end-to-end encryption, group chat, and safety number verification (TOFU)
+
+### Privacy & Security
+- **Sensitive Field Toggle** — eye icon to show/hide peer IDs, SPR records, ETH addresses, API URLs, and other sensitive data (useful for streaming/screen sharing)
+- **End-to-End Encryption** — chat messages encrypted using double-ratchet sessions with forward secrecy
+- **Safety Numbers** — verify peer identities with safety number comparison
 
 ### System
 - **Peer Network** — connect with peers, share SPR records, and monitor network stats
 - **Node Logs** — built-in real-time log viewer with auto-refresh and auto-scroll
 - **System Tray** — runs in the background with quick access from the system tray
-- **Auto-Update** — automatic updates from GitHub releases
+- **Auto-Update** — automatic updates from GitHub releases with `latest.json` manifest
 - **Sound Notifications** — audio feedback for node startup, peer connections, and downloads
 - **Manual Announce IP** — override UPnP with a manual public IP for NAT traversal
 
@@ -95,6 +105,7 @@ See the <a href="screenshots/">screenshots/</a> directory for 22 screenshots cov
 │  │ • Media Player     │      │ • Media Download       │ │
 │  │ • Web Archive      │      │ • Torrent Engine       │ │
 │  │ • Torrents         │      │ • Web Archiver         │ │
+│  │ • Chat (P2P + IRC) │      │ • Chat (E2E Encrypted) │ │
 │  │ • Devices          │      │ • Wallet & Marketplace │ │
 │  │ • Settings/Logs    │      │ • Configuration        │ │
 │  └────────────────────┘      └───────────┬────────────┘ │
@@ -125,7 +136,7 @@ See the <a href="screenshots/">screenshots/</a> directory for 22 screenshots cov
 
 ### How It Works
 
-1. **User Interface**: React frontend provides the UI (Dashboard, Upload/Download, Marketplace, Wallet/Deals, Media Download, Media Player, Web Archive, Torrents, Devices, Settings/Logs)
+1. **User Interface**: React frontend provides the UI (Dashboard, Upload/Download, Marketplace, Wallet/Deals, Media Download, Media Player, Web Archive, Torrents, Chat, Devices, Settings/Logs)
 2. **Tauri Backend**: Rust backend handles:
    - Starting/stopping the archivist-node sidecar process
    - Managing file system operations (uploads, downloads, folder watching)
@@ -134,8 +145,9 @@ See the <a href="screenshots/">screenshots/</a> directory for 22 screenshots cov
    - Running the backup daemon for continuous sync
    - Media downloads and streaming via yt-dlp/ffmpeg
    - Torrent management (magnet links, .torrent files)
-   - Web archiving and archive viewing
+   - Web archiving and archive viewing (including Discourse forums)
    - Wallet and marketplace interactions
+   - P2P encrypted chat with E2E encryption and group sessions
 3. **Archivist Node**: Standalone sidecar process that:
    - Exposes REST API on localhost:8080
    - Manages content-addressed storage (CIDs)
@@ -215,6 +227,8 @@ bash scripts/download-sidecar.sh aarch64-unknown-linux-gnu  # ARM64
 bash scripts/download-sidecar.sh x86_64-pc-windows-msvc
 ```
 
+> **Note**: Release builds now compile archivist-node from source (main branch) rather than downloading pre-built binaries. See `.github/workflows/release.yml` for details.
+
 ### Project Structure
 
 ```
@@ -222,10 +236,15 @@ archivist-desktop/
 ├── src/                          # React frontend
 │   ├── components/               # Reusable UI components
 │   │   ├── ErrorState.tsx       # Error display component
+│   │   ├── InfoTooltip.tsx      # Hover tooltip with "?" icon
 │   │   ├── IntroModal.tsx       # Intro modal overlay
+│   │   ├── IrcChat.tsx          # IRC chat widget (embedded in Dashboard)
 │   │   ├── NavAccordion.tsx     # Collapsible navigation sections
 │   │   ├── NextSteps.tsx        # Post-onboarding guidance
-│   │   └── SafetyNumber.tsx     # Safety number verification
+│   │   ├── SafetyNumber.tsx     # Safety number verification display
+│   │   └── SensitiveField.tsx   # Show/hide toggle for sensitive data
+│   ├── contexts/                 # React Context providers
+│   │   └── ChatContext.tsx      # Global chat state management
 │   ├── hooks/                    # Custom React hooks
 │   │   ├── useNode.ts           # Node lifecycle (start/stop/status)
 │   │   ├── useSync.ts           # Folder watching + sync queue
@@ -234,13 +253,17 @@ archivist-desktop/
 │   │   ├── useSoundNotifications.ts  # Audio feedback
 │   │   ├── useFeatures.ts       # Feature flag detection
 │   │   ├── useMediaDownload.ts  # yt-dlp download queue + progress
-│   │   ├── useMediaStreaming.ts # Media streaming server control
+│   │   ├── useMediaStreaming.ts  # Media streaming server control
 │   │   ├── useTorrent.ts        # Torrent state management
 │   │   ├── useWebArchive.ts     # Web archive crawl + viewer
 │   │   ├── useWallet.ts         # Ethereum wallet operations
-│   │   └── useMarketplace.ts    # Storage marketplace state
+│   │   ├── useMarketplace.ts    # Storage marketplace state
+│   │   ├── useChat.ts           # P2P chat sessions + messages
+│   │   ├── useIrc.ts            # IRC connection + messaging
+│   │   ├── useIntroModal.ts     # Intro modal display state
+│   │   └── useBackgroundMusic.ts # Background audio playback
 │   ├── pages/                    # Route components
-│   │   ├── Dashboard.tsx        # Main status overview
+│   │   ├── Dashboard.tsx        # Main status overview + IRC chat
 │   │   ├── Onboarding.tsx       # First-run wizard
 │   │   ├── Files.tsx            # Upload/download/restore files
 │   │   ├── Sync.tsx             # Watched folder management
@@ -252,18 +275,23 @@ archivist-desktop/
 │   │   ├── MediaPlayer.tsx      # Built-in video player with playlist
 │   │   ├── Torrents.tsx         # Torrent management UI
 │   │   ├── WebArchive.tsx       # Website archiver and viewer
+│   │   ├── Chat.tsx             # P2P encrypted chat (not yet routed)
 │   │   ├── Marketplace.tsx      # Storage marketplace browser
 │   │   ├── Deals.tsx            # Purchases and provider slots
 │   │   ├── Wallet.tsx           # Ethereum wallet UI
 │   │   ├── Logs.tsx             # Node logs viewer
 │   │   └── Settings.tsx         # App configuration
 │   ├── lib/                      # Utilities and types
-│   │   ├── cidValidation.ts     # CID format validation
+│   │   ├── api.ts               # Node API type definitions
 │   │   ├── archiveTypes.ts      # Web archive type definitions
+│   │   ├── chatTypes.ts         # Chat protocol type definitions
+│   │   ├── cidValidation.ts     # CID format validation
 │   │   ├── contracts.ts         # Marketplace contract ABIs
+│   │   ├── features.ts          # Feature flag constants
 │   │   ├── sanitizeFilename.ts  # Filename sanitization
 │   │   └── tauri.ts             # Tauri invoke helpers
 │   ├── styles/                   # CSS files (terminal aesthetic)
+│   ├── test/                     # Frontend tests (Vitest)
 │   ├── App.tsx                   # Router + layout
 │   └── main.tsx                  # Entry point
 │
@@ -274,6 +302,13 @@ archivist-desktop/
 │   │   ├── error.rs             # ArchivistError enum
 │   │   ├── state.rs             # AppState (service container)
 │   │   ├── node_api.rs          # HTTP client for sidecar
+│   │   ├── path_utils.rs        # Cross-platform path utilities
+│   │   ├── crypto/              # End-to-end encryption
+│   │   │   ├── identity.rs      # Chat identity management
+│   │   │   ├── key_store.rs     # Cryptographic key storage
+│   │   │   ├── sessions.rs      # Double-ratchet sessions
+│   │   │   ├── group_sessions.rs # Group chat encryption
+│   │   │   └── safety_numbers.rs # Safety number generation
 │   │   ├── commands/            # Tauri command handlers
 │   │   │   ├── node.rs          # start/stop/restart/status/logs
 │   │   │   ├── files.rs         # upload/download/list/delete
@@ -285,7 +320,9 @@ archivist-desktop/
 │   │   │   ├── archive.rs       # web archive commands
 │   │   │   ├── torrent.rs       # torrent management
 │   │   │   ├── marketplace.rs   # marketplace commands
-│   │   │   └── wallet.rs        # wallet commands
+│   │   │   ├── wallet.rs        # wallet commands
+│   │   │   ├── chat.rs          # P2P chat commands
+│   │   │   └── irc.rs           # IRC connection commands
 │   │   └── services/            # Business logic
 │   │       ├── node.rs          # Sidecar process management
 │   │       ├── sync.rs          # File watching (notify crate)
@@ -297,13 +334,26 @@ archivist-desktop/
 │   │       ├── media_streaming.rs # HTTP media streaming server
 │   │       ├── web_archive.rs     # Website crawler and archiver
 │   │       ├── archive_viewer.rs  # Archive content viewer
+│   │       ├── discourse_scraper.rs    # Discourse forum scraper
+│   │       ├── discourse_site_builder.rs # Static site generator for forums
 │   │       ├── torrent.rs         # Torrent engine
 │   │       ├── marketplace.rs     # Storage marketplace logic
-│   │       └── wallet.rs          # Ethereum wallet management
+│   │       ├── wallet.rs          # Ethereum wallet management
+│   │       ├── chat_service.rs    # Chat message + conversation logic
+│   │       ├── chat_server.rs     # WebSocket/TLS chat server
+│   │       ├── chat_message_store.rs  # Chat message persistence
+│   │       ├── chat_delivery_queue.rs # Message delivery retry
+│   │       ├── chat_tls.rs        # TLS certificate management
+│   │       ├── chat_tofu.rs       # Trust-On-First-Use verification
+│   │       └── chat_types.rs      # Chat protocol types
 │   ├── resources/               # Bundled assets (video files)
 │   ├── sidecars/                # archivist-node binaries (gitignored)
 │   ├── Cargo.toml               # Rust dependencies
 │   └── tauri.conf.json          # Tauri configuration
+│
+├── e2e/                          # End-to-end tests (WebdriverIO)
+│   ├── tests/                   # E2E test specs
+│   └── helpers.ts               # Test utilities
 │
 ├── public/                       # Static assets
 │   └── logos/                   # Branding assets
@@ -313,7 +363,7 @@ archivist-desktop/
 │
 ├── .github/workflows/
 │   ├── ci.yml                   # Tests, lint, build checks
-│   └── release.yml              # Multi-platform release builds
+│   └── release.yml              # Multi-platform release (builds archivist-node from source)
 │
 └── package.json                 # npm scripts + dependencies
 ```
@@ -397,243 +447,7 @@ netsh advfirewall firewall add rule name="Archivist Manifest Server" dir=in acti
 netsh advfirewall firewall add rule name="Archivist Backup Trigger" dir=in action=allow protocol=tcp localport=8086
 ```
 
-If you change the ports in Settings → Advanced, update your firewall rules accordingly.
-
-## Backup Server Flow
-
-The backup server daemon enables automatic continuous backup from source peers to a designated backup server.
-
-### Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         MACHINE A (Source Peer)                         │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌──────────────────┐                                                  │
-│  │  Watch Folder    │  1. User adds files                              │
-│  │  ~/Documents/    │────────────────┐                                 │
-│  └──────────────────┘                │                                 │
-│           │                           ▼                                 │
-│           │ 2. File watcher      ┌────────────────┐                    │
-│           │    detects changes   │  Sync Service  │                    │
-│           └─────────────────────►│  (Desktop App) │                    │
-│                                  └────────┬───────┘                    │
-│                                           │ 3. Upload files             │
-│                                           │    (POST /data)             │
-│                                           ▼                             │
-│                                  ┌────────────────┐                    │
-│                                  │ archivist-node │                    │
-│                                  │  (Port 8080)   │                    │
-│                                  └────────┬───────┘                    │
-│                                           │                             │
-│                                           │ 4. Store files as CIDs      │
-│                                           │    file1.txt → zdj7W...    │
-│                                           │    file2.pdf → zDvZR...    │
-│                                           │                             │
-│  ┌──────────────────────────────┐        │                             │
-│  │ After 10 file changes:       │◄───────┘ 5. Threshold reached        │
-│  │                              │                                       │
-│  │ Generate manifest file:      │                                       │
-│  │ .archivist-manifest-{id}.json│                                       │
-│  │                              │                                       │
-│  │ {                            │                                       │
-│  │   "source_peer_id": "16Uiu..│                                       │
-│  │   "sequence_number": 1,      │                                       │
-│  │   "files": [                 │                                       │
-│  │     {"path": "file1.txt",    │                                       │
-│  │      "cid": "zdj7W..."},     │                                       │
-│  │     {"path": "file2.pdf",    │                                       │
-│  │      "cid": "zDvZR..."}      │                                       │
-│  │   ]                          │                                       │
-│  │ }                            │                                       │
-│  └──────────────┬───────────────┘                                       │
-│                 │                                                       │
-│                 │ 6. Upload manifest                                    │
-│                 │    (POST /data)                                       │
-│                 ▼                                                       │
-│        ┌────────────────┐                                              │
-│        │ archivist-node │                                              │
-│        │  Manifest CID: │                                              │
-│        │  zDvZRwzm...   │                                              │
-│        └────────┬───────┘                                              │
-│                 │                                                       │
-│                 │ 7. Create storage request                            │
-│                 │    for backup peer                                   │
-│                 │                                                       │
-└─────────────────┼───────────────────────────────────────────────────────┘
-                  │
-                  │ 8. P2P Network
-                  │    (libp2p encrypted)
-                  │
-┌─────────────────▼───────────────────────────────────────────────────────┐
-│                        MACHINE B (Backup Server)                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌────────────────────────────────────┐                                │
-│  │      Backup Daemon (Background)    │                                │
-│  │   ┌────────────────────────────┐   │                                │
-│  │   │ Every 30 seconds:          │   │  9. Poll for manifests         │
-│  │   │ GET /data                  │───┼─────────────┐                  │
-│  │   │ Filter: *.manifest*.json   │   │             │                  │
-│  │   └────────────────────────────┘   │             │                  │
-│  └────────────────┬───────────────────┘             │                  │
-│                   │                                  ▼                  │
-│                   │ 10. Manifest     ┌───────────────────────┐         │
-│                   │     discovered   │   archivist-node      │         │
-│                   │                  │   (Port 8080)         │         │
-│                   │                  │                       │         │
-│                   │                  │ Files stored:         │         │
-│                   │                  │ • manifest.json       │         │
-│                   │                  │ • file1.txt (zdj7W)   │         │
-│                   │                  │ • file2.pdf (zDvZR)   │         │
-│                   │                  └───────────────────────┘         │
-│                   │                                                     │
-│                   │ 11. Parse manifest                                 │
-│                   │     Extract CID list                               │
-│                   │                                                     │
-│                   ▼                                                     │
-│  ┌────────────────────────────────┐                                    │
-│  │  Download missing files        │  12. For each CID:                 │
-│  │  (3 concurrent downloads)      │      POST /data/{cid}/network      │
-│  │                                │                                    │
-│  │  zdj7W... ▓▓▓▓▓▓▓▓░░ 80%      │      (Download from network        │
-│  │  zDvZR... ▓▓▓▓▓▓▓▓▓▓ 100%     │       via P2P from Machine A)      │
-│  │  zDpuA... ▓░░░░░░░░░ 10%      │                                    │
-│  └────────────────┬───────────────┘                                    │
-│                   │                                                     │
-│                   │ 13. Update state                                   │
-│                   ▼                                                     │
-│  ┌────────────────────────────────┐                                    │
-│  │  backup-daemon-state.json      │                                    │
-│  │                                │                                    │
-│  │  {                             │                                    │
-│  │    "processed_manifests": {    │                                    │
-│  │      "zDvZRwzm...": {          │                                    │
-│  │        "source_peer_id": "...", │                                    │
-│  │        "sequence_number": 1,   │                                    │
-│  │        "file_count": 15,       │                                    │
-│  │        "total_size_bytes": ... │                                    │
-│  │      }                          │                                    │
-│  │    },                           │                                    │
-│  │    "stats": {                   │                                    │
-│  │      "total_manifests": 1,     │                                    │
-│  │      "total_files": 15,        │                                    │
-│  │      "total_bytes": ...        │                                    │
-│  │    }                            │                                    │
-│  │  }                             │                                    │
-│  └────────────────────────────────┘                                    │
-│                                                                         │
-│  ┌────────────────────────────────┐                                    │
-│  │  Backup Server Dashboard       │  14. User views status             │
-│  │  (http://localhost:1420)       │                                    │
-│  │                                │                                    │
-│  │  Manifests Processed: 1        │                                    │
-│  │  Files Downloaded: 15          │                                    │
-│  │  Total Size: 2.4 MB            │                                    │
-│  │                                │                                    │
-│  │  Processed Manifests           │                                    │
-│  │  Source: 16Uiu2HAm... (Seq #1) │                                    │
-│  │  Files: 15 | Size: 2.4 MB      │                                    │
-│  └────────────────────────────────┘                                    │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Step-by-Step Process
-
-**Machine A (Source Peer)**:
-
-1. User adds files to watched folder
-2. File watcher detects changes (create/modify/delete)
-3. Sync service uploads files to local archivist-node via POST `/data`
-4. Node stores files and returns CIDs (content identifiers)
-5. After 10 file changes (configurable threshold), manifest is generated
-6. Manifest file created: `.archivist-manifest-{peer_id}.json` containing:
-   - Source peer ID
-   - Sequence number (increments with each update)
-   - List of all files with their CIDs
-   - Deleted files (tombstones for cleanup)
-7. Manifest uploaded to local node, gets its own CID
-8. Storage request created for backup peer (if configured)
-
-**P2P Network**:
-
-- Manifest propagates through libp2p network
-- Peers exchange data using encrypted connections
-- Content-addressed storage ensures data integrity
-
-**Machine B (Backup Server)**:
-
-9. Backup daemon polls `/data` endpoint every 30 seconds
-10. Discovers new manifest files (filter: `*.manifest*.json`)
-11. Downloads and parses manifest to extract CID list
-12. For each CID in manifest:
-    - Check if already stored locally
-    - If missing: POST `/data/{cid}/network` to download from network
-    - Downloads happen concurrently (3 at a time by default)
-13. Updates daemon state file with:
-    - Processed manifests
-    - Statistics (files downloaded, bytes, etc.)
-    - Failed downloads (for retry)
-14. Dashboard displays real-time backup status
-
-### Source Peer Configuration
-
-```toml
-# In config.toml on Machine A
-[sync]
-backup_enabled = true
-backup_peer_address = "spr:CiUIAhIhAml6..."  # Machine B's SPR
-backup_manifest_enabled = true
-backup_auto_notify = true
-manifest_update_threshold = 10  # Generate manifest after N file changes
-```
-
-### Backup Server Configuration
-
-```toml
-# In config.toml on Machine B
-[backup_server]
-enabled = true
-poll_interval_secs = 30          # Check for new manifests every 30s
-max_concurrent_downloads = 3     # Download 3 files at once
-max_retries = 3                  # Retry failed downloads 3 times
-auto_delete_tombstones = true    # Process file deletions
-```
-
-### Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **Event-Driven** | Manifests generated automatically after threshold reached |
-| **Continuous Sync** | New files trigger manifest updates without manual intervention |
-| **Deletion Tracking** | Deleted files tracked in manifest for proper cleanup |
-| **Sequence Numbers** | Detect gaps and ensure proper ordering |
-| **Retry Mechanism** | Failed downloads automatically retried with backoff |
-| **Concurrent Downloads** | Multiple files downloaded in parallel for speed |
-| **State Persistence** | Daemon state saved to disk, survives restarts |
-| **Real-Time Dashboard** | Monitor backup progress with auto-refreshing UI |
-| **n:1 Fan-In** | Multiple source peers can backup to single server |
-| **Content Deduplication** | Same file content = same CID = stored once |
-
-### Network Requirements
-
-For cross-network backup (Machine A → Internet → Machine B):
-
-1. **Machine A (Source)** port forwarding:
-   - Forward external port 8070 (TCP) → Machine A's local IP:8070 (P2P)
-   - Forward external port 8085 (TCP) → Machine A's local IP:8085 (Manifest server)
-
-2. **Machine B (Backup Server)** port forwarding:
-   - Forward external port 8070 (TCP) → Machine B's local IP:8070 (P2P)
-   - Forward external port 8086 (TCP) → Machine B's local IP:8086 (Backup trigger, optional)
-
-3. **Firewall rules**:
-   - **Machine A**: Allow TCP 8070, 8085 and UDP 8090
-   - **Machine B**: Allow TCP 8070, 8086 and UDP 8090
-
-4. **Connection tip**: If NAT traversal fails in one direction, try connecting from the other machine first. The machine with more permissive NAT/firewall should initiate the P2P connection.
+If you change the ports in Settings, update your firewall rules accordingly.
 
 ## Troubleshooting
 
@@ -641,10 +455,11 @@ For cross-network backup (Machine A → Internet → Machine B):
 
 | Issue | Solution |
 |-------|----------|
-| Port 8080 in use | Change API port in Settings → Advanced |
+| Port 8080 in use | Change API port in Settings |
 | Sidecar not found | Run `pnpm download-sidecar` |
 | 0 addresses found | Check firewall allows ports 8090 (UDP) and 8070 (TCP) |
 | Peer connects then disconnects | Check NAT timeout, try reconnecting with fresh SPR |
+| "Check for Updates" shows error | Expected for local builds — only works after a published GitHub release |
 
 ### Logs
 

@@ -361,7 +361,7 @@ impl BackupDaemon {
         log::info!("Starting backup daemon trigger server on port {}", port);
 
         // Run server (this blocks, so it should be spawned)
-        warp::serve(routes).run(([0, 0, 0, 0], port)).await;
+        warp::serve(routes).run(([127, 0, 0, 1], port)).await;
     }
 
     /// Discover new manifests by polling source peers

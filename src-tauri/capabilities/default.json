@@ -19,9 +19,12 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        "$HOME/**",
         "$DOWNLOAD/**",
         "$DOCUMENT/**",
+        "$DESKTOP/**",
+        "$AUDIO/**",
+        "$VIDEO/**",
+        "$PICTURE/**",
         "$DATA/**",
         "$LOCALDATA/**",
         "$APPDATA/**",

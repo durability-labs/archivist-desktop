@@ -95,9 +95,11 @@ impl MediaStreamingServer {
 
         let media_download = self.media_download.clone();
 
-        // CORS for mobile browser access
+        // CORS restricted to localhost only
         let cors = warp::cors()
-            .allow_any_origin()
+            .allow_origin("http://localhost:1420")
+            .allow_origin("https://localhost")
+            .allow_origin("tauri://localhost")
             .allow_methods(vec!["GET", "HEAD", "OPTIONS"])
             .allow_headers(vec!["Range", "Content-Type"]);
 
@@ -142,7 +144,7 @@ impl MediaStreamingServer {
         self.running = true;
 
         let (_, server) =
-            warp::serve(routes).bind_with_graceful_shutdown(([0, 0, 0, 0], port), async {
+            warp::serve(routes).bind_with_graceful_shutdown(([127, 0, 0, 1], port), async {
                 rx.await.ok();
             });
 
